@@ -3,7 +3,7 @@
         <?= __('Structure'); ?>
         <?= PMA\libraries\Util::showMySQLDocu('CREATE_TABLE'); ?>
     </caption>
-    <tr>
+    <thead><tr>
         <th>
             <?= __('Name'); ?>
         </th>
@@ -120,7 +120,7 @@
                 ); ?>
             </th>
         <?php endif; ?>
-    </tr>
+    </tr></thead>
     <?php foreach($content_cells as $content_row): ?>
         <tr>
             <?= PMA\libraries\Template::get('columns_definitions/column_attributes')

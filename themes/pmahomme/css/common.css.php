@@ -3553,6 +3553,10 @@ table.table_results .multi_checkbox.checkall {
     margin: 0;
 }
 
+table:not(.table_results) th {
+    border-right: 0;
+}
+
 th.right, td.right {
     padding-right: .3em;
 }
@@ -3577,4 +3581,13 @@ fieldset, .preview_sql {
 
 fieldset.tblFooters {
     padding: .3em;
+}
+
+#table_name_col_no_outer {
+    margin-top: 15px;
+}
+
+#table_name_col_no {
+    position: inherit;
+    top: 0;
 }

@@ -84,25 +84,25 @@ use PMA\libraries\URL;
     <?php endif; ?>
     <?php if ($action == 'tbl_create.php'): ?>
         <table>
-            <tr class="vtop">
+            <thead><tr class="vtop">
                 <th>
                     <?= __('Table comments:'); ?>
                 </th>
-                <td width="25">&nbsp;</td>
+                <th width="25">&nbsp;</th>
                 <th>
                     <?= __('Collation:'); ?>
                 </th>
-                <td width="25">&nbsp;</td>
+                <th width="25">&nbsp;</th>
                 <th>
                     <?= __('Storage Engine:'); ?>
                     <?= PMA\libraries\Util::showMySQLDocu('Storage_engines'); ?>
                 </th>
-                <td width="25">&nbsp;</td>
+                <th width="25">&nbsp;</th>
                 <th>
                     <?= __('Connection:'); ?>
                     <?= PMA\libraries\Util::showMySQLDocu('federated-create-connection'); ?>
                 </th>
-            </tr>
+            </tr></thead>
             <tr>
                 <td>
                     <input type="text"
@@ -140,21 +140,23 @@ use PMA\libraries\URL;
                            required="required" />
                 </td>
             </tr>
+        </table>
             <?php if (Partition::havePartitioning()): ?>
-                <tr class="vtop">
+            <table>
+                <thead><tr class="vtop">
                     <th colspan="5">
                         <?= __('PARTITION definition:'); ?>
                         &nbsp;
                         <?= PMA\libraries\Util::showMySQLDocu('Partitioning'); ?>
                     </th>
-                </tr>
+                </tr></thead>
                 <tr>
                     <td colspan="5">
                         <?php include 'libraries/tbl_partition_definition.inc.php'; ?>
                     </td>
                 </tr>
+            </table>
             <?php endif; ?>
-        </table>
         <br />
     <?php endif; ?>
     <fieldset class="tblFooters">

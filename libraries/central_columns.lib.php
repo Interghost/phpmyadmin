@@ -725,11 +725,11 @@ function PMA_getCentralColumnsEditTableHeader($header_cells)
     $html = '<table id="table_columns" class="noclick"'
         . ' style="min-width: 100%;">';
     $html .= '<caption class="tblHeaders">' . __('Structure');
-    $html .= '<tr>';
+    $html .= '<thead><tr>';
     foreach ($header_cells as $header_val) {
         $html .= '<th>' . $header_val . '</th>';
     }
-    $html .= '</tr>';
+    $html .= '</tr></thead>';
     return $html;
 }
 
