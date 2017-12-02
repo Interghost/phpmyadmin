@@ -693,7 +693,7 @@ class Index
         $r .= '<tbody>';
 
         foreach ($indexes as $index) {
-            $row_span = ' rowspan="' . $index->getColumnCount() . '" ';
+            $row_span = '';
 
             $r .= '<tr class="noclick" >';
 
@@ -757,32 +757,25 @@ class Index
             $r .= '<td ' . $row_span . '>' . $index->isUnique(true) . '</td>';
             $r .= '<td ' . $row_span . '>' . $index->isPacked() . '</td>';
 
+            $column_name = $column_cardinality = $column_collation = $column_null = [];
             foreach ($index->getColumns() as $column) {
-                if ($column->getSeqInIndex() > 1) {
-                    $r .= '<tr class="noclick" >';
-                }
-                $r .= '<td>' . htmlspecialchars($column->getName());
+                $tmp = htmlspecialchars($column->getName());
                 if ($column->getSubPart()) {
-                    $r .= ' (' . htmlspecialchars($column->getSubPart()) . ')';
+                    $tmp .= ' (' . htmlspecialchars($column->getSubPart()) . ')';
                 }
-                $r .= '</td>';
-                $r .= '<td>'
-                    . htmlspecialchars($column->getCardinality())
-                    . '</td>';
-                $r .= '<td>'
-                    . htmlspecialchars($column->getCollation())
-                    . '</td>';
-                $r .= '<td>'
-                    . htmlspecialchars($column->getNull(true))
-                    . '</td>';
+                $column_name[] = $tmp;
+                $column_cardinality[] = $column->getCardinality();
+                $column_collation[] = $column->getCollation();
+                $column_null[] = $column->getNull(true);
+            }
 
-                if ($column->getSeqInIndex() == 1
-                ) {
-                    $r .= '<td ' . $row_span . '>'
-                        . htmlspecialchars($index->getComments()) . '</td>';
-                }
-                $r .= '</tr>';
-            } // end foreach $index['Sequences']
+            $r .= '<td>' . implode('<br>', $column_name) . '</td>';
+            $r .= '<td>' . implode('<br>', $column_cardinality) . '</td>';
+            $r .= '<td>' . implode('<br>', $column_collation) . '</td>';
+            $r .= '<td>' . implode('<br>', $column_null) . '</td>';
+
+            $r .= '<td ' . $row_span . '>' . htmlspecialchars($index->getComments()) . '</td>';
+            $r .= '</tr>';
 
         } // end while
         $r .= '</tbody>';

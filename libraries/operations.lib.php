@@ -920,7 +920,7 @@ function PMA_getHtmlForRenameTable()
         . 'value="' . htmlspecialchars($GLOBALS['table'])
         . '" required="required" />'
         . '</td></tr>'
-        . '<tr><td></td><td>';
+        . '<tr><td colspan="2">';
 
     if ($GLOBALS['table_priv'] && $GLOBALS['col_priv']
         && $GLOBALS['is_reload_priv']
@@ -1050,7 +1050,7 @@ function PMA_getTableOptionFieldset($pma_table, $comment, $tbl_collation,
         . '</tr>';
 
     // Change all Column collations
-    $html_output .= '<tr><td></td><td>'
+    $html_output .= '<tr><td colspan="2">'
         . '<input type="checkbox" name="change_all_collations" value="1" '
         . 'id="checkbox_change_all_collations" />'
         . '<label for="checkbox_change_all_collations">'

@@ -3540,8 +3540,13 @@ table.table_results td {
     padding: .3em;
 }
 
-#tableOptionsForm table tbody:first-of-type tr {
-    background: none;
+table.table_results .multi_checkbox.checkall {
+    margin-top: 3px;
+    margin-bottom: 2px;
+}
+
+#tableOptionsForm tr, .rte_table tr, .ui-datepicker-calendar tr, .toggleButton tr {
+    background: none !important;
 }
 
 .sqlqueryresults .navigation {
@@ -3550,4 +3555,18 @@ table.table_results td {
 
 th.right, td.right {
     padding-right: .3em;
+}
+
+#queryboxfooter .formelement, #fieldset_display_order .formelement {
+    line-height: 40px;
+    vertical-align: middle;
+}
+
+.ui_tpicker_time_input {
+    background: none;
+    border: 0;
+}
+
+.ui-timepicker-div dl dd {
+    margin-left: 105px;
 }

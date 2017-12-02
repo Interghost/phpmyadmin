@@ -7,7 +7,7 @@
 
 
 jQuery.migrateVersion = "3.0.0";
-
+jQuery.migrateMute = true;
 
 ( function() {
 
