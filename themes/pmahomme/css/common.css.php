@@ -3532,3 +3532,22 @@ body .ui-dialog .ui-dialog-buttonpane .ui-dialog-buttonset {
     float: <?php echo $right; ?>;
 }
 /* end of styles for jQuery-ui to support rtl languages */
+
+table.table_results caption,
+table.table_results th,
+table.table_results td {
+    vertical-align: top;
+    padding: .3em;
+}
+
+#tableOptionsForm table tbody:first-of-type tr {
+    background: none;
+}
+
+.sqlqueryresults .navigation {
+    margin: 0;
+}
+
+th.right, td.right {
+    padding-right: .3em;
+}

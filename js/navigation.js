@@ -1216,7 +1216,7 @@ var ResizeHandler = function () {
      */
     this.mouseup = function (event) {
         $('body').css('cursor', '');
-        $.cookie('pma_navi_width', event.data.resize_handler.getPos(event));
+		$.cookie('pma_navi_width', event.data.resize_handler.getPos(event), {expires: 365});
         $('#topmenu').menuResizer('resize');
         $(document)
             .unbind('mousemove')

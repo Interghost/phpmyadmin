@@ -64,7 +64,7 @@ $rownum = 0; ?>
                 }
                 if (in_array($field_name, $columns_with_index)) {
                     $displayed_field_name .= Util::getImage(
-                        'b_key.png', __('Index')
+                        'b_key.png', __('Index'), ['class' => 'icon']
                     );
                 }
             ?>
@@ -150,6 +150,11 @@ $rownum = 0; ?>
     <?= PMA_getHtmlForDisplayIndexes(); ?>
 <?php endif; ?>
 
+<!--Displays Space usage and row statistics-->
+<?php if ($GLOBALS['cfg']['ShowStats']): ?>
+	<?= $tablestats;  ?>
+<?php endif; ?>
+
 <!--Display partition details-->
 <?php if (Partition::havePartitioning()):
     $partition_names = Partition::getPartitionNames($db, $table);
@@ -220,8 +225,4 @@ $rownum = 0; ?>
     </div>
 <?php endif; ?>
 
-<!--Displays Space usage and row statistics-->
-<?php if ($GLOBALS['cfg']['ShowStats']): ?>
-    <?= $tablestats;  ?>
-<?php endif; ?>
 <div class="clearfloat"></div>

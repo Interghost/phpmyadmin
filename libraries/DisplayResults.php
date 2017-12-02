@@ -836,7 +836,7 @@ class DisplayResults
         $table_navigation_html
             .= '<table class="navigation nospacing nopadding print_ignore">'
             . '<tr>'
-            . '<td class="navigation_separator"></td>';
+            . '<td>' . $sort_by_key_html . '</td>';
 
         // Move to the beginning or to the previous page
         if ($_SESSION['tmpval']['pos']
@@ -958,8 +958,6 @@ class DisplayResults
             . ' placeholder="' . __('Search this table') . '"'
             . ' data-for="' . $this->__get('unique_id') . '" />'
             . '</td>';
-
-        $table_navigation_html .= '<td>' . $sort_by_key_html . '</td>';
 
         $table_navigation_html .= '<td class="navigation_separator"></td>'
             . '</tr>'
@@ -1714,7 +1712,6 @@ class DisplayResults
         );
 
         $options_html .= URL::getHiddenInputs($url_params)
-            . '<br />'
             . Util::getDivForSliderEffect(
                 '', __('Options')
             )
@@ -5326,9 +5323,9 @@ class DisplayResults
                 && !preg_match('/[\x00-\x08\x0B\x0C\x0E-\x1F\x80-\x9F]/u', $content)
             ) {
                 // show as text if it's valid utf-8
-                $result = htmlspecialchars($content);
+				$result = '<pre>' . htmlspecialchars($content) . '</pre>';
             } else {
-                $result = '0x' . bin2hex($content);
+                $result = '-';
             }
             list(
                 $is_truncated,

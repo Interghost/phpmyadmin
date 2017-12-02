@@ -70,7 +70,7 @@ function PMA_RTE_getList($type, $items)
     $retval .= "      " . PMA_RTE_getWord('nothing') . "\n";
     $retval .= "    </div>\n";
     $retval .= "    <table class='data$class2'>\n";
-    $retval .= "        <!-- TABLE HEADERS -->\n";
+    $retval .= "        <!-- TABLE HEADERS --><thead>\n";
     $retval .= "        <tr>\n";
     // th cells with a colspan need corresponding td cells, according to W3C
     switch ($type) {
@@ -116,7 +116,7 @@ function PMA_RTE_getList($type, $items)
     default:
         break;
     }
-    $retval .= "        </tr>\n";
+    $retval .= "        </tr></thead>\n";
     $retval .= "        <!-- TABLE DATA -->\n";
     $count = 0;
     $response = Response::getInstance();

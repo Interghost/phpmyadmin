@@ -5,18 +5,18 @@
         <fieldset>
             <legend><?= __('Foreign key constraints'); ?></legend>
             <table id="foreign_keys" class="relationalTable">
-                <tr>
-                    <th><?= __('Actions'); ?></th>
-                    <th><?= __('Constraint properties'); ?></th>
+                <thead><tr>
+                    <th rowspan="2"><?= __('Actions'); ?></th>
+                    <th rowspan="2"><?= __('Constraint properties'); ?></th>
                     <?php if (strtoupper($tbl_storage_engine) == 'INNODB'): ?>
-                        <th><?= __('Column') , PMA\libraries\Util::showHint(__(
+                        <th rowspan="2"><?= __('Column') , PMA\libraries\Util::showHint(__(
                                 'Creating a foreign key over a non-indexed column would automatically create'
                                 . ' an index on it. Alternatively, you can define an index below, before creating'
                                 . ' the foreign key.'
                             )) ?>
                         </th>
                     <?php else: ?>
-                        <th><?= __('Column') , PMA\libraries\Util::showHint(__(
+                        <th rowspan="2"><?= __('Column') , PMA\libraries\Util::showHint(__(
                                 'Only columns with index will be displayed. You can define an'
                                 . ' index below.'
                             )) ?>
@@ -27,13 +27,10 @@
                     </th>
                 </tr>
                 <tr>
-                    <th></th>
-                    <th></th>
-                    <th></th>
                     <th><?= __('Database'); ?></th>
                     <th><?= __('Table'); ?></th>
                     <th><?= __('Column'); ?></th>
-                </tr>
+                </tr></thead>
                 <?php $i = 0; ?>
                 <?php if (! empty($existrel_foreign)): ?>
                     <?php foreach ($existrel_foreign as $key => $one_key): ?>
