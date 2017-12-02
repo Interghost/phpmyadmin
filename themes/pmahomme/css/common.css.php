@@ -3570,3 +3570,11 @@ th.right, td.right {
 .ui-timepicker-div dl dd {
     margin-left: 105px;
 }
+
+fieldset, .preview_sql {
+    padding: 1em;
+}
+
+fieldset.tblFooters {
+    padding: .3em;
+}
