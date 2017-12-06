@@ -53,7 +53,7 @@
   }
 
   function getTable(name) {
-    return tables[name.toUpperCase()]
+    return tables[name.toUpperCase()] || tables[cleanName(name).toUpperCase()]
   }
 
   function shallowClone(object) {
