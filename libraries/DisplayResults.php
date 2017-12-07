@@ -4385,7 +4385,7 @@ class DisplayResults
             // "Sort by key" drop-down
             list($unsorted_sql_query, $sort_by_key_html)
                 = $this->_getUnsortedSqlAndSortByKeyDropDown(
-                    $analyzed_sql_results, $sort_expression[0]
+                    $analyzed_sql_results, implode(', ', $sort_expression)
                 );
 
         } else {

@@ -2130,7 +2130,7 @@ function PMA_executeQueryAndGetQueryResponse($analyzed_sql_results,
     if (! empty($analyzed_sql_results)
         && PMA_isRememberSortingOrder($analyzed_sql_results)
         && empty($analyzed_sql_results['union'])
-        && ! isset($_REQUEST['sort_by_key'])
+        /*&& ! isset($_REQUEST['sort_by_key'])*/
     ) {
         if (! isset($_SESSION['sql_from_query_box'])) {
             PMA_handleSortOrder($db, $table, $analyzed_sql_results, $sql_query);
