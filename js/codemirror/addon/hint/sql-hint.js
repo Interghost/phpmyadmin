@@ -181,7 +181,7 @@
   function findTableByAlias(alias, editor) {
     var doc = editor.doc;
     var fullQuery = doc.getValue();
-    var aliasUpperCase = alias.toUpperCase();
+    var aliasUpperCase = cleanName(alias.toUpperCase());
     var previousWord = "";
     var table = "";
     var separator = [];
@@ -215,7 +215,7 @@
     for (var i = 0; i < query.length; i++) {
       var lineText = query[i];
       eachWord(lineText, function(word) {
-        var wordUpperCase = word.toUpperCase();
+        var wordUpperCase = cleanName(word.toUpperCase());
         if (wordUpperCase === aliasUpperCase && getTable(previousWord))
           table = previousWord;
         if (wordUpperCase !== CONS.ALIAS_KEYWORD)
