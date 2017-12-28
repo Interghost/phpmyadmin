@@ -3399,7 +3399,7 @@ class DisplayResults
                 $fields_cnt = $this->__get('fields_cnt');
                 foreach ($col_order as $value) {
                     if ($value >= $fields_cnt) {
-                        $this->removeUiProp(Table::PROP_COLUMN_ORDER);
+                        $pmatable->removeUiProp(Table::PROP_COLUMN_ORDER);
                         $fields_cnt = false;
                     }
                 }
