@@ -179,9 +179,10 @@ function PMA_getTransformationDescription($file)
     $include_file = 'libraries/plugins/transformations/' . $file;
     /* @var $class_name PMA\libraries\plugins\TransformationsInterface */
     $class_name = PMA_getTransformationClassName($include_file);
-    // include and instantiate the class
-    include_once $include_file;
-    return $class_name::getInfo();
+    if (class_exists($class_name)) {
+        return $class_name::getInfo();
+    }
+    return '';
 }
 
 /**
@@ -196,9 +197,10 @@ function PMA_getTransformationName($file)
     $include_file = 'libraries/plugins/transformations/' . $file;
     /* @var $class_name PMA\libraries\plugins\TransformationsInterface */
     $class_name = PMA_getTransformationClassName($include_file);
-    // include and instantiate the class
-    include_once $include_file;
-    return $class_name::getName();
+    if (class_exists($class_name)) {
+        return $class_name::getName();
+    }
+    return '';
 }
 
 /**
