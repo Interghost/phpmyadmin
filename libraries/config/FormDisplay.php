@@ -658,7 +658,7 @@ class FormDisplay
                     if (! $successfully_validated) {
                         $this->_errors[$work_path][] = __('Incorrect value!');
                         $result = false;
-                        continue;
+                        continue 2;
                     }
                     break;
                 case 'string':
