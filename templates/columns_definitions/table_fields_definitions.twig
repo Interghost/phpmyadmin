@@ -4,6 +4,7 @@
         {% trans 'Structure' %}
         {{ Util_showMySQLDocu('CREATE_TABLE') }}
     </caption>
+    <thead>
     <tr>
         <th>
             {% trans 'Name' %}
@@ -95,6 +96,7 @@
             </th>
         {% endif %}
     </tr>
+    </thead>
     {% set options = {'': '', 'VIRTUAL': 'VIRTUAL'} %}
     {% if server_type == 'MariaDB' %}
         {% set options = options|merge({'PERSISTENT': 'PERSISTENT'}) %}

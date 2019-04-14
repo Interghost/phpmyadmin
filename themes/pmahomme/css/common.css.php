@@ -3682,3 +3682,81 @@ body .ui-dialog .ui-dialog-buttonpane .ui-dialog-buttonset {
 #name-panel {
     overflow:hidden;
 }
+
+/* My added */
+table.table_results caption,
+table.table_results th,
+table.table_results td {
+    vertical-align: top;
+    padding: .3em;
+}
+
+#tableOptionsForm table tbody:first-of-type tr {
+    background: none;
+}
+
+.sqlqueryresults .navigation {
+    margin: 0;
+}
+
+th.right, td.right {
+    padding-right: .3em;
+}
+
+#queryboxfooter .formelement, #fieldset_display_order .formelement {
+    line-height: 40px;
+    vertical-align: middle;
+}
+
+.ui_tpicker_time_input {
+    background: none;
+    border: 0;
+}
+
+.ui-timepicker-div dl dd {
+    margin-left: 105px;
+}
+
+table.table_results .multi_checkbox.checkall {
+    margin-top: 3px;
+    margin-bottom: 2px;
+}
+
+#tableOptionsForm tr, .rte_table tr, .ui-datepicker-calendar tr, .toggleButton tr {
+    background: none !important;
+}
+
+table:not(.table_results) th {
+    border-right: 0;
+}
+
+#table_name_col_no_outer {
+    margin-top: 15px;
+}
+
+#table_name_col_no {
+    position: inherit;
+    top: 0;
+}
+
+div.tbl_operations_div {
+    display: inline-block;
+    float: left;
+}
+
+div.tbl_operations_div ul {
+    list-style-type: none;
+    padding: 0;
+}
+
+.autocomplete-column-hint {
+    float: none !important;
+}
+
+li.CodeMirror-hint-table-field {
+    color: #05a;
+}
+
+li.CodeMirror-hint-active {
+    color: white;
+}

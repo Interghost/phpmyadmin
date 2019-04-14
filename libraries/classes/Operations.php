@@ -49,7 +49,7 @@ class Operations
      */
     public function getHtmlForDatabaseComment($db)
     {
-        $html_output = '<div>'
+        $html_output = '<div class="tbl_operations_div">'
             . '<form method="post" action="db_operations.php" id="formDatabaseComment">'
             . Url::getHiddenInputs($db)
             . '<fieldset>'
@@ -82,7 +82,7 @@ class Operations
      */
     public function getHtmlForRenameDatabase($db, $db_collation)
     {
-        $html_output = '<div>'
+        $html_output = '<div class="tbl_operations_div">'
             . '<form id="rename_db_form" '
             . 'class="ajax" '
             . 'method="post" action="db_operations.php" '
@@ -161,7 +161,7 @@ class Operations
             'db' => null,
         );
 
-        $html_output = '<div>'
+        $html_output = '<div class="tbl_operations_div">'
             . '<fieldset class="caution">';
         $html_output .= '<legend>';
         if (Util::showIcons('ActionLinksMode')) {
@@ -201,7 +201,7 @@ class Operations
 
         $pma_switch_to_new = isset($_SESSION['pma_switch_to_new']) && $_SESSION['pma_switch_to_new'];
 
-        $html_output = '<div>';
+        $html_output = '<div class="tbl_operations_div">';
         $html_output .= '<form id="copy_db_form" '
             . 'class="ajax" '
             . 'method="post" action="db_operations.php" '
@@ -290,7 +290,7 @@ class Operations
      */
     public function getHtmlForChangeDatabaseCharset($db, $db_collation)
     {
-        $html_output = '<div>'
+        $html_output = '<div class="tbl_operations_div">'
             . '<form id="change_db_charset_form" ';
         $html_output .= 'class="ajax" ';
         $html_output .= 'method="post" action="db_operations.php">';
@@ -834,7 +834,7 @@ class Operations
      */
     public function getHtmlForMoveTable()
     {
-        $html_output = '<div>';
+        $html_output = '<div class="tbl_operations_div">';
         $html_output .= '<form method="post" action="tbl_operations.php"'
             . ' id="moveTableForm" class="ajax"'
             . ' onsubmit="return emptyCheckTheField(this, \'new_name\')">'
@@ -917,7 +917,7 @@ class Operations
         $pack_keys, $auto_increment, $delay_key_write,
         $transactional, $page_checksum, $checksum
     ) {
-        $html_output = '<div>';
+        $html_output = '<div class="tbl_operations_div">';
         $html_output .= '<form method="post" action="tbl_operations.php"';
         $html_output .= ' id="tableOptionsForm" class="ajax">';
         $html_output .= Url::getHiddenInputs(
@@ -1254,7 +1254,7 @@ class Operations
      */
     public function getHtmlForCopytable()
     {
-        $html_output = '<div>';
+        $html_output = '<div class="tbl_operations_div">';
         $html_output .= '<form method="post" action="tbl_operations.php" '
             . 'name="copyTable" '
             . 'id="copyTable" '
@@ -1357,7 +1357,7 @@ class Operations
      */
     public function getHtmlForTableMaintenance($pma_table, array $url_params)
     {
-        $html_output = '<div>';
+        $html_output = '<div class="tbl_operations_div">';
         $html_output .= '<fieldset>'
             . '<legend>' . __('Table maintenance') . '</legend>';
         $html_output .= '<ul id="tbl_maintenance">';
@@ -1526,7 +1526,7 @@ class Operations
         array $truncate_table_url_params,
         array $dropTableUrlParams
     ) {
-        $html_output = '<div>'
+        $html_output = '<div class="tbl_operations_div">'
             . '<fieldset class="caution">'
             . '<legend>' . __('Delete data or table') . '</legend>';
 

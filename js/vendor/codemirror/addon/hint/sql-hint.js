@@ -1,5 +1,5 @@
 // CodeMirror, copyright (c) by Marijn Haverbeke and others
-// Distributed under an MIT license: http://codemirror.net/LICENSE
+// Distributed under an MIT license: https://codemirror.net/LICENSE
 
 (function(mod) {
   if (typeof exports == "object" && typeof module == "object") // CommonJS
@@ -60,7 +60,7 @@
   }
 
   function getTable(name) {
-    return tables[name.toUpperCase()]
+    return tables[name.toUpperCase()] || tables[cleanName(name).toUpperCase()]
   }
 
   function shallowClone(object) {
@@ -193,7 +193,7 @@
   function findTableByAlias(alias, editor) {
     var doc = editor.doc;
     var fullQuery = doc.getValue();
-    var aliasUpperCase = alias.toUpperCase();
+    var aliasUpperCase = cleanName(alias.toUpperCase());
     var previousWord = "";
     var table = "";
     var separator = [];
@@ -228,7 +228,7 @@
       for (var i = 0; i < query.length; i++) {
         var lineText = query[i];
         eachWord(lineText, function(word) {
-          var wordUpperCase = word.toUpperCase();
+          var wordUpperCase = cleanName(word.toUpperCase());
           if (wordUpperCase === aliasUpperCase && getTable(previousWord))
             table = previousWord;
           if (wordUpperCase !== CONS.ALIAS_KEYWORD)
@@ -275,10 +275,28 @@
     if (search.charAt(0) == "." || search.charAt(0) == identifierQuote) {
       start = nameCompletion(cur, token, result, editor);
     } else {
-      addMatches(result, search, defaultTable, function(w) {return w;});
-      addMatches(result, search, tables, function(w) {return w;});
+      var objectOrClass = function(w, className) {
+        if (typeof w === "object") {
+          w.className = className;
+        } else {
+          w = { text: w, className: className };
+        }
+        return w;
+      };
+      addMatches(result, search, defaultTable, function(w) {
+        return objectOrClass(w, "CodeMirror-hint-table CodeMirror-hint-default-table");
+      });
+      addMatches(
+        result,
+        search,
+        tables, function(w) {
+          return objectOrClass(w, "CodeMirror-hint-table");
+        }
+      );
       if (!disableKeywords)
-        addMatches(result, search, keywords, function(w) {return w.toUpperCase();});
+      addMatches(result, search, keywords, function(w) {
+          return objectOrClass(w.toUpperCase(), "CodeMirror-hint-keyword");
+      });
     }
 
     return {list: result, from: Pos(cur.line, start), to: Pos(cur.line, end)};
