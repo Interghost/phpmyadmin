@@ -11,6 +11,7 @@ services:
   - mysql
 
 php:
+  - "7.3"
   - "7.2"
   - "7.1"
   - "7.0"
@@ -18,6 +19,10 @@ php:
   - "5.5"
   - "hhvm-3.12"
   - "hhvm-3.18"
+  - "hhvm-3.21"
+  - "hhvm-3.24"
+  - "hhvm-3.27"
+  - "nightly"
 
 sudo: required
 
@@ -26,7 +31,6 @@ env:
     - CI_MODE=test
   global:
     - TESTSUITE_USER=root
-    - TESTSUITE_PASSWORD=root
     - TESTSUITE_URL=http://127.0.0.1:8000
 
 install:
@@ -35,6 +39,8 @@ install:
   - if [[ "$TRAVIS_OS_NAME" != "osx" ]]; then case "$TRAVIS_PHP_VERSION" in hhvm*) ;; *) phpenv config-add test/php-noprofile.ini ;; esac ; fi
 
 before_script:
+  - export TESTSUITE_PASSWORD=`openssl rand -base64 30`
+  - export TESTSUITE_BROWSERSTACK_KEY=`echo cHlDcHJTNmZwZjVlaUR2RmV6VkU= | base64 --decode`
   - export PATH=~/.composer/vendor/bin/:$PATH
   - mysql -uroot -e "CREATE DATABASE IF NOT EXISTS test"
   - mysql -uroot < sql/create_tables.sql
@@ -49,7 +55,9 @@ script:
 after_script:
   - if [ -f vendor/bin/codacycoverage ] ; then php vendor/bin/codacycoverage clover || true ; fi
   - if [ -f php.log ] ; then cat php.log ; fi
+  - if [ -f nginx-error.log ] ; then cat nginx-error.log ; fi
   - if [ -f build/logs/phpunit.json ] ; then ./scripts/phpunit-top-tests build/logs/phpunit.json ; fi
+  - if [ -f config.inc.php ] ; then rm -rf config.inc.php; fi
 
 after_success:
   - bash <(curl -s https://codecov.io/bash)
@@ -57,22 +65,40 @@ after_success:
 matrix:
   fast_finish: true
   include:
+    - php: "7.1"
+      env: CI_MODE=selenium
     - php: "7.0"
       env: CI_MODE=release
-    - php: "7.0"
+    - php: "7.1"
       env: CI_MODE=docs
+    - php: "7.1"
+      env: CI_MODE=apidocs
     - os: osx
       language: generic
       env: CI_MODE=test
       before_install:
         - brew update
-        - brew tap homebrew/php
-        - brew install gettext php70 mariadb
+        - brew install openldap libiconv php@7.2 composer mariadb
         - brew link --force gettext
-        - sed -i -e 's/^memory_limit = .*/memory_limit = -1/' /usr/local/etc/php/7.0/php.ini
-        - curl https://getcomposer.org/installer | php
-        - ln -s "`pwd`/composer.phar" /usr/local/bin/composer
+        - sed -i -e 's/^memory_limit = .*/memory_limit = -1/' /usr/local/etc/php/7.2/php.ini
         - mysql.server start
+    - php: "7.1"
+      env: CI_MODE=test DBASE=true
+      install:
+        - pecl channel-update pecl.php.net
+        - pecl install dbase-7.0.0beta1
+        - test/ci-install-test
+    - php: "5.6"
+      env: CI_MODE=test DBASE=true
+      install:
+        - pecl channel-update pecl.php.net
+        - pecl install dbase
+        - test/ci-install-test
+
+  allow_failures:
+    - php: "nightly"
+    - os: osx
+    - env: CI_MODE=test DBASE=true
 
 cache:
   pip: true
@@ -88,3 +114,4 @@ addons:
     packages:
     - git
     - mysql-server-5.6
+    - nginx
