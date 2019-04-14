@@ -68,16 +68,17 @@
     {% if action == 'tbl_create.php' %}
         <div class="responsivetable">
         <table>
+        <thead>
             <tr class="vtop">
                 <th>{% trans 'Table comments:' %}</th>
-                <td width="25">&nbsp;</td>
+                <th width="25">&nbsp;</th>
                 <th>{% trans 'Collation:' %}</th>
-                <td width="25">&nbsp;</td>
+                <th width="25">&nbsp;</th>
                 <th>
                     {% trans 'Storage Engine:' %}
                     {{ Util_showMySQLDocu('Storage_engines') }}
                 </th>
-                <td width="25">&nbsp;</td>
+                <th width="25">&nbsp;</th>
                 <th>
                     {% trans 'Connection:' %}
                     {{ Util_showMySQLDocu('federated-create-connection') }}
@@ -122,13 +123,18 @@
                         required="required" />
                 </td>
             </tr>
+            </thead>
+        </table>
             {% if have_partitioning %}
+        <table>
+            <thead>
                 <tr class="vtop">
                     <th colspan="5">
                         {% trans 'PARTITION definition:' %}
                         {{ Util_showMySQLDocu('Partitioning') }}
                     </th>
                 </tr>
+            </thead>
                 <tr>
                     <td colspan="5">
                         {% include 'columns_definitions/partitions.twig' with {
@@ -136,8 +142,8 @@
                         } only %}
                     </td>
                 </tr>
-            {% endif %}
         </table>
+            {% endif %}
         </div>
     {% endif %}
     <fieldset class="tblFooters">

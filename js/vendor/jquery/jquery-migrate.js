@@ -24,7 +24,7 @@
 
 
 jQuery.migrateVersion = "3.1.0";
-
+jQuery.migrateMute = true;
 /* exported jQueryVersionSince, compareVersions */
 
 // Returns 0 if v1 == v2, -1 if v1 < v2, 1 if v1 > v2
