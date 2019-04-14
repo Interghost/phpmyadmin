@@ -24,6 +24,7 @@
 
 
 jQuery.migrateVersion = "3.1.0";
+jQuery.migrateMute = true;
 
 /* exported jQueryVersionSince, compareVersions */
 

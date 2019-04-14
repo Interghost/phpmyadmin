@@ -1053,7 +1053,7 @@ class Util
                             'import.php' . Url::getCommon($explain_params),
                             __('Skip Explain SQL')
                         ) . ']';
-                    $url = 'https://mariadb.org/explain_analyzer/analyze/'
+                    /*$url = 'https://mariadb.org/explain_analyzer/analyze/'
                         . '?client=phpMyAdmin&raw_explain='
                         . urlencode(self::_generateRowQueryOutput($sql_query));
                     $explain_link .= ' ['
@@ -1062,7 +1062,7 @@ class Util
                             sprintf(__('Analyze Explain at %s'), 'mariadb.org'),
                             array(),
                             '_blank'
-                        ) . '&nbsp;]';
+                        ) . '&nbsp;]';*/
                 }
             } //show explain
 

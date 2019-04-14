@@ -49,7 +49,7 @@
                     'checked': display_binary is not empty,
                     'onclick': false,
                     'html_field_id': 'display_binary_' ~ unique_id
-                } only %}
+                } only %}<br>
                 {% include 'checkbox.twig' with {
                     'html_field_name': 'display_blob',
                     'label': 'Show BLOB contents'|trans,

@@ -1961,12 +1961,7 @@ function codemirrorAutocompleteOnInputRead (instance) {
             };
 
             var columnHintRender = function (elem, self, data) {
-                $('<div class="autocomplete-column-name">')
-                    .text(data.columnName)
-                    .appendTo(elem);
-                $('<div class="autocomplete-column-hint">')
-                    .text(data.columnHint)
-                    .appendTo(elem);
+                $(elem).html(data.columnName +' <span class="autocomplete-column-hint">'+ data.columnHint +'</span>').addClass('CodeMirror-hint-table-field');
             };
 
             $.ajax({
