@@ -7,15 +7,15 @@
             <div class="responsivetable jsresponsive">
             <table id="foreign_keys" class="relationalTable">
                 <thead><tr>
-                    <th>{% trans 'Actions' %}</th>
-                    <th>{% trans 'Constraint properties' %}</th>
+                    <th rowspan="2">{% trans 'Actions' %}</th>
+                    <th rowspan="2">{% trans 'Constraint properties' %}</th>
                     {% if tbl_storage_engine|upper == 'INNODB' %}
-                        <th>
+                        <th rowspan="2">
                             {% trans 'Column' %}
                             {{ Util_showHint('Creating a foreign key over a non-indexed column would automatically create an index on it. Alternatively, you can define an index below, before creating the foreign key.'|trans) }}
                         </th>
                     {% else %}
-                        <th>
+                        <th rowspan="2">
                             {% trans 'Column' %}
                             {{ Util_showHint('Only columns with index will be displayed. You can define an index below.'|trans) }}
                         </th>
@@ -26,9 +26,6 @@
                     </th>
                 </tr>
                 <tr>
-                    <th></th>
-                    <th></th>
-                    <th></th>
                     <th>{% trans 'Database' %}</th>
                     <th>{% trans 'Table' %}</th>
                     <th>{% trans 'Column' %}</th>

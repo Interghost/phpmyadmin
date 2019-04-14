@@ -258,7 +258,7 @@ if (!$is_information_schema) {
         $response->addHTML($operations->getHtmlForDatabaseComment($GLOBALS['db']));
     }
 
-    $response->addHTML('<div>');
+    $response->addHTML('<div class="tbl_operations_div">');
     $response->addHTML(CreateTable::getHtml($db));
     $response->addHTML('</div>');
 
