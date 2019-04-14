@@ -5,8 +5,11 @@
  *
  * @package PhpMyAdmin\Twig
  */
+declare(strict_types=1);
+
 namespace PhpMyAdmin\Twig;
 
+use PhpMyAdmin\Relation;
 use Twig\Extension\AbstractExtension;
 use Twig\TwigFunction;
 
@@ -24,29 +27,45 @@ class RelationExtension extends AbstractExtension
      */
     public function getFunctions()
     {
-        return array(
+        $relation = new Relation($GLOBALS['dbi']);
+        return [
             new TwigFunction(
-                'Relation_foreignDropdown',
-                'PhpMyAdmin\Relation::foreignDropdown',
-                array('is_safe' => array('html'))
+                'foreign_dropdown',
+                [
+                    $relation,
+                    'foreignDropdown',
+                ],
+                ['is_safe' => ['html']]
             ),
             new TwigFunction(
-                'Relation_getDisplayField',
-                'PhpMyAdmin\Relation::getDisplayField',
-                array('is_safe' => array('html'))
+                'get_display_field',
+                [
+                    $relation,
+                    'getDisplayField',
+                ],
+                ['is_safe' => ['html']]
             ),
             new TwigFunction(
-                'Relation_getForeignData',
-                'PhpMyAdmin\Relation::getForeignData'
+                'get_foreign_data',
+                [
+                    $relation,
+                    'getForeignData',
+                ]
             ),
             new TwigFunction(
-                'Relation_getTables',
-                'PhpMyAdmin\Relation::getTables'
+                'get_tables',
+                [
+                    $relation,
+                    'getTables',
+                ]
             ),
             new TwigFunction(
-                'Relation_searchColumnInForeigners',
-                'PhpMyAdmin\Relation::searchColumnInForeigners'
+                'search_column_in_foreigners',
+                [
+                    $relation,
+                    'searchColumnInForeigners',
+                ]
             ),
-        );
+        ];
     }
 }

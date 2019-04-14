@@ -22,7 +22,7 @@ function setDropdownValues ($dropdown, values, selectedValue) {
     // add an empty string to the beginning for empty selection
     values.unshift('');
     $.each(values, function () {
-        optionsAsString += '<option value=\'' + escapeHtml(this) + '\'' + (selectedValue === this ? ' selected=\'selected\'' : '') + '>' + escapeHtml(this) + '</option>';
+        optionsAsString += '<option value=\'' + escapeHtml(this) + '\'' + (selectedValue === escapeHtml(this) ? ' selected=\'selected\'' : '') + '>' + escapeHtml(this) + '</option>';
     });
     $dropdown.append($(optionsAsString));
 }
@@ -71,21 +71,24 @@ function getDropdownValues ($dropdown) {
     }
     var $msgbox = PMA_ajaxShowMessage();
     var $form = $dropdown.parents('form');
-    var url = 'tbl_relation.php?getDropdownValues=true&ajax_request=true' +
-        '&db=' + $form.find('input[name="db"]').val() +
-        '&table=' + $form.find('input[name="table"]').val() +
-        '&foreign=' + (foreign !== '') +
-        '&foreignDb=' + encodeURIComponent(foreignDb) +
+    var argsep = PMA_commonParams.get('arg_separator');
+    var params = 'getDropdownValues=true' + argsep + 'ajax_request=true' +
+        argsep + 'db=' + $form.find('input[name="db"]').val() +
+        argsep + 'table=' + $form.find('input[name="table"]').val() +
+        argsep + 'foreign=' + (foreign !== '') +
+        argsep + 'foreignDb=' + encodeURIComponent(foreignDb) +
         (foreignTable !== null ?
-            '&foreignTable=' + encodeURIComponent(foreignTable) : ''
+            argsep + 'foreignTable=' + encodeURIComponent(foreignTable) : ''
         );
     var $server = $form.find('input[name="server"]');
     if ($server.length > 0) {
-        url += '&server=' + $form.find('input[name="server"]').val();
+        params += argsep + 'server=' + $form.find('input[name="server"]').val();
     }
     $.ajax({
-        url: url,
-        datatype: 'json',
+        type: 'POST',
+        url: 'tbl_relation.php',
+        data: params,
+        dataType: 'json',
         success: function (data) {
             PMA_ajaxRemoveMessage($msgbox);
             if (typeof data !== 'undefined' && data.success) {
@@ -221,10 +224,7 @@ AJAX.registerOnload('tbl_relation.js', function () {
 
         $anchor.PMA_confirm(question, $anchor.attr('href'), function (url) {
             var $msg = PMA_ajaxShowMessage(PMA_messages.strDroppingForeignKey, false);
-            var params = {
-                'is_js_confirmed': 1,
-                'ajax_request': true
-            };
+            var params = getJSConfirmCommonParam(this, $anchor.getPostData());
             $.post(url, params, function (data) {
                 if (data.success === true) {
                     PMA_ajaxRemoveMessage($msg);

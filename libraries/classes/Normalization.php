@@ -1,27 +1,56 @@
 <?php
 /* vim: set expandtab sw=4 ts=4 sts=4: */
 /**
- * set of functions used for normalization
+ * Holds the PhpMyAdmin\Normalization class
  *
  * @package PhpMyAdmin
  */
+declare(strict_types=1);
+
 namespace PhpMyAdmin;
 
-use PhpMyAdmin\Index;
-use PhpMyAdmin\Message;
-use PhpMyAdmin\Relation;
-use PhpMyAdmin\Template;
-use PhpMyAdmin\Transformations;
-use PhpMyAdmin\Url;
-use PhpMyAdmin\Util;
-
 /**
- * PhpMyAdmin\Normalization class
+ * Set of functions used for normalization
  *
  * @package PhpMyAdmin
  */
 class Normalization
 {
+    /**
+     * DatabaseInterface instance
+     *
+     * @var DatabaseInterface
+     */
+    private $dbi;
+
+    /**
+     * @var Relation
+     */
+    private $relation;
+
+    /**
+     * @var Transformations
+     */
+    private $transformations;
+
+    /**
+     * @var Template
+     */
+    public $template;
+
+    /**
+     * Constructor
+     *
+     * @param DatabaseInterface $dbi DatabaseInterface instance
+     */
+    public function __construct(DatabaseInterface $dbi)
+    {
+        $this->dbi = $dbi;
+        $this->relation = new Relation($this->dbi);
+        $this->transformations = new Transformations();
+        $this->template = new Template();
+    }
+
     /**
      * build the html for columns of $colTypeCategory category
      * in form of given $listType in a table
@@ -34,34 +63,39 @@ class Normalization
      *
      * @return string HTML for list of columns in form of given list types
      */
-    public static function getHtmlForColumnsList(
-        $db, $table, $colTypeCategory='all', $listType='dropdown'
+    public function getHtmlForColumnsList(
+        $db,
+        $table,
+        $colTypeCategory = 'all',
+        $listType = 'dropdown'
     ) {
-        $columnTypeList = array();
+        $columnTypeList = [];
         if ($colTypeCategory != 'all') {
-            $types = $GLOBALS['dbi']->types->getColumns();
+            $types = $this->dbi->types->getColumns();
             $columnTypeList = $types[$colTypeCategory];
         }
-        $GLOBALS['dbi']->selectDb($db);
-        $columns = $GLOBALS['dbi']->getColumns(
-            $db, $table, null,
+        $this->dbi->selectDb($db);
+        $columns = $this->dbi->getColumns(
+            $db,
+            $table,
+            null,
             true
         );
         $type = "";
         $selectColHtml = "";
         foreach ($columns as $column => $def) {
             if (isset($def['Type'])) {
-                $extracted_columnspec = Util::extractColumnSpec($def['Type']);
-                $type = $extracted_columnspec['type'];
+                $extractedColumnSpec = Util::extractColumnSpec($def['Type']);
+                $type = $extractedColumnSpec['type'];
             }
             if (empty($columnTypeList)
                 || in_array(mb_strtoupper($type), $columnTypeList)
             ) {
                 if ($listType == 'checkbox') {
                     $selectColHtml .= '<input type="checkbox" value="'
-                        . htmlspecialchars($column) . '"/>'
+                        . htmlspecialchars($column) . '">'
                         . htmlspecialchars($column) . ' [ '
-                        . htmlspecialchars($def['Type']) . ' ]</br>';
+                        . htmlspecialchars($def['Type']) . ' ]<br>';
                 } else {
                     $selectColHtml .= '<option value="' . htmlspecialchars($column) . ''
                     . '">' . htmlspecialchars($column)
@@ -76,78 +110,80 @@ class Normalization
     /**
      * get the html of the form to add the new column to given table
      *
-     * @param integer $num_fields number of columns to add
+     * @param integer $numFields  number of columns to add
      * @param string  $db         current database
      * @param string  $table      current table
      * @param array   $columnMeta array containing default values for the fields
      *
      * @return string HTML
      */
-    public static function getHtmlForCreateNewColumn(
-        $num_fields, $db, $table, array $columnMeta = array()
+    public function getHtmlForCreateNewColumn(
+        $numFields,
+        $db,
+        $table,
+        array $columnMeta = []
     ) {
-        $cfgRelation = Relation::getRelationsParam();
-        $content_cells = array();
-        $available_mime = array();
-        $mime_map = array();
+        $cfgRelation = $this->relation->getRelationsParam();
+        $contentCells = [];
+        $availableMime = [];
+        $mimeMap = [];
         if ($cfgRelation['mimework'] && $GLOBALS['cfg']['BrowseMIME']) {
-            $mime_map = Transformations::getMIME($db, $table);
-            $available_mime = Transformations::getAvailableMIMEtypes();
+            $mimeMap = $this->transformations->getMime($db, $table);
+            $availableMimeTypes = $this->transformations->getAvailableMimeTypes();
+            if (! is_null($availableMimeTypes)) {
+                $availableMime = $availableMimeTypes;
+            }
         }
-        $comments_map = Relation::getComments($db, $table);
-        for ($columnNumber = 0; $columnNumber < $num_fields; $columnNumber++) {
-            $content_cells[$columnNumber] = array(
+        $commentsMap = $this->relation->getComments($db, $table);
+        for ($columnNumber = 0; $columnNumber < $numFields; $columnNumber++) {
+            $contentCells[$columnNumber] = [
                 'column_number' => $columnNumber,
                 'column_meta' => $columnMeta,
                 'type_upper' => '',
                 'length_values_input_size' => 8,
                 'length' => '',
-                'extracted_columnspec' => array(),
+                'extracted_columnspec' => [],
                 'submit_attribute' => null,
-                'comments_map' => $comments_map,
+                'comments_map' => $commentsMap,
                 'fields_meta' => null,
                 'is_backup' => true,
-                'move_columns' => array(),
+                'move_columns' => [],
                 'cfg_relation' => $cfgRelation,
-                'available_mime' => isset($available_mime)?$available_mime:array(),
-                'mime_map' => $mime_map
-            );
+                'available_mime' => $availableMime,
+                'mime_map' => $mimeMap
+            ];
         }
 
-        return Template::get(
-            'columns_definitions/table_fields_definitions'
-        )
-            ->render(
-                array(
-                'is_backup' => true,
-                'fields_meta' => null,
-                'mimework' => $cfgRelation['mimework'],
-                'content_cells' => $content_cells,
-                'change_column' => $_REQUEST['change_column'],
-                'is_virtual_columns_supported' => Util::isVirtualColumnsSupported(),
-                'browse_mime' => $GLOBALS['cfg']['BrowseMIME'],
-                'server_type' => Util::getServerType(),
-                'max_rows' => intval($GLOBALS['cfg']['MaxRows']),
-                'char_editing' => $GLOBALS['cfg']['CharEditing'],
-                'attribute_types' => $GLOBALS['dbi']->types->getAttributes(),
-                'privs_available' => $GLOBALS['col_priv'] && $GLOBALS['is_reload_priv'],
-                'max_length' => $GLOBALS['dbi']->getVersion() >= 50503 ? 1024 : 255,
-                'dbi' => $GLOBALS['dbi'],
-                'disable_is' => $GLOBALS['cfg']['Server']['DisableIS'],
-                )
-            );
+        return $this->template->render('columns_definitions/table_fields_definitions', [
+            'is_backup' => true,
+            'fields_meta' => null,
+            'mimework' => $cfgRelation['mimework'],
+            'content_cells' => $contentCells,
+            'change_column' => $_POST['change_column'],
+            'is_virtual_columns_supported' => Util::isVirtualColumnsSupported(),
+            'browse_mime' => $GLOBALS['cfg']['BrowseMIME'],
+            'server_type' => Util::getServerType(),
+            'max_rows' => intval($GLOBALS['cfg']['MaxRows']),
+            'char_editing' => $GLOBALS['cfg']['CharEditing'],
+            'attribute_types' => $this->dbi->types->getAttributes(),
+            'privs_available' => $GLOBALS['col_priv'] && $GLOBALS['is_reload_priv'],
+            'max_length' => $this->dbi->getVersion() >= 50503 ? 1024 : 255,
+            'dbi' => $this->dbi,
+            'disable_is' => $GLOBALS['cfg']['Server']['DisableIS'],
+        ]);
     }
+
     /**
      * build the html for step 1.1 of normalization
      *
      * @param string $db           current database
      * @param string $table        current table
      * @param string $normalizedTo up to which step normalization will go,
-     * possible values 1nf|2nf|3nf
+     *                             possible values 1nf|2nf|3nf
      *
      * @return string HTML for step 1.1
      */
-    public static function getHtmlFor1NFStep1($db, $table, $normalizedTo)
+    public function getHtmlFor1NFStep1($db, $table, $normalizedTo)
     {
         $step = 1;
         $stepTxt = __('Make all columns atomic');
@@ -161,7 +197,7 @@ class Normalization
                 . ' one column? '
                 . 'For example: address can be split into street, city, country and zip.'
             )
-            . "</br>(<a class='central_columns_dialog' data-maxrows='25' "
+            . "<br>(<a class='central_columns_dialog' data-maxrows='25' "
             . "data-pick=false href='#'> "
             . __(
                 'Show me the central list of columns that are not already in this table'
@@ -176,7 +212,7 @@ class Normalization
             . '<option selected="selected" disabled="disabled">'
             . __('Select one…') . "</option>"
             . "<option value='no_such_col'>" . __('No such column') . "</option>"
-            . self::getHtmlForColumnsList(
+            . $this->getHtmlForColumnsList(
                 $db,
                 $table,
                 _pgettext('string types', 'String')
@@ -184,7 +220,7 @@ class Normalization
             . "</select>"
             . "<span>" . __('split into ')
             . "</span><input id='numField' type='number' value='2'>"
-            . "<input type='submit' id='splitGo' value='" . __('Go') . "'/></div>"
+            . "<input type='submit' id='splitGo' value='" . __('Go') . "'></div>"
             . "<div id='newCols'></div>"
             . "</fieldset><fieldset class='tblFooters'>"
             . "</fieldset>"
@@ -200,7 +236,7 @@ class Normalization
      *
      * @return string HTML contents for step 1.2
      */
-    public static function getHtmlContentsFor1NFStep2($db, $table)
+    public function getHtmlContentsFor1NFStep2($db, $table)
     {
         $step = 2;
         $stepTxt = __('Have a primary key');
@@ -214,13 +250,14 @@ class Normalization
             $hasPrimaryKey = "1";
         } else {
             $headText = __(
-                "There is no primary key; please add one.<br/>"
+                "There is no primary key; please add one.<br>"
                 . "Hint: A primary key is a column "
                 . "(or combination of columns) that uniquely identify all rows."
             );
             $subText = '<a href="#" id="createPrimaryKey">'
                 . Util::getIcon(
-                    'b_index_add', __(
+                    'b_index_add',
+                    __(
                         'Add a primary key on existing column(s)'
                     )
                 )
@@ -228,18 +265,17 @@ class Normalization
             $extra = __(
                 "If it's not possible to make existing "
                 . "column combinations as primary key"
-            ) . "<br/>"
+            ) . "<br>"
                 . '<a href="#" id="addNewPrimary">'
                 . __('+ Add a new primary key column') . '</a>';
         }
-        $res = array(
+        return [
             'legendText' => $legendText,
             'headText' => $headText,
             'subText' => $subText,
             'hasPrimaryKey' => $hasPrimaryKey,
             'extra' => $extra
-        );
-        return $res;
+        ];
     }
 
     /**
@@ -250,7 +286,7 @@ class Normalization
      *
      * @return string HTML contents for step 1.4
      */
-    public static function getHtmlContentsFor1NFStep4($db, $table)
+    public function getHtmlContentsFor1NFStep4($db, $table)
     {
         $step = 4;
         $stepTxt = __('Remove redundant columns');
@@ -265,19 +301,17 @@ class Normalization
             "Check the columns which are redundant and click on remove. "
             . "If no redundant column, click on 'No redundant column'"
         );
-        $extra = self::getHtmlForColumnsList($db, $table, 'all', "checkbox") . "</br>"
-            . '<input type="submit" id="removeRedundant" value="'
-            . __('Remove selected') . '"/>'
-            . '<input type="submit" value="' . __('No redundant column')
-            . '" onclick="goToFinish1NF();"'
-            . '/>';
-        $res = array(
+        $extra = $this->getHtmlForColumnsList($db, $table, 'all', "checkbox") . "<br>"
+            . '<input class="btn btn-secondary" type="submit" id="removeRedundant" value="'
+            . __('Remove selected') . '">'
+            . '<input class="btn btn-secondary" type="submit" value="' . __('No redundant column')
+            . '" onclick="goToFinish1NF();">';
+        return [
             'legendText' => $legendText,
             'headText' => $headText,
             'subText' => $subText,
             'extra' => $extra
-        );
-        return $res;
+        ];
     }
 
     /**
@@ -288,7 +322,7 @@ class Normalization
      *
      * @return string HTML contents for step 1.3
      */
-    public static function getHtmlContentsFor1NFStep3($db, $table)
+    public function getHtmlContentsFor1NFStep3($db, $table)
     {
         $step = 3;
         $stepTxt = __('Move repeating groups');
@@ -305,26 +339,24 @@ class Normalization
             "Check the columns which form a repeating group. "
             . "If no such group, click on 'No repeating group'"
         );
-        $extra = self::getHtmlForColumnsList($db, $table, 'all', "checkbox") . "</br>"
-            . '<input type="submit" id="moveRepeatingGroup" value="'
-            . __('Done') . '"/>'
-            . '<input type="submit" value="' . __('No repeating group')
-            . '" onclick="goToStep4();"'
-            . '/>';
+        $extra = $this->getHtmlForColumnsList($db, $table, 'all', "checkbox") . "<br>"
+            . '<input class="btn btn-secondary" type="submit" id="moveRepeatingGroup" value="'
+            . __('Done') . '">'
+            . '<input class="btn btn-secondary" type="submit" value="' . __('No repeating group')
+            . '" onclick="goToStep4();">';
         $primary = Index::getPrimary($table, $db);
         $primarycols = $primary->getColumns();
-        $pk = array();
+        $pk = [];
         foreach ($primarycols as $col) {
             $pk[] = $col->getName();
         }
-        $res = array(
+        return [
             'legendText' => $legendText,
             'headText' => $headText,
             'subText' => $subText,
             'extra' => $extra,
-            'primary_key' => json_encode($pk)
-        );
-        return $res;
+            'primary_key' => json_encode($pk),
+        ];
     }
 
     /**
@@ -335,12 +367,12 @@ class Normalization
      *
      * @return string HTML contents for 2NF step 2.1
      */
-    public static function getHtmlFor2NFstep1($db, $table)
+    public function getHtmlFor2NFstep1($db, $table)
     {
         $legendText = __('Step 2.') . "1 " . __('Find partial dependencies');
         $primary = Index::getPrimary($table, $db);
         $primarycols = $primary->getColumns();
-        $pk = array();
+        $pk = [];
         $subText = '';
         $selectPkForm = "";
         $extra = "";
@@ -352,9 +384,10 @@ class Normalization
         }
         $key = implode(', ', $pk);
         if (count($primarycols) > 1) {
-            $GLOBALS['dbi']->selectDb($db);
-            $columns = (array) $GLOBALS['dbi']->getColumnNames(
-                $db, $table
+            $this->dbi->selectDb($db);
+            $columns = (array) $this->dbi->getColumnNames(
+                $db,
+                $table
             );
             if (count($pk) == count($columns)) {
                 $headText = sprintf(
@@ -362,8 +395,9 @@ class Normalization
                         'No partial dependencies possible as '
                         . 'no non-primary column exists since primary key ( %1$s ) '
                         . 'is composed of all the columns in the table.'
-                    ), htmlspecialchars($key)
-                ) . '<br/>';
+                    ),
+                    htmlspecialchars($key)
+                ) . '<br>';
                 $extra = '<h3>' . __('Table is already in second normal form.')
                     . '</h3>';
             } else {
@@ -371,12 +405,13 @@ class Normalization
                     __(
                         'The primary key ( %1$s ) consists of more than one column '
                         . 'so we need to find the partial dependencies.'
-                    ), htmlspecialchars($key)
-                ) . '<br/>' . __(
+                    ),
+                    htmlspecialchars($key)
+                ) . '<br>' . __(
                     'Please answer the following question(s) '
                     . 'carefully to obtain a correct normalization.'
                 )
-                    . '<br/><a href="#" id="showPossiblePd">' . __(
+                    . '<br><a href="#" id="showPossiblePd">' . __(
                         '+ Show me the possible partial dependencies '
                         . 'based on data in the table'
                     ) . '</a>';
@@ -388,14 +423,15 @@ class Normalization
                 );
                 $cnt = 0;
                 foreach ($columns as $column) {
-                    if (!in_array($column, $pk)) {
+                    if (! in_array($column, $pk)) {
                         $cnt++;
                         $extra .= "<b>" . sprintf(
-                            __('\'%1$s\' depends on:'), htmlspecialchars($column)
+                            __('\'%1$s\' depends on:'),
+                            htmlspecialchars($column)
                         ) . "</b><br>";
                         $extra .= '<form id="pk_' . $cnt . '" data-colname="'
                             . htmlspecialchars($column) . '" class="smallIndent">'
-                            . $selectPkForm . '</form><br/><br/>';
+                            . $selectPkForm . '</form><br><br>';
                     }
                 }
             }
@@ -404,18 +440,18 @@ class Normalization
                 __(
                     'No partial dependencies possible as the primary key'
                     . ' ( %1$s ) has just one column.'
-                ), htmlspecialchars($key)
-            ) . '<br/>';
+                ),
+                htmlspecialchars($key)
+            ) . '<br>';
             $extra = '<h3>' . __('Table is already in second normal form.') . '</h3>';
         }
-        $res = array(
+        return [
             'legendText' => $legendText,
             'headText' => $headText,
             'subText' => $subText,
             'extra' => $extra,
-            'primary_key' => $key
-        );
-        return $res;
+            'primary_key' => $key,
+        ];
     }
 
     /**
@@ -426,22 +462,23 @@ class Normalization
      *
      * @return string HTML
      */
-    public static function getHtmlForNewTables2NF(array $partialDependencies, $table)
+    public function getHtmlForNewTables2NF(array $partialDependencies, $table)
     {
         $html = '<p><b>' . sprintf(
             __(
                 'In order to put the '
                 . 'original table \'%1$s\' into Second normal form we need '
                 . 'to create the following tables:'
-            ), htmlspecialchars($table)
+            ),
+            htmlspecialchars($table)
         ) . '</b></p>';
         $tableName = $table;
         $i = 1;
-        foreach ($partialDependencies as $key=>$dependents) {
+        foreach ($partialDependencies as $key => $dependents) {
             $html .= '<p><input type="text" name="' . htmlspecialchars($key)
-                . '" value="' . htmlspecialchars($tableName) . '"/>'
+                . '" value="' . htmlspecialchars($tableName) . '">'
                 . '( <u>' . htmlspecialchars($key) . '</u>'
-                .  (count($dependents)>0?', ':'')
+                . (count($dependents) > 0 ? ', ' : '')
                 . htmlspecialchars(implode(', ', $dependents)) . ' )';
             $i++;
             $tableName = 'table' . $i;
@@ -459,30 +496,31 @@ class Normalization
      *
      * @return array
      */
-    public static function createNewTablesFor2NF(array $partialDependencies, $tablesName, $table, $db)
+    public function createNewTablesFor2NF(array $partialDependencies, $tablesName, $table, $db)
     {
         $dropCols = false;
-        $nonPKCols = array();
-        $queries = array();
+        $nonPKCols = [];
+        $queries = [];
         $error = false;
         $headText = '<h3>' . sprintf(
             __('The second step of normalization is complete for table \'%1$s\'.'),
             htmlspecialchars($table)
         ) . '</h3>';
-        if (count((array)$partialDependencies) == 1) {
-            return array(
-                'legendText'=>__('End of step'), 'headText'=>$headText,
-                'queryError'=>$error
-            );
+        if (count((array) $partialDependencies) == 1) {
+            return [
+                'legendText' => __('End of step'),
+                'headText' => $headText,
+                'queryError' => $error,
+            ];
         }
         $message = '';
-        $GLOBALS['dbi']->selectDb($db);
-        foreach ($partialDependencies as $key=>$dependents) {
+        $this->dbi->selectDb($db);
+        foreach ($partialDependencies as $key => $dependents) {
             if ($tablesName->$key != $table) {
                 $backquotedKey = implode(', ', Util::backquote(explode(', ', $key)));
                 $queries[] = 'CREATE TABLE ' . Util::backquote($tablesName->$key)
                     . ' SELECT DISTINCT ' . $backquotedKey
-                    . (count($dependents)>0?', ':'')
+                    . (count($dependents) > 0 ? ', ' : '')
                     . implode(',', Util::backquote($dependents))
                     . ' FROM ' . Util::backquote($table) . ';';
                 $queries[] = 'ALTER TABLE ' . Util::backquote($tablesName->$key)
@@ -505,24 +543,24 @@ class Normalization
             $queries[] = 'DROP TABLE ' . Util::backquote($table);
         }
         foreach ($queries as $query) {
-            if (!$GLOBALS['dbi']->tryQuery($query)) {
+            if (! $this->dbi->tryQuery($query)) {
                 $message = Message::error(__('Error in processing!'));
                 $message->addMessage(
                     Message::rawError(
-                        $GLOBALS['dbi']->getError()
+                        $this->dbi->getError()
                     ),
-                    '<br /><br />'
+                    '<br><br>'
                 );
                 $error = true;
                 break;
             }
         }
-        return array(
+        return [
             'legendText' => __('End of step'),
             'headText' => $headText,
             'queryError' => $error,
             'extra' => $message
-        );
+        ];
     }
 
     /**
@@ -535,18 +573,18 @@ class Normalization
      *
      * @return array containing html and the list of new tables
      */
-    public static function getHtmlForNewTables3NF($dependencies, array $tables, $db)
+    public function getHtmlForNewTables3NF($dependencies, array $tables, $db)
     {
         $html = "";
         $i = 1;
-        $newTables = array();
-        foreach ($tables as $table=>$arrDependson) {
+        $newTables = [];
+        foreach ($tables as $table => $arrDependson) {
             if (count(array_unique($arrDependson)) == 1) {
                 continue;
             }
             $primary = Index::getPrimary($table, $db);
             $primarycols = $primary->getColumns();
-            $pk = array();
+            $pk = [];
             foreach ($primarycols as $col) {
                 $pk[] = $col->getName();
             }
@@ -555,34 +593,40 @@ class Normalization
                     'In order to put the '
                     . 'original table \'%1$s\' into Third normal form we need '
                     . 'to create the following tables:'
-                ), htmlspecialchars($table)
+                ),
+                htmlspecialchars($table)
             ) . '</b></p>';
             $tableName = $table;
-            $columnList = array();
+            $columnList = [];
             foreach ($arrDependson as $key) {
                 $dependents = $dependencies->$key;
                 if ($key == $table) {
                     $key = implode(', ', $pk);
                 }
-                $tmpTableCols =array_merge(explode(', ', $key), $dependents);
+                $tmpTableCols = array_merge(explode(', ', $key), $dependents);
                 sort($tmpTableCols);
-                if (!in_array($tmpTableCols, $columnList)) {
+                if (! in_array($tmpTableCols, $columnList)) {
                     $columnList[] = $tmpTableCols;
                         $html .= '<p><input type="text" name="'
                             . htmlspecialchars($tableName)
-                            . '" value="' . htmlspecialchars($tableName) . '"/>'
+                            . '" value="' . htmlspecialchars($tableName) . '">'
                             . '( <u>' . htmlspecialchars($key) . '</u>'
-                            .  (count($dependents)>0?', ':'')
+                            . (count($dependents) > 0 ? ', ' : '')
                             . htmlspecialchars(implode(', ', $dependents)) . ' )';
-                        $newTables[$table][$tableName] = array(
-                            "pk"=>$key, "nonpk"=>implode(', ', $dependents)
-                        );
+                        $newTables[$table][$tableName] = [
+                            "pk" => $key,
+                            "nonpk" => implode(', ', $dependents),
+                        ];
                         $i++;
                         $tableName = 'table' . $i;
                 }
             }
         }
-        return array('html' => $html, 'newTables' => $newTables, 'success' => true);
+        return [
+            'html' => $html,
+            'newTables' => $newTables,
+            'success' => true
+        ];
     }
 
     /**
@@ -593,30 +637,33 @@ class Normalization
      *
      * @return array
      */
-    public static function createNewTablesFor3NF(array $newTables, $db)
+    public function createNewTablesFor3NF(array $newTables, $db)
     {
-        $queries = array();
+        $queries = [];
         $dropCols = false;
         $error = false;
         $headText = '<h3>' .
             __('The third step of normalization is complete.')
             . '</h3>';
-        if (count((array)$newTables) == 0) {
-            return array(
-                'legendText'=>__('End of step'), 'headText'=>$headText,
-                'queryError'=>$error
-            );
+        if (count((array) $newTables) == 0) {
+            return [
+                'legendText' => __('End of step'),
+                'headText' => $headText,
+                'queryError' => $error,
+            ];
         }
         $message = '';
-        $GLOBALS['dbi']->selectDb($db);
-        foreach ($newTables as $originalTable=>$tablesList) {
-            foreach ($tablesList as $table=>$cols) {
+        $this->dbi->selectDb($db);
+        foreach ($newTables as $originalTable => $tablesList) {
+            foreach ($tablesList as $table => $cols) {
                 if ($table != $originalTable) {
                     $quotedPk = implode(
-                        ', ', Util::backquote(explode(', ', $cols->pk))
+                        ', ',
+                        Util::backquote(explode(', ', $cols->pk))
                     );
                     $quotedNonpk = implode(
-                        ', ', Util::backquote(explode(', ', $cols->nonpk))
+                        ', ',
+                        Util::backquote(explode(', ', $cols->nonpk))
                     );
                     $queries[] = 'CREATE TABLE ' . Util::backquote($table)
                         . ' SELECT DISTINCT ' . $quotedPk
@@ -629,15 +676,17 @@ class Normalization
                 }
             }
             if ($dropCols) {
-                $columns = (array) $GLOBALS['dbi']->getColumnNames(
-                    $db, $originalTable
+                $columns = (array) $this->dbi->getColumnNames(
+                    $db,
+                    $originalTable
                 );
                 $colPresent = array_merge(
-                    explode(', ', $dropCols->pk), explode(', ', $dropCols->nonpk)
+                    explode(', ', $dropCols->pk),
+                    explode(', ', $dropCols->nonpk)
                 );
                 $query = 'ALTER TABLE ' . Util::backquote($originalTable);
                 foreach ($columns as $col) {
-                    if (!in_array($col, $colPresent)) {
+                    if (! in_array($col, $colPresent)) {
                         $query .= ' DROP ' . Util::backquote($col) . ',';
                     }
                 }
@@ -650,32 +699,32 @@ class Normalization
             $dropCols = false;
         }
         foreach ($queries as $query) {
-            if (!$GLOBALS['dbi']->tryQuery($query)) {
+            if (! $this->dbi->tryQuery($query)) {
                 $message = Message::error(__('Error in processing!'));
                 $message->addMessage(
                     Message::rawError(
-                        $GLOBALS['dbi']->getError()
+                        $this->dbi->getError()
                     ),
-                    '<br /><br />'
+                    '<br><br>'
                 );
                 $error = true;
                 break;
             }
         }
-        return array(
+        return [
             'legendText' => __('End of step'),
             'headText' => $headText,
             'queryError' => $error,
             'extra' => $message
-        );
+        ];
     }
 
     /**
      * move the repeating group of columns to a new table
      *
      * @param string $repeatingColumns comma separated list of repeating group columns
-     * @param string $primary_columns  comma separated list of column in primary key
-     * of $table
+     * @param string $primaryColumns   comma separated list of column in primary key
+     *                                 of $table
      * @param string $newTable         name of the new table to be created
      * @param string $newColumn        name of the new column in the new table
      * @param string $table            current table
@@ -683,14 +732,20 @@ class Normalization
      *
      * @return array
      */
-    public static function moveRepeatingGroup(
-        $repeatingColumns, $primary_columns, $newTable, $newColumn, $table, $db
+    public function moveRepeatingGroup(
+        $repeatingColumns,
+        $primaryColumns,
+        $newTable,
+        $newColumn,
+        $table,
+        $db
     ) {
-        $repeatingColumnsArr = (array)Util::backquote(
+        $repeatingColumnsArr = (array) Util::backquote(
             explode(', ', $repeatingColumns)
         );
-        $primary_columns = implode(
-            ',', Util::backquote(explode(',', $primary_columns))
+        $primaryColumns = implode(
+            ',',
+            Util::backquote(explode(',', $primaryColumns))
         );
         $query1 = 'CREATE TABLE ' . Util::backquote($newTable);
         $query2 = 'ALTER TABLE ' . Util::backquote($table);
@@ -703,34 +758,38 @@ class Normalization
         $first = true;
         $error = false;
         foreach ($repeatingColumnsArr as $repeatingColumn) {
-            if (!$first) {
+            if (! $first) {
                 $query1 .= ' UNION ';
             }
             $first = false;
-            $query1 .=  ' SELECT ' . $primary_columns . ',' . $repeatingColumn
+            $query1 .=  ' SELECT ' . $primaryColumns . ',' . $repeatingColumn
                 . ' as ' . Util::backquote($newColumn)
                 . ' FROM ' . Util::backquote($table);
             $query2 .= ' DROP ' . $repeatingColumn . ',';
         }
         $query2 = trim($query2, ',');
-        $queries = array($query1, $query2);
-        $GLOBALS['dbi']->selectDb($db);
+        $queries = [
+            $query1,
+            $query2,
+        ];
+        $this->dbi->selectDb($db);
         foreach ($queries as $query) {
-            if (!$GLOBALS['dbi']->tryQuery($query)) {
+            if (! $this->dbi->tryQuery($query)) {
                 $message = Message::error(__('Error in processing!'));
                 $message->addMessage(
                     Message::rawError(
-                        $GLOBALS['dbi']->getError()
+                        $this->dbi->getError()
                     ),
-                    '<br /><br />'
+                    '<br><br>'
                 );
                 $error = true;
                 break;
             }
         }
-        return array(
-            'queryError' => $error, 'message' => $message
-        );
+        return [
+            'queryError' => $error,
+            'message' => $message
+        ];
     }
 
     /**
@@ -741,7 +800,7 @@ class Normalization
      *
      * @return string
      */
-    public static function getHtmlFor3NFstep1($db, array $tables)
+    public function getHtmlFor3NFstep1($db, array $tables)
     {
         $legendText = __('Step 3.') . "1 " . __('Find transitive dependencies');
         $extra = "";
@@ -753,7 +812,7 @@ class Normalization
             'For each column below, '
             . 'please select the <b>minimal set</b> of columns among given set '
             . 'whose values combined together are sufficient'
-            . ' to determine the value of the column.<br />'
+            . ' to determine the value of the column.<br>'
             . 'Note: A column may have no transitive dependency, '
             . 'in that case you don\'t have to select any.'
         );
@@ -762,36 +821,38 @@ class Normalization
             $primary = Index::getPrimary($table, $db);
             $primarycols = $primary->getColumns();
             $selectTdForm = "";
-            $pk = array();
+            $pk = [];
             foreach ($primarycols as $col) {
                 $pk[] = $col->getName();
             }
-            $GLOBALS['dbi']->selectDb($db);
-            $columns = (array) $GLOBALS['dbi']->getColumnNames(
-                $db, $table
+            $this->dbi->selectDb($db);
+            $columns = (array) $this->dbi->getColumnNames(
+                $db,
+                $table
             );
             if (count($columns) - count($pk) <= 1) {
                 continue;
             }
             foreach ($columns as $column) {
-                if (!in_array($column, $pk)) {
+                if (! in_array($column, $pk)) {
                     $selectTdForm .= '<input type="checkbox" name="pd" value="'
                     . htmlspecialchars($column) . '">'
                     . '<span>' . htmlspecialchars($column) . '</span>';
                 }
             }
             foreach ($columns as $column) {
-                if (!in_array($column, $pk)) {
+                if (! in_array($column, $pk)) {
                     $cnt++;
                     $extra .= "<b>" . sprintf(
-                        __('\'%1$s\' depends on:'), htmlspecialchars($column)
+                        __('\'%1$s\' depends on:'),
+                        htmlspecialchars($column)
                     )
                         . "</b><br>";
                     $extra .= '<form id="td_' . $cnt . '" data-colname="'
                         . htmlspecialchars($column) . '" data-tablename="'
                         . htmlspecialchars($table) . '" class="smallIndent">'
                         . $selectTdForm
-                        . '</form><br/><br/>';
+                        . '</form><br><br>';
                 }
             }
         }
@@ -803,13 +864,12 @@ class Normalization
             $subText = "";
             $extra = "<h3>" . __("Table is already in Third normal form!") . "</h3>";
         }
-        $res = array(
+        return [
             'legendText' => $legendText,
             'headText' => $headText,
             'subText' => $subText,
             'extra' => $extra
-        );
-        return $res;
+        ];
     }
 
     /**
@@ -817,38 +877,42 @@ class Normalization
      *
      * @return string HTML
      */
-    public static function getHtmlForNormalizetable()
+    public function getHtmlForNormalizeTable()
     {
-        $html_output = '<form method="post" action="normalization.php" '
+        $htmlOutput = '<form method="post" action="normalization.php" '
             . 'name="normalize" '
             . 'id="normalizeTable" '
             . '>'
             . Url::getHiddenInputs($GLOBALS['db'], $GLOBALS['table'])
             . '<input type="hidden" name="step1" value="1">';
-        $html_output .= '<fieldset>';
-        $html_output .= '<legend>'
+        $htmlOutput .= '<fieldset>';
+        $htmlOutput .= '<legend>'
             . __('Improve table structure (Normalization):') . '</legend>';
-        $html_output .= '<h3>' . __('Select up to what step you want to normalize')
+        $htmlOutput .= '<h3>' . __('Select up to what step you want to normalize')
             . '</h3>';
-        $choices = array(
-                '1nf' => __('First step of normalization (1NF)'),
-                '2nf'      => __('Second step of normalization (1NF+2NF)'),
-                '3nf'  => __('Third step of normalization (1NF+2NF+3NF)'));
+        $choices = [
+            '1nf' => __('First step of normalization (1NF)'),
+            '2nf'      => __('Second step of normalization (1NF+2NF)'),
+            '3nf'  => __('Third step of normalization (1NF+2NF+3NF)')
+        ];
 
-        $html_output .= Util::getRadioFields(
-            'normalizeTo', $choices, '1nf', true
+        $htmlOutput .= Util::getRadioFields(
+            'normalizeTo',
+            $choices,
+            '1nf',
+            true
         );
-        $html_output .= '</fieldset><fieldset class="tblFooters">'
+        $htmlOutput .= '</fieldset><fieldset class="tblFooters">'
             . "<span class='floatleft'>" . __(
                 'Hint: Please follow the procedure carefully in order '
                 . 'to obtain correct normalization'
             ) . "</span>"
-            . '<input type="submit" name="submit_normalize" value="' . __('Go') . '" />'
+            . '<input class="btn btn-primary" type="submit" name="submit_normalize" value="' . __('Go') . '">'
             . '</fieldset>'
             . '</form>'
             . '</div>';
 
-        return $html_output;
+        return $htmlOutput;
     }
 
     /**
@@ -859,39 +923,44 @@ class Normalization
      *
      * @return string HTML containing the list of all the possible partial dependencies
      */
-    public static function findPartialDependencies($table, $db)
+    public function findPartialDependencies($table, $db)
     {
-        $dependencyList = array();
-        $GLOBALS['dbi']->selectDb($db);
-        $columns = (array) $GLOBALS['dbi']->getColumnNames(
-            $db, $table
+        $dependencyList = [];
+        $this->dbi->selectDb($db);
+        $columns = (array) $this->dbi->getColumnNames(
+            $db,
+            $table
         );
-        $columns = (array)Util::backquote($columns);
-        $totalRowsRes = $GLOBALS['dbi']->fetchResult(
+        $columns = (array) Util::backquote($columns);
+        $totalRowsRes = $this->dbi->fetchResult(
             'SELECT COUNT(*) FROM (SELECT * FROM '
             . Util::backquote($table) . ' LIMIT 500) as dt;'
         );
         $totalRows = $totalRowsRes[0];
         $primary = Index::getPrimary($table, $db);
         $primarycols = $primary->getColumns();
-        $pk = array();
+        $pk = [];
         foreach ($primarycols as $col) {
             $pk[] = Util::backquote($col->getName());
         }
-        $partialKeys = self::getAllCombinationPartialKeys($pk);
-        $distinctValCount = self::findDistinctValuesCount(
+        $partialKeys = $this->getAllCombinationPartialKeys($pk);
+        $distinctValCount = $this->findDistinctValuesCount(
             array_unique(
                 array_merge($columns, $partialKeys)
-            ), $table
+            ),
+            $table
         );
         foreach ($columns as $column) {
-            if (!in_array($column, $pk)) {
+            if (! in_array($column, $pk)) {
                 foreach ($partialKeys as $partialKey) {
                     if ($partialKey
-                        && self::checkPartialDependency(
-                            $partialKey, $column, $table,
+                        && $this->checkPartialDependency(
+                            $partialKey,
+                            $column,
+                            $table,
                             $distinctValCount[$partialKey],
-                            $distinctValCount[$column], $totalRows
+                            $distinctValCount[$column],
+                            $totalRows
                         )
                     ) {
                         $dependencyList[$partialKey][] = $column;
@@ -905,9 +974,9 @@ class Normalization
             . 'and is not necessarily accurate. '
         )
             . '<div class="dependencies_box">';
-        foreach ($dependencyList as $dependon=>$colList) {
+        foreach ($dependencyList as $dependon => $colList) {
             $html .= '<span class="displayblock">'
-                . '<input type="button" class="pickPd" value="' . __('Pick') . '"/>'
+                . '<input type="button" class="btn btn-secondary pickPd" value="' . __('Pick') . '">'
                 . '<span class="determinants">'
                 . htmlspecialchars(str_replace('`', '', $dependon)) . '</span> -> '
                 . '<span class="dependents">'
@@ -927,7 +996,7 @@ class Normalization
      * check whether a particular column is dependent on given subset of primary key
      *
      * @param string  $partialKey the partial key, subset of primary key,
-     * each column in key supposed to be backquoted
+     *                            each column in key supposed to be backquoted
      * @param string  $column     backquoted column on whose dependency being checked
      * @param string  $table      current table
      * @param integer $pkCnt      distinct value count for given partial key
@@ -936,14 +1005,19 @@ class Normalization
      *
      * @return boolean TRUE if $column is dependent on $partialKey, False otherwise
      */
-    public static function checkPartialDependency(
-        $partialKey, $column, $table, $pkCnt, $colCnt, $totalRows
+    private function checkPartialDependency(
+        $partialKey,
+        $column,
+        $table,
+        $pkCnt,
+        $colCnt,
+        $totalRows
     ) {
         $query = 'SELECT '
             . 'COUNT(DISTINCT ' . $partialKey . ',' . $column . ') as pkColCnt '
             . 'FROM (SELECT * FROM ' . Util::backquote($table)
-            . ' LIMIT 500) as dt'  . ';';
-        $res = $GLOBALS['dbi']->fetchResult($query, null, null);
+            . ' LIMIT 500) as dt' . ';';
+        $res = $this->dbi->fetchResult($query, null, null);
         $pkColCnt = $res[0];
         if ($pkCnt && $pkCnt == $colCnt && $colCnt == $pkColCnt) {
             return true;
@@ -958,25 +1032,25 @@ class Normalization
      * function to get distinct values count of all the column in the array $columns
      *
      * @param array  $columns array of backquoted columns whose distinct values
-     * need to be counted.
+     *                        need to be counted.
      * @param string $table   table to which these columns belong
      *
      * @return array associative array containing the count
      */
-    public static function findDistinctValuesCount(array $columns, $table)
+    private function findDistinctValuesCount(array $columns, $table)
     {
-        $result = array();
+        $result = [];
         $query = 'SELECT ';
         foreach ($columns as $column) {
             if ($column) { //each column is already backquoted
-                $query .= 'COUNT(DISTINCT ' .  $column . ') as \''
+                $query .= 'COUNT(DISTINCT ' . $column . ') as \''
                     . $column . '_cnt\', ';
             }
         }
         $query = trim($query, ', ');
         $query .= ' FROM (SELECT * FROM ' . Util::backquote($table)
             . ' LIMIT 500) as dt' . ';';
-        $res = $GLOBALS['dbi']->fetchResult($query, null, null);
+        $res = $this->dbi->fetchResult($query, null, null);
         foreach ($columns as $column) {
             if ($column) {
                 $result[$column] = $res[0][$column . '_cnt'];
@@ -992,14 +1066,12 @@ class Normalization
      *
      * @return array containing all the possible partial keys(subset of primary key)
      */
-    public static function getAllCombinationPartialKeys(array $primaryKey)
+    private function getAllCombinationPartialKeys(array $primaryKey)
     {
-        $results = array('');
+        $results = [''];
         foreach ($primaryKey as $element) {
             foreach ($results as $combination) {
-                array_push(
-                    $results, trim($element . ',' . $combination, ',')
-                );
+                $results[] = trim($element . ',' . $combination, ',');
             }
         }
         array_pop($results); //remove key which consist of all primary key columns

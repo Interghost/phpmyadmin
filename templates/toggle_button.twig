@@ -1,18 +1,17 @@
-<!-- TOGGLE START -->
 <div class='wrapper toggleAjax hide'>
     <div class='toggleButton'>
         <div title="{% trans 'Click to toggle' %}" class='container {{ state }}'>
-            <img src="{{ pma_theme_image }}toggle-{{ text_dir }}.png" alt='' />
+            <img src="{{ pma_theme_image }}toggle-{{ text_dir }}.png">
             <table class='nospacing nopadding'>
                 <tbody>
                     <tr>
                         <td class='toggleOn'>
-                            <span class='hide'>{{ link_on }}</span>
+                            <span class='hide'>{{ link_on|raw }}</span>
                             <div>{{ toggle_on }}</div>
                         </td>
                         <td><div>&nbsp;</div></td>
                         <td class='toggleOff'>
-                            <span class='hide'>{{ link_off }}</span>
+                            <span class='hide'>{{ link_off|raw }}</span>
                             <div>{{ toggle_off }}</div>
                         </td>
                     </tr>
@@ -23,4 +22,3 @@
         </div>
     </div>
 </div>
-<!-- TOGGLE END -->

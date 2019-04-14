@@ -5,6 +5,8 @@
  *
  * @package PhpMyAdmin-test
  */
+declare(strict_types=1);
+
 namespace PhpMyAdmin\Tests;
 
 use PhpMyAdmin\MultSubmits;
@@ -20,18 +22,20 @@ use PHPUnit\Framework\TestCase;
  */
 class MultSubmitsTest extends TestCase
 {
+    private $multSubmits;
+
     /**
      * Test for setUp
      *
      * @return void
      */
-    public function setUp()
+    protected function setUp(): void
     {
         //$GLOBALS
         $GLOBALS['cfg']['MaxRows'] = 10;
         $GLOBALS['cfg']['ServerDefault'] = "server";
         $GLOBALS['cfg']['RememberSorting'] = true;
-        $GLOBALS['cfg']['SQP'] = array();
+        $GLOBALS['cfg']['SQP'] = [];
         $GLOBALS['cfg']['MaxCharactersInDisplayedSQL'] = 1000;
         $GLOBALS['cfg']['ShowSQL'] = true;
         $GLOBALS['cfg']['TableNavigationLinksMode'] = 'icons';
@@ -41,7 +45,7 @@ class MultSubmitsTest extends TestCase
         $GLOBALS['cfg']['ActionLinksMode'] = "both";
 
         //_SESSION
-        $_SESSION['relation'][$GLOBALS['server']] = array(
+        $_SESSION['relation'][$GLOBALS['server']] = [
             'PMA_VERSION' => PMA_VERSION,
             'table_coords' => "table_name",
             'displaywork' => 'displaywork',
@@ -52,7 +56,7 @@ class MultSubmitsTest extends TestCase
             'pdfwork' => 'pdfwork',
             'column_info' => 'column_info',
             'relation' => 'relation',
-        );
+        ];
 
         //$_SESSION
 
@@ -66,195 +70,214 @@ class MultSubmitsTest extends TestCase
             ->will($this->returnValue(true));
 
         $GLOBALS['dbi'] = $dbi;
+
+        $this->multSubmits = new MultSubmits();
     }
 
     /**
-     * Test for MultSubmits::getHtmlForReplacePrefixTable
+     * Test for getHtmlForReplacePrefixTable
      *
      * @return void
      */
-    public function testPMAGetHtmlForReplacePrefixTable()
+    public function testGetHtmlForReplacePrefixTable()
     {
         $action = 'delete_row';
-        $_url_params = array('url_query'=>'PMA_original_url_query');
+        $urlParams = ['url_query' => 'PMA_original_url_query'];
 
         //Call the test function
-        $html = MultSubmits::getHtmlForReplacePrefixTable($action, $_url_params);
+        $html = $this->multSubmits->getHtmlForReplacePrefixTable($action, $urlParams);
 
         //form action
-        $this->assertContains(
+        $this->assertStringContainsString(
             '<form id="ajax_form" action="delete_row" method="post">',
             $html
         );
         //$Url::getHiddenInputs
-        $this->assertContains(
-            Url::getHiddenInputs($_url_params),
+        $this->assertStringContainsString(
+            Url::getHiddenInputs($urlParams),
             $html
         );
         //from_prefix
-        $this->assertContains(
-            '<input type="text" name="from_prefix" id="initialPrefix" />',
+        $this->assertStringContainsString(
+            '<input type="text" name="from_prefix" id="initialPrefix">',
             $html
         );
     }
 
     /**
-     * Test for MultSubmits::getHtmlForAddPrefixTable
+     * Test for getHtmlForAddPrefixTable
      *
      * @return void
      */
-    public function testPMAGetHtmlForAddPrefixTable()
+    public function testGetHtmlForAddPrefixTable()
     {
         $action = 'delete_row';
-        $_url_params = array('url_query'=>'PMA_original_url_query');
+        $urlParams = ['url_query' => 'PMA_original_url_query'];
 
         //Call the test function
-        $html = MultSubmits::getHtmlForAddPrefixTable($action, $_url_params);
+        $html = $this->multSubmits->getHtmlForAddPrefixTable($action, $urlParams);
 
         //form action
-        $this->assertContains(
+        $this->assertStringContainsString(
             '<form id="ajax_form" action="' . $action . '" method="post">',
             $html
         );
-        //$_url_params
-        $this->assertContains(
-            Url::getHiddenInputs($_url_params),
+        //$urlParams
+        $this->assertStringContainsString(
+            Url::getHiddenInputs($urlParams),
             $html
         );
         //from_prefix
-        $this->assertContains(
+        $this->assertStringContainsString(
             __('Add prefix'),
             $html
         );
     }
 
     /**
-     * Test for MultSubmits::getHtmlForOtherActions
+     * Test for getHtmlForOtherActions
      *
      * @return void
      */
-    public function testPMAGetHtmlForOtherActions()
+    public function testGetHtmlForOtherActions()
     {
         $what = 'replace_prefix_tbl';
         $action = 'delete_row';
-        $_url_params = array('url_query'=>'PMA_original_url_query');
-        $full_query = 'select column from PMA_table';
+        $urlParams = ['url_query' => 'PMA_original_url_query'];
+        $fullQuery = 'select column from PMA_table';
 
         //Call the test function
-        $html = MultSubmits::getHtmlForOtherActions(
-            $what, $action, $_url_params, $full_query
+        $html = $this->multSubmits->getHtmlForOtherActions(
+            $what,
+            $action,
+            $urlParams,
+            $fullQuery
         );
 
         //validate 1: form action
-        $this->assertContains(
+        $this->assertStringContainsString(
             '<form action="' . $action . '" method="post">',
             $html
         );
-        //validate 2: $_url_params
-        $this->assertContains(
-            Url::getHiddenInputs($_url_params),
+        //validate 2: $urlParams
+        $this->assertStringContainsString(
+            Url::getHiddenInputs($urlParams),
             $html
         );
         //validate 3: conform
-        $this->assertContains(
+        $this->assertStringContainsString(
             __('Do you really want to execute the following query?'),
             $html
         );
         //validate 4: query
-        $this->assertContains(
-            '<code>' . $full_query . '</code>',
+        $this->assertStringContainsString(
+            '<code>' . $fullQuery . '</code>',
             $html
         );
         //validate 5: button : yes or no
-        $this->assertContains(
+        $this->assertStringContainsString(
             __('Yes'),
             $html
         );
-        $this->assertContains(
+        $this->assertStringContainsString(
             __('No'),
             $html
         );
     }
 
     /**
-     * Test for MultSubmits::getUrlParams
+     * Test for getUrlParams
      *
      * @return void
      */
-    public function testPMAGetUrlParams()
+    public function testGetUrlParams()
     {
         $what = 'row_delete';
         $reload = true;
         $action = 'db_delete_row';
         $db = "PMA_db";
         $table = "PMA_table";
-        $selected = array(
-            "index1" => "table1"
-        );
+        $selected = [
+            "index1" => "table1",
+        ];
         $views = null;
-        $original_sql_query = "original_sql_query";
-        $original_url_query = "original_url_query";
+        $originalSqlQuery = "original_sql_query";
+        $originalUrlQuery = "original_url_query";
 
-        $_url_params = MultSubmits::getUrlParams(
-            $what, $reload, $action, $db, $table, $selected, $views,
-            $original_sql_query, $original_url_query
+        $urlParams = $this->multSubmits->getUrlParams(
+            $what,
+            $reload,
+            $action,
+            $db,
+            $table,
+            $selected,
+            $views,
+            $originalSqlQuery,
+            $originalUrlQuery
         );
         $this->assertEquals(
             $what,
-            $_url_params['query_type']
+            $urlParams['query_type']
         );
         $this->assertEquals(
             $db,
-            $_url_params['db']
+            $urlParams['db']
         );
         $this->assertEquals(
-            array('DELETE FROM `PMA_table` WHERE table1 LIMIT 1;'),
-            $_url_params['selected']
+            ['DELETE FROM `PMA_table` WHERE table1 LIMIT 1;'],
+            $urlParams['selected']
         );
         $this->assertEquals(
-            $original_sql_query,
-            $_url_params['original_sql_query']
+            $originalSqlQuery,
+            $urlParams['original_sql_query']
         );
         $this->assertEquals(
-            $original_url_query,
-            $_url_params['original_url_query']
+            $originalUrlQuery,
+            $urlParams['original_url_query']
         );
     }
 
     /**
-     * Test for MultSubmits::buildOrExecuteQueryForMulti
+     * Test for buildOrExecuteQuery
      *
      * @return void
      */
-    public function testPMABuildOrExecuteQueryForMulti()
+    public function testBuildOrExecuteQuery()
     {
-        $query_type = 'row_delete';
+        $queryType = 'row_delete';
         $db = "PMA_db";
         $table = "PMA_table";
-        $selected = array(
-            "table1", "table2"
-        );
+        $selected = [
+            "table1",
+            "table2",
+        ];
         $views = null;
         $primary = null;
-        $from_prefix = "from_prefix";
-        $to_prefix = "to_prefix";
+        $fromPrefix = "from_prefix";
+        $toPrefix = "to_prefix";
 
         $_REQUEST['pos'] = 1000;
         $_SESSION['tmpval']['pos'] = 1000;
         $_SESSION['tmpval']['max_rows'] = 25;
 
         list(
-            $result, $rebuild_database_list, $reload_ret,
-            $run_parts, $execute_query_later,,
-        ) = MultSubmits::buildOrExecuteQueryForMulti(
-            $query_type, $selected, $db, $table, $views,
-            $primary, $from_prefix, $to_prefix
+            $result, $rebuildDatabaseList, $reloadRet,
+            $runParts, $executeQueryLater,,
+        ) = $this->multSubmits->buildOrExecuteQuery(
+            $queryType,
+            $selected,
+            $db,
+            $table,
+            $views,
+            $primary,
+            $fromPrefix,
+            $toPrefix
         );
 
-        //validate 1: $run_parts
+        //validate 1: $runParts
         $this->assertEquals(
             true,
-            $run_parts
+            $runParts
         );
 
         //validate 2: $result
@@ -263,58 +286,69 @@ class MultSubmitsTest extends TestCase
             $result
         );
 
-        //validate 3: $rebuild_database_list
+        //validate 3: $rebuildDatabaseList
         $this->assertEquals(
             false,
-            $rebuild_database_list
+            $rebuildDatabaseList
         );
 
-        //validate 4: $reload_ret
+        //validate 4: $reloadRet
         $this->assertEquals(
             null,
-            $reload_ret
+            $reloadRet
         );
 
-        $query_type = 'analyze_tbl';
+        $queryType = 'analyze_tbl';
         list(
-            ,,,, $execute_query_later,,
-        ) = MultSubmits::buildOrExecuteQueryForMulti(
-            $query_type, $selected, $db, $table, $views,
-            $primary, $from_prefix, $to_prefix
+            ,,,, $executeQueryLater,,
+        ) = $this->multSubmits->buildOrExecuteQuery(
+            $queryType,
+            $selected,
+            $db,
+            $table,
+            $views,
+            $primary,
+            $fromPrefix,
+            $toPrefix
         );
 
-        //validate 5: $execute_query_later
+        //validate 5: $executeQueryLater
         $this->assertEquals(
             true,
-            $execute_query_later
+            $executeQueryLater
         );
     }
 
     /**
-     * Test for MultSubmits::getQueryFromSelected
+     * Test for getQueryFromSelected
      *
      * @return void
      */
-    public function testPMAGetQueryFromSelected()
+    public function testGetQueryFromSelected()
     {
         $what = "drop_tbl";
         $table = "PMA_table";
-        $selected = array(
-            "table1", "table2"
-        );
-        $views = array(
-            "table1", "table2"
-        );
+        $selected = [
+            "table1",
+            "table2",
+        ];
+        $views = [
+            "table1",
+            "table2",
+        ];
 
-        list($full_query, $reload, $full_query_views)
-            = MultSubmits::getQueryFromSelected(
-                $what, $table, $selected, $views
+        list($fullQuery, $reload, $fullQueryViews)
+            = $this->multSubmits->getQueryFromSelected(
+                $what,
+                $table,
+                $selected,
+                $views
             );
 
-        //validate 1: $full_query
-        $this->assertContains(
+        //validate 1: $fullQuery
+        $this->assertStringContainsString(
             "DROP VIEW `table1`, `table2`",
-            $full_query
+            $fullQuery
         );
 
         //validate 2: $reload
@@ -323,23 +357,26 @@ class MultSubmitsTest extends TestCase
             $reload
         );
 
-        //validate 3: $full_query_views
+        //validate 3: $fullQueryViews
         $this->assertEquals(
             null,
-            $full_query_views
+            $fullQueryViews
         );
 
         $what = "drop_db";
 
-        list($full_query, $reload, $full_query_views)
-            = MultSubmits::getQueryFromSelected(
-                $what, $table, $selected, $views
+        list($fullQuery, $reload, $fullQueryViews)
+            = $this->multSubmits->getQueryFromSelected(
+                $what,
+                $table,
+                $selected,
+                $views
             );
 
-        //validate 1: $full_query
-        $this->assertContains(
-            "DROP DATABASE `table1`;<br />DROP DATABASE `table2`;",
-            $full_query
+        //validate 1: $fullQuery
+        $this->assertStringContainsString(
+            "DROP DATABASE `table1`;<br>DROP DATABASE `table2`;",
+            $fullQuery
         );
 
         //validate 2: $reload

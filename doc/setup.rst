@@ -25,8 +25,8 @@ distribution and you will automatically get security updates from your distribut
 
 .. _debian-package:
 
-Debian
-------
+Debian and Ubuntu
+-----------------
 
 Debian's package repositories include a phpMyAdmin package, but be aware that
 the configuration file is maintained in ``/etc/phpmyadmin`` and may differ in
@@ -38,7 +38,7 @@ some ways from the official phpMyAdmin documentation. Specifically it does:
 
 .. seealso::
 
-    More information can be found in `README.Debian <https://anonscm.debian.org/cgit/collab-maint/phpmyadmin.git/tree/debian/README.Debian>`_
+    More information can be found in `README.Debian <https://salsa.debian.org/phpmyadmin-team/phpmyadmin/blob/master/debian/README.Debian>`_
     (it is installed as :file:`/usr/share/doc/phmyadmin/README.Debian` with the package).
 
 OpenSUSE
@@ -46,18 +46,6 @@ OpenSUSE
 
 OpenSUSE already comes with phpMyAdmin package, just install packages from
 the `openSUSE Build Service <https://software.opensuse.org/package/phpMyAdmin>`_.
-
-Ubuntu
-------
-
-Ubuntu ships phpMyAdmin package, however if you want to use recent version, you
-can use packages from
-`phpMyAdmin PPA <https://launchpad.net/~nijel/+archive/ubuntu/phpmyadmin>`_.
-
-.. seealso::
-
-    The packages are same as in :ref:`debian-package` please check the documentation
-    there for more details.
 
 Gentoo
 ------
@@ -91,18 +79,24 @@ But be aware that the configuration file is maintained in
 ``/etc/phpMyAdmin/`` and may differ in some ways from the
 official phpMyAdmin documentation.
 
-
 Installing on Windows
 +++++++++++++++++++++
 
 The easiest way to get phpMyAdmin on Windows is using third party products
 which include phpMyAdmin together with a database and web server such as
-`XAMPP <https://www.apachefriends.org/>`_.
+`XAMPP <https://www.apachefriends.org/index.html>`_.
 
 You can find more of such options at `Wikipedia <https://en.wikipedia.org/wiki/List_of_AMP_packages>`_.
 
 Installing from Git
 +++++++++++++++++++
+
+In order to install from Git, you'll need a few supporting applications:
+
+* `Git <https://git-scm.com/downloads>`_ to download the source, or you can download the most recent source directly from `Github <https://github.com/phpmyadmin/phpmyadmin/archive/master.zip>`_
+* `Composer <https://getcomposer.org/download/>`__
+* `Node.js <https://nodejs.org/en/download/>`_ (version 8 or higher)
+* `Yarn <https://yarnpkg.com/lang/en/docs/install>`_
 
 You can clone current phpMyAdmin source from
 ``https://github.com/phpmyadmin/phpmyadmin.git``:
@@ -111,7 +105,7 @@ You can clone current phpMyAdmin source from
 
     git clone https://github.com/phpmyadmin/phpmyadmin.git
 
-Additionally you need to install dependencies using the `Composer tool`_:
+Additionally you need to install dependencies using `Composer <https://getcomposer.org>`__:
 
 .. code-block:: sh
 
@@ -124,6 +118,11 @@ by invoking:
 
     composer update --no-dev
 
+Finally, you'll need to use `Yarn`_ to install some JavaScript dependencies:
+
+.. code-block:: sh
+
+    yarn install
 
 .. _composer:
 
@@ -183,53 +182,53 @@ You can configure several phpMyAdmin features using environment variables:
 .. envvar:: PMA_ARBITRARY
 
     Allows you to enter a database server hostname on login form.
-    
+
     .. seealso:: :config:option:`$cfg['AllowArbitraryServer']`
 
 .. envvar:: PMA_HOST
-    
+
     Host name or IP address of the database server to use.
 
     .. seealso:: :config:option:`$cfg['Servers'][$i]['host']`
 
 .. envvar:: PMA_HOSTS
-    
+
     Comma-separated host names or IP addresses of the database servers to use.
 
     .. note:: Used only if :envvar:`PMA_HOST` is empty.
 
 .. envvar:: PMA_VERBOSE
-    
+
     Verbose name of the database server.
 
     .. seealso:: :config:option:`$cfg['Servers'][$i]['verbose']`
 
 .. envvar:: PMA_VERBOSES
-    
+
     Comma-separated verbose name of the database servers.
 
     .. note:: Used only if :envvar:`PMA_VERBOSE` is empty.
 
 .. envvar:: PMA_USER
-    
+
     User name to use for :ref:`auth_config`.
 
 .. envvar:: PMA_PASSWORD
-    
+
     Password to use for :ref:`auth_config`.
 
 .. envvar:: PMA_PORT
-    
+
     Port of the database server to use.
 
 .. envvar:: PMA_PORTS
-    
+
     Comma-separated ports of the database server to use.
 
     .. note:: Used only if :envvar:`PMA_PORT` is empty.
 
 .. envvar:: PMA_ABSOLUTE_URI
-   
+
     The fully-qualified path (``https://pma.example.net/``) where the reverse
     proxy makes phpMyAdmin available.
 
@@ -242,9 +241,9 @@ By default, :ref:`cookie` is used, but if :envvar:`PMA_USER` and
 
     The credentials you need to log in are stored in the MySQL server, in case
     of Docker image there are various ways to set it (for example
-    :samp:`MYSQL_ROOT_PASSWORD` when starting the MySQL container). Please check 
-    documentation for `MariaDB container <https://hub.docker.com/r/_/mariadb/>`_
-    or `MySQL container <https://hub.docker.com/r/_/mysql/>`_.
+    :samp:`MYSQL_ROOT_PASSWORD` when starting the MySQL container). Please check
+    documentation for `MariaDB container <https://hub.docker.com/_/mariadb>`_
+    or `MySQL container <https://hub.docker.com/_/mysql>`_.
 
 .. _docker-custom:
 
@@ -254,7 +253,7 @@ Customizing configuration
 Additionally configuration can be tweaked by :file:`/etc/phpmyadmin/config.user.inc.php`. If
 this file exists, it will be loaded after configuration is generated from above
 environment variables, so you can override any configuration variable. This
-configuration can be added as a volume when invoking docker using 
+configuration can be added as a volume when invoking docker using
 `-v /some/local/directory/config.user.inc.php:/etc/phpmyadmin/config.user.inc.php` parameters.
 
 Note that the supplied configuration file is applied after :ref:`docker-vars`,
@@ -269,8 +268,30 @@ configuration file:
     $cfg['Export']['csv_columns'] = true;
     ?>
 
-.. seealso:: 
-   
+You can also use it to define server configuration instead of using the
+environment variables listed in :ref:`docker-vars`:
+
+.. code-block:: php
+
+    <?php
+    /* Override Servers array */
+    $cfg['Servers'] = [
+        1 => [
+            'auth_type' => 'cookie',
+            'host' => 'mydb1',
+            'port' => 3306,
+            'verbose' => 'Verbose name 1',
+        ],
+        2 => [
+            'auth_type' => 'cookie',
+            'host' => 'mydb2',
+            'port' => 3306,
+            'verbose' => 'Verbose name 2',
+        ],
+    ];
+
+.. seealso::
+
     See :ref:`config` for detailed description of configuration options.
 
 Docker Volumes
@@ -284,7 +305,7 @@ You can use following volumes to customize image behavior:
 
 :file:`/sessions/`
 
-    Directory where PHP sessions are stored. You might want to share this 
+    Directory where PHP sessions are stored. You might want to share this
     for example when using :ref:`auth_signon`.
 
 :file:`/www/themes/`
@@ -371,7 +392,7 @@ Running behind haproxy in a subdirectory
 
 When you want to expose phpMyAdmin running in a Docker container in a
 subdirectory, you need to rewrite the request path in the server proxying the
-requests. 
+requests.
 
 For example using haproxy it can be done as:
 
@@ -387,15 +408,15 @@ For example using haproxy it can be done as:
 
         # /phpmyadmin
         acl phpmyadmin  path_dir /phpmyadmin
-        use_backend phpmyadmin if phpmyadmin LOCALNET  
+        use_backend phpmyadmin if phpmyadmin LOCALNET
 
     backend phpmyadmin
         mode http
 
-        reqirep  ^(GET|POST|HEAD)\ /phpmyadmin/(.*)     \1\ /\2 
+        reqirep  ^(GET|POST|HEAD)\ /phpmyadmin/(.*)     \1\ /\2
 
         # phpMyAdmin container IP
-        server localhost     172.30.21.21:80                
+        server localhost     172.30.21.21:80
 
 When using traefik, something like following should work:
 
@@ -459,7 +480,7 @@ Quick Install
    webserver's document root. If you don't have direct access to your
    document root, put the files in a directory on your local machine,
    and, after step 4, transfer the directory on your web server using,
-   for example, ftp.
+   for example, FTP.
 #. Ensure that all the scripts have the appropriate owner (if PHP is
    running in safe mode, having some scripts with an owner different from
    the owner of other scripts will be a problem). See :ref:`faq4_2` and
@@ -470,7 +491,6 @@ Quick Install
    for those who prefer a graphical installation. Creating a
    :file:`config.inc.php` is still a quick way to get started and needed for
    some advanced features.
-
 
 Manually creating the file
 --------------------------
@@ -487,7 +507,6 @@ simple configuration may look like this:
 
 .. code-block:: xml+php
 
-
     <?php
     // use here a value of your choice at least 32 chars long
     $cfg['blowfish_secret'] = '1{dd0`<Q),5XP_:R9UK%%8\"EEcyH#{o';
@@ -503,7 +522,6 @@ Or, if you prefer to not be prompted every time you log in:
 
 .. code-block:: xml+php
 
-
     <?php
 
     $i=0;
@@ -516,7 +534,7 @@ Or, if you prefer to not be prompted every time you log in:
 .. warning::
 
     Storing passwords in the configuration is insecure as anybody can then
-    manipulate with your database.
+    manipulate your database.
 
 For a full explanation of possible configuration values, see the
 :ref:`config` of this document.
@@ -528,13 +546,13 @@ For a full explanation of possible configuration values, see the
 Using Setup script
 ------------------
 
-Instead of manually editing :file:`config.inc.php`, you can use phpMyAdmin's 
-setup feature. The file can be generated using the setup and you can download it 
+Instead of manually editing :file:`config.inc.php`, you can use phpMyAdmin's
+setup feature. The file can be generated using the setup and you can download it
 for upload to the server.
 
 Next, open your browser and visit the location where you installed phpMyAdmin,
-with the ``/setup`` suffix. The changes are not saved to the server, you need to 
-use the :guilabel:`Download` button to save them to your computer and then upload 
+with the ``/setup`` suffix. The changes are not saved to the server, you need to
+use the :guilabel:`Download` button to save them to your computer and then upload
 to the server.
 
 Now the file is ready to be used. You can choose to review or edit the
@@ -570,7 +588,7 @@ To allow editing configuration invoke:
 To block editing configuration invoke:
 
 .. code-block:: sh
-    
+
     /usr/sbin/pma-secure
 
 Setup script on openSUSE
@@ -579,8 +597,7 @@ Setup script on openSUSE
 Some openSUSE releases do not include setup script in the package. In case you
 want to generate configuration on these you can either download original
 package from <https://www.phpmyadmin.net/> or use setup script on our demo
-server: <https://demo.phpmyadmin.net/STABLE/setup/>.
-
+server: <https://demo.phpmyadmin.net/master/setup/>.
 
 .. _verify:
 
@@ -741,7 +758,6 @@ The following three scenarios are covered by the Zero Configuration mode:
   phpMyAdmin continues to use the tables from the first database; the user is
   not prompted to create more tables in the new database.
 
-
 Manual configuration
 --------------------
 
@@ -860,7 +876,6 @@ the database *user_base*:
 
    GRANT ALL PRIVILEGES ON user_base.* TO 'real_user'@localhost IDENTIFIED BY 'real_password';
 
-
 What the user may now do is controlled entirely by the MySQL user management
 system. With HTTP or cookie authentication mode, you don't need to fill the
 user/password fields inside the :config:option:`$cfg['Servers']`.
@@ -968,7 +983,6 @@ in :file:`examples/signon-script.php`:
     :config:option:`$cfg['Servers'][$i]['SignonURL']`,
     :ref:`example-signon`
 
-
 .. index:: pair: Config; Authentication mode
 
 .. _auth_config:
@@ -994,7 +1008,6 @@ Config authentication mode
   of which are beyond the scope of this manual but easily searchable
   with Google).
 
-
 .. _securing:
 
 Securing your phpMyAdmin installation
@@ -1008,7 +1021,7 @@ are always ways to make your installation more secure:
 * Serve phpMyAdmin on HTTPS only. Preferably, you should use HSTS as well, so that
   you're protected from protocol downgrade attacks.
 * Ensure your PHP setup follows recommendations for production sites, for example
-  `display_errors <https://secure.php.net/manual/en/errorfunc.configuration.php#ini.display-errors>`_ 
+  `display_errors <https://secure.php.net/manual/en/errorfunc.configuration.php#ini.display-errors>`_
   should be disabled.
 * Remove the ``test`` directory from phpMyAdmin, unless you are developing and need test suite.
 * Remove the ``setup`` directory from phpMyAdmin, you will probably not
@@ -1035,7 +1048,7 @@ are always ways to make your installation more secure:
   users need to authenticate prior to providing MySQL credentials
   to phpMyAdmin. You can achieve this by configuring your web server to request
   HTTP authentication. For example in Apache this can be done with:
-    
+
   .. code-block:: apache
 
      AuthType Basic
@@ -1111,7 +1124,6 @@ Trouble logging back in after logging out using 'http' authentication
 
 When using the 'http' ``auth_type``, it can be impossible to log back in (when the logout comes
 manually or after a period of inactivity). `Issue 11898 <https://github.com/phpmyadmin/phpmyadmin/issues/11898>`_.
-
 
 .. _Composer tool: https://getcomposer.org/
 .. _Packagist: https://packagist.org/

@@ -30,6 +30,7 @@
  *
  * @package PhpMyAdmin
  */
+declare(strict_types=1);
 
 use PhpMyAdmin\Config;
 use PhpMyAdmin\Core;
@@ -38,7 +39,6 @@ use PhpMyAdmin\ErrorHandler;
 use PhpMyAdmin\LanguageManager;
 use PhpMyAdmin\Logging;
 use PhpMyAdmin\Message;
-use PhpMyAdmin\Plugins\AuthenticationPlugin;
 use PhpMyAdmin\Response;
 use PhpMyAdmin\Session;
 use PhpMyAdmin\ThemeManager;
@@ -56,9 +56,9 @@ if (getcwd() == dirname(__FILE__)) {
  * Minimum PHP version; can't call Core::fatalError() which uses a
  * PHP 5 function, so cannot easily localize this message.
  */
-if (version_compare(PHP_VERSION, '5.5.0', 'lt')) {
+if (version_compare(PHP_VERSION, '7.1.0', 'lt')) {
     die(
-        'PHP 5.5+ is required. <br /> Currently installed version is: '
+        'PHP 7.1+ is required. <br> Currently installed version is: '
         . phpversion()
     );
 }
@@ -71,19 +71,14 @@ define('PHPMYADMIN', true);
 /**
  * Load vendor configuration.
  */
-require_once './libraries/vendor_config.php';
-
-/**
- * Load hash polyfill.
- */
-require_once './libraries/hash.lib.php';
+require_once ROOT_PATH . 'libraries/vendor_config.php';
 
 /**
  * Activate autoloader
  */
 if (! @is_readable(AUTOLOAD_FILE)) {
     die(
-        'File <tt>' . AUTOLOAD_FILE . '</tt> missing or not readable. <br />'
+        'File <tt>' . AUTOLOAD_FILE . '</tt> missing or not readable. <br>'
         . 'Most likely you did not run Composer to '
         . '<a href="https://docs.phpmyadmin.net/en/latest/setup.html#installing-from-git">install library files</a>.'
     );
@@ -128,7 +123,9 @@ $GLOBALS['PMA_Config'] = new Config(CONFIG_FILE);
 /**
  * include session handling after the globals, to prevent overwriting
  */
-Session::setUp($GLOBALS['PMA_Config'], $GLOBALS['error_handler']);
+if (! defined('PMA_NO_SESSION')) {
+    Session::setUp($GLOBALS['PMA_Config'], $GLOBALS['error_handler']);
+}
 
 /**
  * init some variables LABEL_variables_init
@@ -138,7 +135,7 @@ Session::setUp($GLOBALS['PMA_Config'], $GLOBALS['error_handler']);
  * holds parameters to be passed to next page
  * @global array $GLOBALS['url_params']
  */
-$GLOBALS['url_params'] = array();
+$GLOBALS['url_params'] = [];
 
 /**
  * holds page that should be displayed
@@ -146,7 +143,7 @@ $GLOBALS['url_params'] = array();
  */
 $GLOBALS['goto'] = '';
 // Security fix: disallow accessing serious server files via "?goto="
-if (Core::checkPageValidity($_REQUEST['goto'])) {
+if (isset($_REQUEST['goto']) && Core::checkPageValidity($_REQUEST['goto'])) {
     $GLOBALS['goto'] = $_REQUEST['goto'];
     $GLOBALS['url_params']['goto'] = $_REQUEST['goto'];
 } else {
@@ -157,7 +154,7 @@ if (Core::checkPageValidity($_REQUEST['goto'])) {
  * returning page
  * @global string $GLOBALS['back']
  */
-if (Core::checkPageValidity($_REQUEST['back'])) {
+if (isset($_REQUEST['back']) && Core::checkPageValidity($_REQUEST['back'])) {
     $GLOBALS['back'] = $_REQUEST['back'];
 } else {
     unset($_REQUEST['back'], $_GET['back'], $_POST['back'], $_COOKIE['back']);
@@ -189,11 +186,21 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     }
 
     if ($token_mismatch) {
+        /* Warn in case the mismatch is result of failed setting of session cookie */
+        if (isset($_POST['set_session']) && $_POST['set_session'] != session_id()) {
+            trigger_error(
+                __(
+                    'Failed to set session cookie. Maybe you are using '
+                    . 'HTTP instead of HTTPS to access phpMyAdmin.'
+                ),
+                E_USER_ERROR
+            );
+        }
         /**
          * We don't allow any POST operation parameters if the token is mismatched
          * or is not provided
          */
-        $whitelist = array('ajax_request');
+        $whitelist = ['ajax_request'];
         PhpMyAdmin\Sanitize::removeRequestVars($whitelist);
     }
 }
@@ -215,7 +222,7 @@ Core::setGlobalDbOrTable('table');
  * Store currently selected recent table.
  * Affect $GLOBALS['db'] and $GLOBALS['table']
  */
-if (Core::isValid($_REQUEST['selected_recent_table'])) {
+if (isset($_REQUEST['selected_recent_table']) && Core::isValid($_REQUEST['selected_recent_table'])) {
     $recent_table = json_decode($_REQUEST['selected_recent_table'], true);
 
     $GLOBALS['db']
@@ -234,8 +241,8 @@ if (Core::isValid($_REQUEST['selected_recent_table'])) {
  * @global string $GLOBALS['sql_query']
  */
 $GLOBALS['sql_query'] = '';
-if (Core::isValid($_REQUEST['sql_query'])) {
-    $GLOBALS['sql_query'] = $_REQUEST['sql_query'];
+if (Core::isValid($_POST['sql_query'])) {
+    $GLOBALS['sql_query'] = $_POST['sql_query'];
 }
 
 //$_REQUEST['set_theme'] // checked later in this file LABEL_theme_setup
@@ -267,6 +274,8 @@ Core::checkRequest();
 /******************************************************************************/
 /* setup servers                                       LABEL_setup_servers    */
 
+$GLOBALS['PMA_Config']->checkServers();
+
 /**
  * current server
  * @global integer $GLOBALS['server']
@@ -285,6 +294,8 @@ $GLOBALS['PMA_Config']->enableBc();
 
 ThemeManager::initializeTheme();
 
+$GLOBALS['dbi'] = null;
+
 if (! defined('PMA_MINIMUM_COMMON')) {
     /**
      * save some settings in cookies
@@ -295,7 +306,6 @@ if (! defined('PMA_MINIMUM_COMMON')) {
     ThemeManager::getInstance()->setThemeCookie();
 
     if (! empty($cfg['Server'])) {
-
         /**
          * Loads the proper database interface for this server
          */
@@ -379,17 +389,19 @@ if (! defined('PMA_MINIMUM_COMMON')) {
         if ($GLOBALS['dbi']->getVersion() < $cfg['MysqlMinVersion']['internal']) {
             Core::fatalError(
                 __('You should upgrade to %s %s or later.'),
-                array('MySQL', $cfg['MysqlMinVersion']['human'])
+                [
+                    'MySQL',
+                    $cfg['MysqlMinVersion']['human'],
+                ]
             );
         }
 
         // Sets the default delimiter (if specified).
-        if (!empty($_REQUEST['sql_delimiter'])) {
+        if (! empty($_REQUEST['sql_delimiter'])) {
             PhpMyAdmin\SqlParser\Lexer::$DEFAULT_DELIMITER = $_REQUEST['sql_delimiter'];
         }
 
         // TODO: Set SQL modes too.
-
     } else { // end server connecting
         $response = Response::getInstance();
         $response->getHeader()->disableMenuAndConsole();
@@ -415,7 +427,7 @@ if (! defined('PMA_MINIMUM_COMMON')) {
      */
     $response = Response::getInstance();
     if (isset($_SESSION['profiling'])) {
-        $scripts  = $response->getHeader()->header->getScripts();
+        $scripts  = $response->getHeader()->getScripts();
         $scripts->addFile('chart.js');
         $scripts->addFile('vendor/jqplot/jquery.jqplot.js');
         $scripts->addFile('vendor/jqplot/plugins/jqplot.pieRenderer.js');

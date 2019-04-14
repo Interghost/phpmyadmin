@@ -167,18 +167,18 @@ to the latest version to take advantage of the new import features.
 
 The first things to check (or ask your host provider to check) are the values
 of ``max_execution_time``, ``upload_max_filesize``, ``memory_limit`` and
-``post_max_size`` in the :file:`php.ini` configuration file. All of these three
+``post_max_size`` in the :file:`php.ini` configuration file. All of these
 settings limit the maximum size of data that can be submitted and handled by
 PHP. Please note that ``post_max_size`` needs to be larger than
 ``upload_max_filesize``. There exist several workarounds if your upload is too
 big or your hosting provider is unwilling to change the settings:
 
 * Look at the :config:option:`$cfg['UploadDir']` feature. This allows one to upload a file to the server
-  via scp, ftp, or your favorite file transfer method. PhpMyAdmin is
+  via scp, FTP, or your favorite file transfer method. PhpMyAdmin is
   then able to import the files from the temporary directory. More
   information is available in the :ref:`config`  of this document.
 * Using a utility (such as `BigDump
-  <http://www.ozerov.de/bigdump/>`_) to split the files before
+  <https://www.ozerov.de/bigdump/>`_) to split the files before
   uploading. We cannot support this or any third party applications, but
   are aware of users having success with it.
 * If you have shell (command line) access, use MySQL to import the files
@@ -194,8 +194,8 @@ big or your hosting provider is unwilling to change the settings:
 1.17 Which Database versions does phpMyAdmin support?
 -----------------------------------------------------
 
-For `MySQL <https://www.mysql.com/>`_, versions 5.5 and newer are supported. 
-For older MySQL versions, our `Downloads <https://www.phpmyadmin.net/downloads/>`_ page offers older phpMyAdmin versions 
+For `MySQL <https://www.mysql.com/>`_, versions 5.5 and newer are supported.
+For older MySQL versions, our `Downloads <https://www.phpmyadmin.net/downloads/>`_ page offers older phpMyAdmin versions
 (which may have become unsupported).
 
 For `MariaDB <https://mariadb.org/>`_, versions 5.5 and newer are supported.
@@ -313,7 +313,7 @@ directory and add the following line to the group [mysqld]:
     set-variable = lower_case_table_names=0
 
 .. note::
-    
+
     Forcing this variable to 0 with --lower-case-table-names=0 on a
     case-insensitive filesystem and access MyISAM tablenames using different
     lettercases, index corruption may result.
@@ -341,7 +341,6 @@ A tip from Jose Fandos: put a comment on the following two lines in
 httpd.conf, like this:
 
 .. code-block:: apache
-
 
     # mod_gzip_item_include file \.php$
     # mod_gzip_item_include mime "application/x-httpd-php.*"
@@ -394,7 +393,6 @@ directives are used:
 
 .. code-block:: apache
 
-
     SetOutputFilter PHP
     SetInputFilter PHP
 
@@ -411,7 +409,6 @@ with ``AddType``, so just comment out the first set of lines and
 restart Apache:
 
 .. code-block:: apache
-
 
     #SetOutputFilter PHP
     #SetInputFilter PHP
@@ -436,7 +433,9 @@ releases.
 PHP 7 is supported since phpMyAdmin 4.6, PHP 7.1 is supported since 4.6.5,
 PHP 7.2 is supported since 4.7.4.
 
-phpMyAdmin also works fine with HHVM.
+HHVM is supported up to phpMyAdmin 4.8.
+
+Since release 5.0, phpMyAdmin supports only PHP 7.1 and newer.
 
 .. _faq1_32:
 
@@ -464,25 +463,26 @@ Yes. This procedure was tested with phpMyAdmin 2.6.1, PHP 4.3.9 in
 
 .. _faq1_34:
 
-1.34 Can I access directly to database or table pages?
-------------------------------------------------------
+1.34 Can I directly access a database or table pages?
+-----------------------------------------------------
 
-Yes. Out of the box, you can use :term:`URL` like
+Yes. Out of the box, you can use a :term:`URL` like
 ``http://server/phpMyAdmin/index.php?server=X&db=database&table=table&target=script``.
-For ``server`` you use the server number
-which refers to the order of the server paragraph in
-:file:`config.inc.php`. Table and script parts are optional. If you want
-``http://server/phpMyAdmin/database[/table][/script]`` :term:`URL`, you need to do some configuration. Following
-lines apply only for `Apache <https://httpd.apache.org>`_ web server.
-First make sure, that you have enabled some features within global
+For ``server`` you can use the server number
+which refers to the numeric host index (from ``$i``) in
+:file:`config.inc.php`. The table and script parts are optional.
+
+If you want a URL like
+``http://server/phpMyAdmin/database[/table][/script]``, you need to do some additional configuration. The following
+lines apply only for the `Apache <https://httpd.apache.org>`_ web server.
+First, make sure that you have enabled some features within the Apache global
 configuration. You need ``Options SymLinksIfOwnerMatch`` and ``AllowOverride
 FileInfo`` enabled for directory where phpMyAdmin is installed and you
-need mod\_rewrite to be enabled. Then you just need to create
+need mod\_rewrite to be enabled. Then you just need to create the
 following :term:`.htaccess` file in root folder of phpMyAdmin installation (don't
 forget to change directory name inside of it):
 
 .. code-block:: apache
-
 
     RewriteEngine On
     RewriteBase /path_to_phpMyAdmin
@@ -490,6 +490,8 @@ forget to change directory name inside of it):
     RewriteRule ^([a-zA-Z0-9_]+)/([a-z_]+\.php)$ index.php?db=$1&target=$2 [R]
     RewriteRule ^([a-zA-Z0-9_]+)/([a-zA-Z0-9_]+)$ index.php?db=$1&table=$2 [R]
     RewriteRule ^([a-zA-Z0-9_]+)$ index.php?db=$1 [R]
+
+.. seealso:: :ref:`faq4_8`
 
 .. _faq1_35:
 
@@ -500,7 +502,6 @@ Yes. However you need to pass authentication variable to :term:`CGI` using
 following rewrite rule:
 
 .. code-block:: apache
-
 
     RewriteEngine On
     RewriteRule .* - [E=REMOTE_USER:%{HTTP:Authorization},L]
@@ -609,7 +610,6 @@ the set-cookie headers. Example from the Apache 2.2 documentation:
 
 .. code-block:: apache
 
-
     ProxyPass /mirror/foo/ http://backend.example.com/
     ProxyPassReverse /mirror/foo/ http://backend.example.com/
     ProxyPassReverseCookieDomain backend.example.com public.example.com
@@ -620,7 +620,6 @@ tilde (~) must be url encoded as %7E in the ProxyPassReverse\* lines.
 This is not specific to phpmyadmin, it's just the behavior of Apache.
 
 .. code-block:: apache
-
 
     ProxyPass /mirror/foo/ http://backend.example.com/~user/phpmyadmin
     ProxyPassReverse /mirror/foo/ http://backend.example.com/%7Euser/phpmyadmin
@@ -646,7 +645,6 @@ field. This is quite easy to circumvent, but could prevent at least
 some robots accessing your installation.
 
 .. code-block:: apache
-
 
     RewriteEngine on
 
@@ -801,7 +799,6 @@ doesn't work in this configuration with port forwarding. If you enter
 
 See :ref:`themes`.
 
-
 .. _faqmissingparameters:
 
 2.8 I get "Missing parameters" errors, what can I do?
@@ -889,7 +886,6 @@ comments like this:
 
 .. code-block:: mysql
 
-
     -- MySQL dump 8.22
     --
     -- Host: localhost Database: database
@@ -927,7 +923,7 @@ TableSeparator or disabling that feature.
 
 Your table neither have a :term:`primary key` nor an :term:`unique key`, so we must
 use a long expression to identify this row. This causes problems to
-parse\_url function. The workaround is to create a :term:`primary key` 
+parse\_url function. The workaround is to create a :term:`primary key`
 or :term:`unique key`.
 
 .. _faq3_8:
@@ -1152,7 +1148,6 @@ network :term:`IP` blocks.
 
 .. code-block:: php
 
-
     //block root from logging in except from the private networks
     $cfg['Servers'][$i]['AllowDeny']['order'] = 'deny,allow';
     $cfg['Servers'][$i]['AllowDeny']['rules'] = array(
@@ -1178,19 +1173,21 @@ name is defined in the config file.
 4.8 Which parameters can I use in the URL that starts phpMyAdmin?
 -----------------------------------------------------------------
 
-When starting phpMyAdmin, you can use the ``db``, ``pma_username``,
-``pma_password`` and ``server`` parameters. This last one can contain
+When accessing phpMyAdmin, you can use the ``db``, ``pma_username``,
+``pma_password`` and ``server`` :term:`URL` parameters. The "server" parameter  can contain
 either the numeric host index (from ``$i`` of the configuration file)
 or one of the host names present in the configuration file. Using
-``pma_username`` and ``pma_password`` has been tested along with the
-usage of 'cookie' ``auth_type``.
+``pma_username`` and ``pma_password`` has been tested with the
+'cookie' ``auth_type``.
 
-For example direct login URL can be constructed as
+For example, a direct login URL can be constructed as
 ``https://example.com/phpmyadmin/?pma_username=user&pma_password=password``.
+
+.. seealso:: :ref:`faq1_34`
 
 .. warning::
 
-    Passing password and username in URL is insecure and should not be used in
+    Passing a password and username in URL is potentially insecure and should not be used in
     production environments.
 
 .. _faqbrowsers:
@@ -1387,7 +1384,7 @@ If you see errors like:
     A potentially unsafe operation has been detected in your request to this site.
 
 This is usually caused by web application firewall doing requests filtering. It
-tries to prevent SQL injection, however phpMyAdmin is tool designed to execute 
+tries to prevent SQL injection, however phpMyAdmin is tool designed to execute
 SQL queries, thus it makes it unusable.
 
 Please whitelist phpMyAdmin scripts from the web application firewall settings
@@ -1481,7 +1478,6 @@ table, create it as explained in the configuration section. Then
 create the example tables:
 
 .. code-block:: mysql
-
 
     CREATE TABLE REL_countries (
     country_code char(1) NOT NULL default '',
@@ -1581,7 +1577,7 @@ schema layout. Which tables will go on which pages?
   Browsers on other operating systems, and other browsers on Windows, do
   not have this problem.
 
-.. seealso:: 
+.. seealso::
 
     :ref:`relations`
 
@@ -1718,7 +1714,6 @@ have table exported in file :file:`table.tex`):
 
 .. code-block:: latex
 
-
     \documentclass{article} % or any class you want
     \usepackage{longtable}  % for displaying table
     \begin{document}        % start of document
@@ -1752,7 +1747,6 @@ this is to be able to type the first letter of either the key or the
 display column. For 100 values or more, a distinct window will appear,
 to browse foreign key values and choose one. To change the default
 limit of 100, see :config:option:`$cfg['ForeignKeyMaxLimit']`.
-
 
 .. _faq6_22:
 
@@ -2065,7 +2059,7 @@ PetType depends on PetBreed.
 
 .. _faq6_38:
 
-6.38 How can I reassign auto-incremented values? 
+6.38 How can I reassign auto-incremented values?
 ------------------------------------------------
 
 Some users prefer their AUTO_INCREMENT values to be consecutive; this is not
@@ -2218,7 +2212,6 @@ If you use Apache web server, phpMyAdmin exports information about
 authentication to the Apache environment and it can be used in Apache
 logs. Currently there are two variables available:
 
-
 ``userID``
     User name of currently active user (he does not have to be logged in).
 ``userStatus``
@@ -2273,4 +2266,3 @@ Synchronization
 
 9.2 (withdrawn).
 ----------------
-

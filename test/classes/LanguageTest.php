@@ -5,6 +5,8 @@
  *
  * @package PhpMyAdmin-test
  */
+declare(strict_types=1);
+
 namespace PhpMyAdmin\Tests;
 
 use PhpMyAdmin\LanguageManager;
@@ -17,6 +19,9 @@ use PhpMyAdmin\Tests\PmaTestCase;
  */
 class LanguageTest extends PmaTestCase
 {
+    /**
+     * @var LanguageManager
+     */
     private $manager;
 
     /**
@@ -24,7 +29,7 @@ class LanguageTest extends PmaTestCase
      *
      * @return void
      */
-    public function setup()
+    protected function setUp(): void
     {
         $loc = LOCALE_PATH . '/cs/LC_MESSAGES/phpmyadmin.mo';
         if (! is_readable($loc)) {
@@ -33,7 +38,10 @@ class LanguageTest extends PmaTestCase
         $this->manager = new LanguageManager();
     }
 
-    public function tearDown()
+    /**
+     * @return void
+     */
+    protected function tearDown(): void
     {
         // Ensure we have English locale after tests
         $this->manager->getLanguage('en')->activate();
@@ -50,7 +58,7 @@ class LanguageTest extends PmaTestCase
 
         $langs = $this->manager->availableLocales();
 
-        $this->assertEquals(2, count($langs));
+        $this->assertCount(2, $langs);
         $this->assertContains('cs', $langs);
         $GLOBALS['cfg']['FilterLanguages'] = '';
     }
@@ -93,7 +101,7 @@ class LanguageTest extends PmaTestCase
         $this->assertGreaterThan(1, count($langs));
 
         /* Ensure we have name for every language */
-        foreach($langs as $lang) {
+        foreach ($langs as $lang) {
             $this->assertNotEquals($lang->getCode(), strtolower($lang->getEnglishName()));
         }
     }
@@ -106,11 +114,11 @@ class LanguageTest extends PmaTestCase
     public function testMySQLLocale()
     {
         $czech = $this->manager->getLanguage('cs');
-        $this->assertNotEquals($czech, false);
+        $this->assertNotFalse($czech);
         $this->assertEquals('cs_CZ', $czech->getMySQLLocale());
 
         $azerbaijani = $this->manager->getLanguage('az');
-        $this->assertNotEquals($azerbaijani, false);
+        $this->assertNotFalse($azerbaijani);
         $this->assertEquals('', $azerbaijani->getMySQLLocale());
     }
 
@@ -156,27 +164,27 @@ class LanguageTest extends PmaTestCase
      *
      * @dataProvider selectDataProvider
      */
-    public function testSelect($lang, $post, $get, $cookie, $accept, $agent, $default, $expect)
+    public function testSelect($lang, $post, $get, $cookie, $accept, $agent, $default, $expect): void
     {
-        $GLOBALS['cfg']['Lang'] = $lang;
+        $GLOBALS['PMA_Config']->set('Lang', $lang);
         $_POST['lang'] = $post;
         $_GET['lang'] = $get;
         $_COOKIE['pma_lang'] = $cookie;
         $_SERVER['HTTP_ACCEPT_LANGUAGE'] = $accept;
         $_SERVER['HTTP_USER_AGENT'] = $agent;
-        $GLOBALS['cfg']['DefaultLang'] = $default;
+        $GLOBALS['PMA_Config']->set('DefaultLang', $default);
 
         $lang = $this->manager->selectLanguage();
 
         $this->assertEquals($expect, $lang->getEnglishName());
 
-        $GLOBALS['cfg']['Lang'] = '';
+        $GLOBALS['PMA_Config']->set('Lang', '');
         $_POST['lang'] = '';
         $_GET['lang'] = '';
         $_COOKIE['pma_lang'] = '';
         $_SERVER['HTTP_ACCEPT_LANGUAGE'] = '';
         $_SERVER['HTTP_USER_AGENT'] = '';
-        $GLOBALS['cfg']['DefaultLang'] = 'en';
+        $GLOBALS['PMA_Config']->set('DefaultLang', 'en');
     }
 
     /**
@@ -186,20 +194,98 @@ class LanguageTest extends PmaTestCase
      */
     public function selectDataProvider()
     {
-        return array(
-            array('cs', 'en', '', '' ,'' ,'', '', 'Czech'),
-            array('', 'cs', '', '' ,'' ,'', '', 'Czech'),
-            array('', 'cs', 'en', '' ,'' ,'', '', 'Czech'),
-            array('', '', 'cs', '' ,'' ,'', '', 'Czech'),
-            array('', '', '', '' ,'cs,en-US;q=0.7,en;q=0.3' ,'', '', 'Czech'),
-            array(
-                '', '', '', '', '',
+        return [
+            [
+                'cs',
+                'en',
+                '',
+                '',
+                '',
+                '',
+                '',
+                'Czech',
+            ],
+            [
+                '',
+                'cs',
+                '',
+                '',
+                '',
+                '',
+                '',
+                'Czech',
+            ],
+            [
+                '',
+                'cs',
+                'en',
+                '',
+                '',
+                '',
+                '',
+                'Czech',
+            ],
+            [
+                '',
+                '',
+                'cs',
+                '',
+                '',
+                '',
+                '',
+                'Czech',
+            ],
+            [
+                '',
+                '',
+                '',
+                'cs',
+                '',
+                '',
+                '',
+                'Czech',
+            ],
+            [
+                '',
+                '',
+                '',
+                '',
+                'cs,en-US;q=0.7,en;q=0.3',
+                '',
+                '',
+                'Czech',
+            ],
+            [
+                '',
+                '',
+                '',
+                '',
+                '',
                 'Mozilla/5.0 (Linux; U; Android 2.2.2; tr-tr; GM FOX)',
-                '', 'Turkish'
-            ),
-            array('', '', '', '' ,'' ,'', 'cs', 'Czech'),
-            array('', '', '', '' ,'' ,'', '', 'English'),
-        );
+                '',
+                'Turkish',
+            ],
+            [
+                '',
+                '',
+                '',
+                '',
+                '',
+                '',
+                'cs',
+                'Czech',
+            ],
+            [
+                '',
+                '',
+                '',
+                '',
+                '',
+                '',
+                '',
+                'English',
+            ],
+        ];
     }
 
     /**
@@ -212,14 +298,14 @@ class LanguageTest extends PmaTestCase
      * @group large
      * @dataProvider listLocales
      */
-    public function testGettext($locale)
+    public function testGettext($locale): void
     {
         /* We should be able to set the language */
         $this->manager->getLanguage($locale)->activate();
 
         /* Grab some texts */
-        $this->assertContains('%s', _ngettext('%s table', '%s tables', 10));
-        $this->assertContains('%s', _ngettext('%s table', '%s tables', 1));
+        $this->assertStringContainsString('%s', _ngettext('%s table', '%s tables', 10));
+        $this->assertStringContainsString('%s', _ngettext('%s table', '%s tables', 1));
 
         $this->assertEquals(
             $locale,
@@ -234,9 +320,9 @@ class LanguageTest extends PmaTestCase
      */
     public function listLocales()
     {
-        $ret = array();
+        $ret = [];
         foreach (LanguageManager::getInstance()->availableLanguages() as $language) {
-            $ret[] = array($language->getCode());
+            $ret[] = [$language->getCode()];
         }
         return $ret;
     }

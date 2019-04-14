@@ -245,10 +245,17 @@ var AJAX = {
         // the click event is not triggered by script
         if (typeof event !== 'undefined' && event.type === 'click' &&
             event.isTrigger !== true &&
-            !jQuery.isEmptyObject(AJAX.lockedTargets) &&
-            confirm(PMA_messages.strConfirmNavigation) === false
+            !jQuery.isEmptyObject(AJAX.lockedTargets)
         ) {
-            return false;
+            if (confirm(PMA_messages.strConfirmNavigation) === false) {
+                return false;
+            } else {
+                if (isStorageSupported('localStorage')) {
+                    window.localStorage.removeItem('auto_saved_sql');
+                } else {
+                    Cookies.set('auto_saved_sql', '');
+                }
+            }
         }
         AJAX.resetLock();
         var isLink = !! href || false;
@@ -282,11 +289,13 @@ var AJAX = {
         $('html, body').animate({ scrollTop: 0 }, 'fast');
 
         var url = isLink ? href : $(this).attr('action');
-        var params = 'ajax_request=true&ajax_page_request=true';
+        var argsep = PMA_commonParams.get('arg_separator');
+        var params = 'ajax_request=true' + argsep + 'ajax_page_request=true';
+        var dataPost = AJAX.source.getPostData();
         if (! isLink) {
-            params += '&' + $(this).serialize();
-        } else if (AJAX.source.attr('data-post')) {
-            params += '&' + AJAX.source.attr('data-post');
+            params += argsep + $(this).serialize();
+        } else if (dataPost) {
+            params += argsep + dataPost;
             isLink = false;
         }
         if (! (history && history.pushState)) {
@@ -327,12 +336,114 @@ var AJAX = {
             if (typeof onsubmit !== 'function' || onsubmit.apply(this, [event])) {
                 AJAX.active = true;
                 AJAX.$msgbox = PMA_ajaxShowMessage();
-                var method = $(this).attr('method');
-                if (typeof method !== 'undefined' && method.toLowerCase() === 'post') {
-                    $.post(url, params, AJAX.responseHandler);
+                if ($(this).attr('id') === 'login_form') {
+                    $.post(url, params, AJAX.loginResponseHandler);
                 } else {
-                    $.get(url, params, AJAX.responseHandler);
+                    $.post(url, params, AJAX.responseHandler);
                 }
+            }
+        }
+    },
+    /**
+     * Response handler to handle login request from login modal after session expiration
+     *
+     * To refer to self use 'AJAX', instead of 'this' as this function
+     * is called in the jQuery context.
+     *
+     * @param object data Event data
+     *
+     * @return void
+     */
+    loginResponseHandler: function (data) {
+        if (typeof data === 'undefined' || data === null) {
+            return;
+        }
+        PMA_ajaxRemoveMessage(AJAX.$msgbox);
+
+        PMA_commonParams.set('token', data.new_token);
+
+        AJAX.scriptHandler.load([]);
+
+        if (data._displayMessage) {
+            $('#page_content').prepend(data._displayMessage);
+            PMA_highlightSQL($('#page_content'));
+        }
+
+        $('#pma_errors').remove();
+
+        var msg = '';
+        if (data._errSubmitMsg) {
+            msg = data._errSubmitMsg;
+        }
+        if (data._errors) {
+            $('<div></div>', { id : 'pma_errors', class : 'clearfloat' })
+                .insertAfter('#selflink')
+                .append(data._errors);
+            // bind for php error reporting forms (bottom)
+            $('#pma_ignore_errors_bottom').on('click', function (e) {
+                e.preventDefault();
+                PMA_ignorePhpErrors();
+            });
+            $('#pma_ignore_all_errors_bottom').on('click', function (e) {
+                e.preventDefault();
+                PMA_ignorePhpErrors(false);
+            });
+            // In case of 'sendErrorReport'='always'
+            // submit the hidden error reporting form.
+            if (data._sendErrorAlways === '1' &&
+                data._stopErrorReportLoop !== '1'
+            ) {
+                $('#pma_report_errors_form').submit();
+                PMA_ajaxShowMessage(PMA_messages.phpErrorsBeingSubmitted, false);
+                $('html, body').animate({ scrollTop:$(document).height() }, 'slow');
+            } else if (data._promptPhpErrors) {
+                // otherwise just prompt user if it is set so.
+                msg = msg + PMA_messages.phpErrorsFound;
+                // scroll to bottom where all the errors are displayed.
+                $('html, body').animate({ scrollTop:$(document).height() }, 'slow');
+            }
+        }
+
+        PMA_ajaxShowMessage(msg, false);
+        // bind for php error reporting forms (popup)
+        $('#pma_ignore_errors_popup').on('click', function () {
+            PMA_ignorePhpErrors();
+        });
+        $('#pma_ignore_all_errors_popup').on('click', function () {
+            PMA_ignorePhpErrors(false);
+        });
+
+        if (typeof data.success !== 'undefined' && data.success) {
+            // reload page if user trying to login has changed
+            if (PMA_commonParams.get('user') !== data._params.user) {
+                window.location = 'index.php';
+                PMA_ajaxShowMessage(PMA_messages.strLoading, false);
+                AJAX.active = false;
+                AJAX.xhr = null;
+                return;
+            }
+            // remove the login modal if the login is successful otherwise show error.
+            if (typeof data.logged_in !== 'undefined' && data.logged_in === 1) {
+                if ($('#modalOverlay').length) {
+                    $('#modalOverlay').remove();
+                }
+                $('fieldset.disabled_for_expiration').removeAttr('disabled').removeClass('disabled_for_expiration');
+                AJAX.fireTeardown('functions.js');
+                AJAX.fireOnload('functions.js');
+            }
+            if (typeof data.new_token !== 'undefined') {
+                $('input[name=token]').val(data.new_token);
+            }
+        } else if (typeof data.logged_in !== 'undefined' && data.logged_in === 0) {
+            $('#modalOverlay').replaceWith(data.error);
+        } else {
+            PMA_ajaxShowMessage(data.error, false);
+            AJAX.active = false;
+            AJAX.xhr = null;
+            PMA_handleRedirectAndReload(data);
+            if (data.fieldWithError) {
+                $(':input.error').removeClass('error');
+                $('#' + data.fieldWithError).addClass('error');
             }
         }
     },
@@ -460,7 +571,7 @@ var AJAX = {
                     msg = data._errSubmitMsg;
                 }
                 if (data._errors) {
-                    $('<div/>', { id : 'pma_errors', class : 'clearfloat' })
+                    $('<div></div>', { id : 'pma_errors', class : 'clearfloat' })
                         .insertAfter('#selflink')
                         .append(data._errors);
                     // bind for php error reporting forms (bottom)
@@ -502,7 +613,13 @@ var AJAX = {
                 AJAX._callback = function () {};
             });
         } else {
-            PMA_ajaxShowMessage(data.error, false);
+            PMA_ajaxRemoveMessage(AJAX.$msgbox);
+            $('div.error, div.success, div#ajaxError').remove();
+            $ajaxError = $('<div></div>');
+            $ajaxError.attr({ 'id': 'ajaxError' });
+            $('#page_content').append($ajaxError);
+            $ajaxError.html(data.error);
+            $('html, body').animate({ scrollTop: $(document).height() }, 200);
             AJAX.active = false;
             AJAX.xhr = null;
             PMA_handleRedirectAndReload(data);
@@ -696,7 +813,7 @@ AJAX.registerOnload('functions.js', function () {
         if (typeof buttonName === 'undefined') {
             return;
         }
-        $(this).closest('form').append($('<input/>', {
+        $(this).closest('form').append($('<input>', {
             'type' : 'hidden',
             'name' : buttonName,
             'value': $(this).val()
@@ -761,7 +878,7 @@ $(function () {
             var state = event.originalEvent.state;
             if (state && state.menu) {
                 AJAX.$msgbox = PMA_ajaxShowMessage();
-                var params = 'ajax_request=true&ajax_page_request=true';
+                var params = 'ajax_request=true' + PMA_commonParams.get('arg_separator') + 'ajax_page_request=true';
                 var url = state.url || location.href;
                 $.get(url, params, AJAX.responseHandler);
                 // TODO: Check if sometimes menu is not retrieved from server,

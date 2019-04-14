@@ -5,6 +5,8 @@
  *
  * @package PhpMyAdmin-test
  */
+declare(strict_types=1);
+
 namespace PhpMyAdmin\Tests\Config\Forms;
 
 use PhpMyAdmin\Config;
@@ -21,7 +23,10 @@ use PhpMyAdmin\Tests\PmaTestCase;
  */
 class FormListTest extends PmaTestCase
 {
-    public function setUp()
+    /**
+     * @return void
+     */
+    protected function setUp(): void
     {
         $GLOBALS['PMA_Config'] = new Config();
         $GLOBALS['server'] = 1;
@@ -33,9 +38,11 @@ class FormListTest extends PmaTestCase
      * @param string $class  Class to test
      * @param string $prefix Reuturned class prefix
      *
+     * @return void
+     *
      * @dataProvider formObjects
      */
-    public function testForms($class, $prefix)
+    public function testForms($class, $prefix): void
     {
         $cf = new ConfigFile($GLOBALS['PMA_Config']->base_settings);
 
@@ -63,21 +70,24 @@ class FormListTest extends PmaTestCase
         $this->assertEquals('', $forms->displayErrors());
     }
 
+    /**
+     * @return array
+     */
     public function formObjects()
     {
-        return array(
-            array(
+        return [
+            [
                 '\\PhpMyAdmin\\Config\\Forms\\User\\UserFormList',
                 '\\PhpMyAdmin\\Config\\Forms\\User\\',
-            ),
-            array(
+            ],
+            [
                 '\\PhpMyAdmin\\Config\\Forms\\Page\\PageFormList',
                 '\\PhpMyAdmin\\Config\\Forms\\Page\\',
-            ),
-            array(
+            ],
+            [
                 '\\PhpMyAdmin\\Config\\Forms\\Setup\\SetupFormList',
                 '\\PhpMyAdmin\\Config\\Forms\\Setup\\',
-            ),
-        );
+            ],
+        ];
     }
 }

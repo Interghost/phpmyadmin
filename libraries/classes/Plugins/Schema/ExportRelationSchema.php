@@ -6,6 +6,8 @@
  *
  * @package PhpMyAdmin
  */
+declare(strict_types=1);
+
 namespace PhpMyAdmin\Plugins\Schema;
 
 use PhpMyAdmin\Relation;
@@ -21,20 +23,6 @@ use PhpMyAdmin\Util;
  */
 class ExportRelationSchema
 {
-    /**
-     * Constructor.
-     *
-     * @param string $db      database name
-     * @param object $diagram schema diagram
-     */
-    public function __construct($db, $diagram)
-    {
-        $this->db = $db;
-        $this->diagram = $diagram;
-        $this->setPageNumber($_REQUEST['page_number']);
-        $this->setOffline(isset($_REQUEST['offline_export']));
-    }
-
     protected $db;
     protected $diagram;
     protected $showColor;
@@ -45,6 +33,26 @@ class ExportRelationSchema
     protected $paper;
     protected $pageNumber;
     protected $offline;
+
+    /**
+     * @var Relation
+     */
+    protected $relation;
+
+    /**
+     * Constructor.
+     *
+     * @param string                                       $db      database name
+     * @param Pdf\Pdf|Svg\Svg|Eps\Eps|Dia\Dia|Pdf\Pdf|null $diagram schema diagram
+     */
+    public function __construct($db, $diagram)
+    {
+        $this->db = $db;
+        $this->diagram = $diagram;
+        $this->setPageNumber($_REQUEST['page_number']);
+        $this->setOffline(isset($_REQUEST['offline_export']));
+        $this->relation = new Relation($GLOBALS['dbi']);
+    }
 
     /**
      * Set Page Number
@@ -169,7 +177,7 @@ class ExportRelationSchema
      */
     public function setOrientation($value)
     {
-        $this->orientation = ($value == 'P') ? 'P' : 'L';
+        $this->orientation = $value == 'P' ? 'P' : 'L';
     }
 
     /**
@@ -239,7 +247,7 @@ class ExportRelationSchema
      */
     protected function getTablesFromRequest()
     {
-        $tables = array();
+        $tables = [];
         $dbLength = mb_strlen($this->db);
         foreach ($_REQUEST['t_h'] as $key => $value) {
             if ($value) {
@@ -261,12 +269,12 @@ class ExportRelationSchema
     {
         $filename = $this->db . $extension;
         // Get the name of this page to use as filename
-        if ($this->pageNumber != -1 && !$this->offline) {
+        if ($this->pageNumber != -1 && ! $this->offline) {
             $_name_sql = 'SELECT page_descr FROM '
                 . Util::backquote($GLOBALS['cfgRelation']['db']) . '.'
                 . Util::backquote($GLOBALS['cfgRelation']['pdf_pages'])
                 . ' WHERE page_nr = ' . $this->pageNumber;
-            $_name_rs = Relation::queryAsControlUser($_name_sql);
+            $_name_rs = $this->relation->queryAsControlUser($_name_sql);
             $_name_row = $GLOBALS['dbi']->fetchRow($_name_rs);
             $filename = $_name_row[0] . $extension;
         }
@@ -288,14 +296,14 @@ class ExportRelationSchema
     public static function dieSchema($pageNumber, $type = '', $error_message = '')
     {
         echo "<p><strong>" , __("SCHEMA ERROR: ") , $type , "</strong></p>" , "\n";
-        if (!empty($error_message)) {
+        if (! empty($error_message)) {
             $error_message = htmlspecialchars($error_message);
         }
         echo '<p>' , "\n";
         echo '    ' , $error_message , "\n";
         echo '</p>' , "\n";
         echo '<a href="db_designer.php'
-            , Url::getCommon(array('db' => $GLOBALS['db']))
+            , Url::getCommon(['db' => $GLOBALS['db']])
             , '&page=' . htmlspecialchars($pageNumber) , '">' , __('Back') , '</a>';
         echo "\n";
         exit;

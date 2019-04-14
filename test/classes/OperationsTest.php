@@ -5,11 +5,15 @@
  *
  * @package PhpMyAdmin-test
  */
+declare(strict_types=1);
+
 namespace PhpMyAdmin\Tests;
 
 use PhpMyAdmin\Operations;
+use PhpMyAdmin\Relation;
 use PhpMyAdmin\Theme;
 use PHPUnit\Framework\TestCase;
+use ReflectionMethod;
 
 /**
  * tests for operations
@@ -19,19 +23,25 @@ use PHPUnit\Framework\TestCase;
 class OperationsTest extends TestCase
 {
     /**
+     * @var Operations
+     */
+    private $operations;
+
+    /**
      * Set up global environment.
      *
      * @return void
      */
-    public function setup()
+    protected function setUp(): void
     {
         $GLOBALS['server'] = 1;
         $GLOBALS['table'] = 'table';
         $GLOBALS['db'] = 'db';
-        $GLOBALS['cfg'] = array(
+        $GLOBALS['cfg'] = [
             'ServerDefault' => 1,
             'ActionLinksMode' => 'icons',
-        );
+            'LinkLengthLimit' => 1000,
+        ];
         $GLOBALS['cfg']['DBG']['sql'] = false;
         $GLOBALS['server'] = 1;
 
@@ -40,11 +50,15 @@ class OperationsTest extends TestCase
         $GLOBALS['col_priv'] = true;
         $GLOBALS['proc_priv'] = true;
         $GLOBALS['flush_priv'] = true;
+        $GLOBALS['is_reload_priv'] = false;
         $GLOBALS['cfg']['Server']['DisableIS'] = false;
+
+        $relation = new Relation($GLOBALS['dbi']);
+        $this->operations = new Operations($GLOBALS['dbi'], $relation);
     }
 
     /**
-     * Test for Operations::getHtmlForDatabaseComment
+     * Test for getHtmlForDatabaseComment
      *
      * @return void
      */
@@ -53,21 +67,21 @@ class OperationsTest extends TestCase
 
         $this->assertRegExp(
             '/.*db_operations.php(.|[\n])*Database comment.*name="comment"([\n]|.)*/m',
-            Operations::getHtmlForDatabaseComment("pma")
+            $this->operations->getHtmlForDatabaseComment("pma")
         );
     }
 
     /**
-     * Test for Operations::getHtmlForRenameDatabase
+     * Test for getHtmlForRenameDatabase
      *
      * @return void
      */
     public function testGetHtmlForRenameDatabase()
     {
 
-        $_REQUEST['db_collation'] = 'db1';
-        $html = Operations::getHtmlForRenameDatabase("pma");
-        $this->assertContains('db_operations.php', $html);
+        $db_collation = 'db1';
+        $html = $this->operations->getHtmlForRenameDatabase("pma", $db_collation);
+        $this->assertStringContainsString('db_operations.php', $html);
         $this->assertRegExp(
             '/.*db_rename.*Rename database to.*/',
             $html
@@ -75,7 +89,7 @@ class OperationsTest extends TestCase
     }
 
     /**
-     * Test for Operations::getHtmlForDropDatabaseLink
+     * Test for getHtmlForDropDatabaseLink
      *
      * @return void
      */
@@ -84,44 +98,46 @@ class OperationsTest extends TestCase
 
         $this->assertRegExp(
             '/.*DROP.DATABASE.*db_operations.php.*Drop the database.*/',
-            Operations::getHtmlForDropDatabaseLink("pma")
+            $this->operations->getHtmlForDropDatabaseLink("pma")
         );
     }
 
     /**
-     * Test for Operations::getHtmlForCopyDatabase
+     * Test for getHtmlForCopyDatabase
      *
      * @return void
      */
     public function testGetHtmlForCopyDatabase()
     {
-        $_REQUEST['db_collation'] = 'db1';
-        $html = Operations::getHtmlForCopyDatabase("pma");
+        $db_collation = 'db1';
+        $html = $this->operations->getHtmlForCopyDatabase("pma", $db_collation);
         $this->assertRegExp('/.*db_operations.php.*/', $html);
         $this->assertRegExp('/.*db_copy.*/', $html);
         $this->assertRegExp('/.*Copy database to.*/', $html);
     }
 
     /**
-     * Test for Operations::getHtmlForChangeDatabaseCharset
+     * Test for getHtmlForChangeDatabaseCharset
      *
      * @return void
      */
     public function testGetHtmlForChangeDatabaseCharset()
     {
 
-        $_REQUEST['db_collation'] = 'db1';
-        $result = Operations::getHtmlForChangeDatabaseCharset("pma", "bookmark");
+        $db_collation = 'db1';
+        $result = $this->operations->getHtmlForChangeDatabaseCharset("pma", $db_collation);
         $this->assertRegExp(
-            '/.*select_db_collation.*Collation.*/m', $result
+            '/.*select_db_collation.*Collation.*/m',
+            $result
         );
         $this->assertRegExp(
-            '/.*db_operations.php.*/', $result
+            '/.*db_operations.php.*/',
+            $result
         );
     }
 
     /**
-     * Test for Operations::getHtmlForOrderTheTable
+     * Test for getHtmlForOrderTheTable
      *
      * @return void
      */
@@ -130,47 +146,59 @@ class OperationsTest extends TestCase
 
         $this->assertRegExp(
             '/.*tbl_operations.php(.|[\n])*Alter table order by([\n]|.)*order_order.*/m',
-            Operations::getHtmlForOrderTheTable(
-                array(array('Field' => "column1"), array('Field' => "column2"))
+            $this->operations->getHtmlForOrderTheTable(
+                [
+                    ['Field' => "column1"],
+                    ['Field' => "column2"],
+                ]
             )
         );
     }
 
     /**
-     * Test for Operations::getHtmlForTableRow
+     * Test for getHtmlForTableRow
      *
      * @return void
      */
     public function testGetHtmlForTableRow()
     {
+        $method = new ReflectionMethod(Operations::class, 'getHtmlForTableRow');
+        $method->setAccessible(true);
+        $result = $method->invokeArgs($this->operations, ['name', 'lable', 'value']);
 
         $this->assertEquals(
-            '<tr><td class="vmiddle"><label for="name">lable</label></td><td><input type="checkbox" name="name" id="name" value="1"/></td></tr>',
-            Operations::getHtmlForTableRow("name", "lable", "value")
+            '<tr><td class="vmiddle"><label for="name">lable</label></td><td><input type="checkbox" name="name" id="name" value="1"></td></tr>',
+            $result
         );
     }
 
     /**
-     * Test for Operations::getMaintainActionlink
+     * Test for getMaintainActionlink
      *
      * @return void
      */
     public function testGetMaintainActionlink()
     {
+        $method = new ReflectionMethod(Operations::class, 'getMaintainActionlink');
+        $method->setAccessible(true);
+        $result = $method->invokeArgs($this->operations, [
+            'post',
+            [
+                'name' => 'foo',
+                'value' => 'bar',
+            ],
+            [],
+            'doclink',
+        ]);
 
         $this->assertRegExp(
             '/.*href="sql.php.*post.*/',
-            Operations::getMaintainActionlink(
-                "post",
-                array("name" => 'foo', "value" => 'bar'),
-                array(),
-                'doclink'
-            )
+            $result
         );
     }
 
     /**
-     * Test for Operations::getHtmlForDeleteDataOrTable
+     * Test for getHtmlForDeleteDataOrTable
      *
      * @return void
      */
@@ -179,14 +207,15 @@ class OperationsTest extends TestCase
 
         $this->assertRegExp(
             '/.*Delete data or table.*Empty the table.*Delete the table.*/m',
-            Operations::getHtmlForDeleteDataOrTable(
-                array("truncate" => 'foo'), array("drop" => 'bar')
+            $this->operations->getHtmlForDeleteDataOrTable(
+                ["truncate" => 'foo'],
+                ["drop" => 'bar']
             )
         );
     }
 
     /**
-     * Test for Operations::getDeleteDataOrTablelink
+     * Test for getDeleteDataOrTablelink
      *
      * @return void
      */
@@ -195,8 +224,8 @@ class OperationsTest extends TestCase
 
         $this->assertRegExp(
             '/.*TRUNCATE.TABLE.foo.*id_truncate.*Truncate table.*/m',
-            Operations::getDeleteDataOrTablelink(
-                array("sql" => 'TRUNCATE TABLE foo'),
+            $this->operations->getDeleteDataOrTablelink(
+                ["sql" => 'TRUNCATE TABLE foo'],
                 "TRUNCATE_TABLE",
                 "Truncate table",
                 "id_truncate"
@@ -205,15 +234,21 @@ class OperationsTest extends TestCase
     }
 
     /**
-     * Test for Operations::getHtmlForPartitionMaintenance
+     * Test for getHtmlForPartitionMaintenance
      *
      * @return void
      */
     public function testGetHtmlForPartitionMaintenance()
     {
-        $html = Operations::getHtmlForPartitionMaintenance(
-            array("partition1", "partion2"),
-            array("param1" => 'foo', "param2" => 'bar')
+        $html = $this->operations->getHtmlForPartitionMaintenance(
+            [
+                "partition1",
+                "partion2",
+            ],
+            [
+                "param1" => 'foo',
+                "param2" => 'bar',
+            ]
         );
         $this->assertRegExp('/.*action="tbl_operations.php".*/', $html);
         $this->assertRegExp('/.*ANALYZE.*/', $html);
@@ -221,7 +256,7 @@ class OperationsTest extends TestCase
     }
 
     /**
-     * Test for Operations::getHtmlForReferentialIntegrityCheck
+     * Test for getHtmlForReferentialIntegrityCheck
      *
      * @return void
      */
@@ -230,18 +265,19 @@ class OperationsTest extends TestCase
 
         $this->assertRegExp(
             '/.*Check referential integrity.*href="sql.php(.|[\n])*/m',
-            Operations::getHtmlForReferentialIntegrityCheck(
-                array(
-                    array(
+            $this->operations->getHtmlForReferentialIntegrityCheck(
+                [
+                    [
                         'foreign_db'    => 'db1',
                         'foreign_table' => "foreign1",
-                        'foreign_field' => "foreign2"
-                    )
-                ),
-                array("param1" => 'a', "param2" => 'b')
+                        'foreign_field' => "foreign2",
+                    ],
+                ],
+                [
+                    "param1" => 'a',
+                    "param2" => 'b',
+                ]
             )
         );
     }
-
-
 }

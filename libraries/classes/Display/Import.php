@@ -5,6 +5,8 @@
  *
  * @package PhpMyAdmin
  */
+declare(strict_types=1);
+
 namespace PhpMyAdmin\Display;
 
 use PhpMyAdmin\Core;
@@ -35,6 +37,8 @@ class Import
     {
         global $cfg;
         global $SESSION_KEY;
+
+        $template = new Template();
 
         list(
             $SESSION_KEY,
@@ -72,18 +76,18 @@ class Import
         }
 
         // zip, gzip and bzip2 encode features
-        $compressions = array();
-        if ($cfg['GZipDump'] && @function_exists('gzopen')) {
+        $compressions = [];
+        if ($cfg['GZipDump'] && function_exists('gzopen')) {
             $compressions[] = 'gzip';
         }
-        if ($cfg['BZipDump'] && @function_exists('bzopen')) {
+        if ($cfg['BZipDump'] && function_exists('bzopen')) {
             $compressions[] = 'bzip2';
         }
-        if ($cfg['ZipDump'] && @function_exists('zip_open')) {
+        if ($cfg['ZipDump'] && function_exists('zip_open')) {
             $compressions[] = 'zip';
         }
 
-        return Template::get('display/import/import')->render([
+        return $template->render('display/import/import', [
             'upload_id' => $uploadId,
             'handler' => $_SESSION[$SESSION_KEY]["handler"],
             'id_key' => $_SESSION[$SESSION_KEY]['handler']::getIdKey(),

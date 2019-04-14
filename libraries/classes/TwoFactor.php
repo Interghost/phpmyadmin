@@ -5,12 +5,16 @@
  *
  * @package PhpMyAdmin
  */
+declare(strict_types=1);
+
 namespace PhpMyAdmin;
 
 use PhpMyAdmin\UserPreferences;
 
 /**
  * Two factor authentication wrapper class
+ *
+ * @package PhpMyAdmin
  */
 class TwoFactor
 {
@@ -30,7 +34,7 @@ class TwoFactor
     protected $_writable;
 
     /**
-     * @var PhpMyAdmin\Plugins\TwoFactorPlugin
+     * @var \PhpMyAdmin\Plugins\TwoFactorPlugin
      */
     protected $_backend;
 
@@ -40,12 +44,18 @@ class TwoFactor
     protected $_available;
 
     /**
+     * @var UserPreferences
+     */
+    private $userPreferences;
+
+    /**
      * Creates new TwoFactor object
      *
      * @param string $user User name
      */
     public function __construct($user)
     {
+        $this->userPreferences = new UserPreferences();
         $this->user = $user;
         $this->_available = $this->getAvailable();
         $this->config = $this->readConfig();
@@ -61,7 +71,7 @@ class TwoFactor
     public function readConfig()
     {
         $result = [];
-        $config = UserPreferences::load();
+        $config = $this->userPreferences->load();
         if (isset($config['config_data']['2fa'])) {
             $result = $config['config_data']['2fa'];
         }
@@ -108,7 +118,7 @@ class TwoFactor
         if ($GLOBALS['cfg']['DBG']['simple2fa']) {
             $result[] = 'simple';
         }
-        if (class_exists('PragmaRX\Google2FA\Google2FA') && class_exists('BaconQrCode\Renderer\Image\Png')) {
+        if (class_exists('PragmaRX\Google2FAQRCode\Google2FA')) {
             $result[] = 'application';
         }
         if (class_exists('Samyoul\U2F\U2FServer\U2FServer')) {
@@ -125,19 +135,19 @@ class TwoFactor
     public function getMissingDeps()
     {
         $result = [];
-        if (!class_exists('PragmaRX\Google2FA\Google2FA')) {
+        if (! class_exists('PragmaRX\Google2FAQRCode\Google2FA')) {
             $result[] = [
                 'class' => \PhpMyAdmin\Plugins\TwoFactor\Application::getName(),
-                'dep' => 'pragmarx/google2fa',
+                'dep' => 'pragmarx/google2fa-qrcode',
             ];
         }
-        if (!class_exists('BaconQrCode\Renderer\Image\Png')) {
+        if (! class_exists('BaconQrCode\Renderer\Image\Png')) {
             $result[] = [
                 'class' => \PhpMyAdmin\Plugins\TwoFactor\Application::getName(),
                 'dep' => 'bacon/bacon-qr-code',
             ];
         }
-        if (!class_exists('Samyoul\U2F\U2FServer\U2FServer')) {
+        if (! class_exists('Samyoul\U2F\U2FServer\U2FServer')) {
             $result[] = [
                 'class' => \PhpMyAdmin\Plugins\TwoFactor\Key::getName(),
                 'dep' => 'samyoul/u2f-php-server',
@@ -167,7 +177,7 @@ class TwoFactor
     /**
      * Returns backend for current user
      *
-     * @return PhpMyAdmin\Plugins\TwoFactorPlugin
+     * @return \PhpMyAdmin\Plugins\TwoFactorPlugin
      */
     public function getBackend()
     {
@@ -216,11 +226,11 @@ class TwoFactor
     /**
      * Saves current configuration.
      *
-     * @return true|PhpMyAdmin\Message
+     * @return true|\PhpMyAdmin\Message
      */
     public function save()
     {
-        return UserPreferences::persistOption('2fa', $this->config, null);
+        return $this->userPreferences->persistOption('2fa', $this->config, null);
     }
 
     /**
@@ -236,7 +246,7 @@ class TwoFactor
     public function configure($name)
     {
         $this->config = [
-            'backend' => $name
+            'backend' => $name,
         ];
         if ($name === '') {
             $cls = $this->getBackendClass($name);

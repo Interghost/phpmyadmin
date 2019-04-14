@@ -5,6 +5,8 @@
  *
  * @package PhpMyAdmin-test
  */
+declare(strict_types=1);
+
 namespace PhpMyAdmin\Tests\Server;
 
 use PhpMyAdmin\Server\Users;
@@ -27,30 +29,32 @@ class UsersTest extends TestCase
     public function testGetHtmlForSubMenusOnUsersPage()
     {
         $GLOBALS['server'] = 1;
+        $GLOBALS['cfg']['ServerDefault'] = 1;
+        $GLOBALS['cfg']['Server']['DisableIS'] = false;
         $html = Users::getHtmlForSubMenusOnUsersPage('server_privileges.php');
 
         //validate 1: topmenu2
-        $this->assertContains(
+        $this->assertStringContainsString(
             '<ul id="topmenu2">',
             $html
         );
 
         //validate 2: tabactive for server_privileges.php
-        $this->assertContains(
+        $this->assertStringContainsString(
             '<a class="tabactive" href="server_privileges.php',
             $html
         );
-        $this->assertContains(
+        $this->assertStringContainsString(
             __('User accounts overview'),
             $html
         );
 
         //validate 3: not-active for server_user_groups.php
-        $this->assertContains(
+        $this->assertStringContainsString(
             '<a href="server_user_groups.php',
             $html
         );
-        $this->assertContains(
+        $this->assertStringContainsString(
             __('User groups'),
             $html
         );

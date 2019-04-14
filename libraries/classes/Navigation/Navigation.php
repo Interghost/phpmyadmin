@@ -6,6 +6,8 @@
  *
  * @package PhpMyAdmin-navigation
  */
+declare(strict_types=1);
+
 namespace PhpMyAdmin\Navigation;
 
 use PhpMyAdmin\Config\PageSettings;
@@ -23,6 +25,19 @@ use PhpMyAdmin\Util;
 class Navigation
 {
     /**
+     * @var Relation
+     */
+    public $relation;
+
+    /**
+     * Constructor
+     */
+    public function __construct()
+    {
+        $this->relation = new Relation($GLOBALS['dbi']);
+    }
+
+    /**
      * Renders the navigation tree, or part of it
      *
      * @return string The navigation tree
@@ -38,8 +53,8 @@ class Navigation
         }
         $tree = new NavigationTree();
         if (! $response->isAjax()
-            || ! empty($_REQUEST['full'])
-            || ! empty($_REQUEST['reload'])
+            || ! empty($_POST['full'])
+            || ! empty($_POST['reload'])
         ) {
             if ($GLOBALS['cfg']['ShowDatabasesNavigationAsTree']) {
                 // provide database tree in navigation
@@ -63,12 +78,14 @@ class Navigation
             // closes the tags that were opened by the navigation header
             $retval .= '</div>'; // pma_navigation_tree
             $retval .= '<div id="pma_navi_settings_container">';
-            if (!defined('PMA_DISABLE_NAVI_SETTINGS')) {
+            if (! defined('PMA_DISABLE_NAVI_SETTINGS')) {
                 $retval .= PageSettings::getNaviSettings();
             }
             $retval .= '</div>'; //pma_navi_settings_container
             $retval .= '</div>'; // pma_navigation_content
-            $retval .= $this->_getDropHandler();
+            if ($GLOBALS['cfg']['enable_drag_drop_import'] === true) { //load drag drop handler only if configuration setting is set to true
+                $retval .= $this->_getDropHandler();
+            }
             $retval .= '</div>'; // pma_navigation
         }
 
@@ -86,7 +103,10 @@ class Navigation
      * @return void
      */
     public function hideNavigationItem(
-        $itemName, $itemType, $dbName, $tableName = null
+        $itemName,
+        $itemType,
+        $dbName,
+        $tableName = null
     ) {
         $navTable = Util::backquote($GLOBALS['cfgRelation']['db'])
             . "." . Util::backquote($GLOBALS['cfgRelation']['navigationhiding']);
@@ -97,9 +117,9 @@ class Navigation
             . "'" . $GLOBALS['dbi']->escapeString($itemName) . "',"
             . "'" . $GLOBALS['dbi']->escapeString($itemType) . "',"
             . "'" . $GLOBALS['dbi']->escapeString($dbName) . "',"
-            . "'" . (! empty($tableName)? $GLOBALS['dbi']->escapeString($tableName) : "" )
+            . "'" . (! empty($tableName) ? $GLOBALS['dbi']->escapeString($tableName) : "" )
             . "')";
-        Relation::queryAsControlUser($sqlQuery, false);
+        $this->relation->queryAsControlUser($sqlQuery, false);
     }
 
     /**
@@ -135,7 +155,10 @@ class Navigation
      * @return void
      */
     public function unhideNavigationItem(
-        $itemName, $itemType, $dbName, $tableName = null
+        $itemName,
+        $itemType,
+        $dbName,
+        $tableName = null
     ) {
         $navTable = Util::backquote($GLOBALS['cfgRelation']['db'])
             . "." . Util::backquote($GLOBALS['cfgRelation']['navigationhiding']);
@@ -150,7 +173,7 @@ class Navigation
                 ? " AND `table_name`='" . $GLOBALS['dbi']->escapeString($tableName) . "'"
                 : ""
             );
-        Relation::queryAsControlUser($sqlQuery, false);
+        $this->relation->queryAsControlUser($sqlQuery, false);
     }
 
     /**
@@ -176,52 +199,52 @@ class Navigation
             . " AND `db_name`='" . $GLOBALS['dbi']->escapeString($dbName) . "'"
             . " AND `table_name`='"
             . (! empty($tableName) ? $GLOBALS['dbi']->escapeString($tableName) : '') . "'";
-        $result = Relation::queryAsControlUser($sqlQuery, false);
+        $result = $this->relation->queryAsControlUser($sqlQuery, false);
 
-        $hidden = array();
+        $hidden = [];
         if ($result) {
             while ($row = $GLOBALS['dbi']->fetchArray($result)) {
                 $type = $row['item_type'];
                 if (! isset($hidden[$type])) {
-                    $hidden[$type] = array();
+                    $hidden[$type] = [];
                 }
                 $hidden[$type][] = $row['item_name'];
             }
         }
         $GLOBALS['dbi']->freeResult($result);
 
-        $typeMap = array(
+        $typeMap = [
             'group' => __('Groups:'),
             'event' => __('Events:'),
             'function' => __('Functions:'),
             'procedure' => __('Procedures:'),
             'table' => __('Tables:'),
             'view' => __('Views:'),
-        );
+        ];
         if (empty($tableName)) {
             $first = true;
             foreach ($typeMap as $t => $lable) {
                 if ((empty($itemType) || $itemType == $t)
                     && isset($hidden[$t])
                 ) {
-                    $html .= (! $first ? '<br/>' : '')
+                    $html .= (! $first ? '<br>' : '')
                         . '<strong>' . $lable . '</strong>';
                     $html .= '<table width="100%"><tbody>';
                     foreach ($hidden[$t] as $hiddenItem) {
-                        $params = array(
+                        $params = [
                             'unhideNavItem' => true,
                             'itemType' => $t,
                             'itemName' => $hiddenItem,
                             'dbName' => $dbName
-                        );
+                        ];
 
                         $html .= '<tr>';
                         $html .= '<td>' . htmlspecialchars($hiddenItem) . '</td>';
-                        $html .= '<td style="width:80px"><a href="navigation.php'
-                            . Url::getCommon($params) . '"'
+                        $html .= '<td style="width:80px"><a href="navigation.php" data-post="'
+                            . Url::getCommon($params, '') . '"'
                             . ' class="unhideNavItem ajax">'
-                            . Util::getIcon('show.png', __('Show'))
-                            .  '</a></td>';
+                            . Util::getIcon('show', __('Unhide'))
+                            . '</a></td>';
                     }
                     $html .= '</tbody></table>';
                     $first = false;

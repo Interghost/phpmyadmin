@@ -35,7 +35,7 @@
         'ci': ci,
         'ci_offset': ci_offset,
         'length_values_input_size': length_values_input_size,
-        'length_to_display': length_to_display
+        'length_to_display': length
     } only %}
     {% set ci = ci + 1 %}
 </td>
@@ -47,13 +47,14 @@
         'ci_offset': ci_offset,
         'column_meta': column_meta,
         'type_upper': type_upper,
+        'default_value': default_value,
         'char_editing': char_editing
     } only %}
     {% set ci = ci + 1 %}
 </td>
 <td class="center">
     {# column collation #}
-    {{ Charsets_getCollationDropdownBox(
+    {{ get_collation_dropdown_box(
         dbi,
         disable_is,
         'field_collation[' ~ column_number ~ ']',
@@ -61,6 +62,7 @@
         column_meta['Collation'] is not empty ? column_meta['Collation'] : null,
         false
     ) }}
+    {% set ci = ci + 1 %}
 </td>
 <td class="center">
     {# column attribute #}

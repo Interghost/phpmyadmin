@@ -5,20 +5,35 @@
  *
  * @package PhpMyAdmin-test
  */
+declare(strict_types=1);
+
 namespace PhpMyAdmin\Tests;
 
 use PhpMyAdmin\CreateAddField;
 use PHPUnit\Framework\TestCase;
 
 /**
- * PhpMyAdmin\CreateAddFieldTest class
- *
  * This class is for testing PhpMyAdmin\CreateAddField methods
  *
  * @package PhpMyAdmin-test
  */
 class CreateAddFieldTest extends TestCase
 {
+    /**
+     * @var CreateAddField
+     */
+    private $createAddField;
+
+    /**
+     * Set up for test cases
+     *
+     * @return void
+     */
+    protected function setUp(): void
+    {
+        $this->createAddField = new CreateAddField($GLOBALS['dbi']);
+    }
+
     /**
      * Test for getPartitionsDefinition
      *
@@ -29,10 +44,10 @@ class CreateAddFieldTest extends TestCase
      *
      * @return void
      */
-    public function testGetPartitionsDefinition($expected, $request)
+    public function testGetPartitionsDefinition($expected, $request): void
     {
-        $_REQUEST = $request;
-        $actual = CreateAddField::getPartitionsDefinition();
+        $_POST = $request;
+        $actual = $this->createAddField->getPartitionsDefinition();
         $this->assertEquals($expected, $actual);
     }
 
@@ -44,12 +59,18 @@ class CreateAddFieldTest extends TestCase
     public function providerGetPartitionsDefinition()
     {
         return [
-            ['', []],
-            [' PARTITION BY HASH (EXPR()) PARTITIONS 2', [
-                'partition_by' => 'HASH',
-                'partition_expr' => 'EXPR()',
-                'partition_count' => '2',
-            ]],
+            [
+                '',
+                [],
+            ],
+            [
+                ' PARTITION BY HASH (EXPR()) PARTITIONS 2',
+                [
+                    'partition_by' => 'HASH',
+                    'partition_expr' => 'EXPR()',
+                    'partition_count' => '2',
+                ],
+            ],
         ];
     }
 
@@ -65,10 +86,10 @@ class CreateAddFieldTest extends TestCase
      *
      * @return void
      */
-    public function testGetTableCreationQuery($expected, $db, $table, $request)
+    public function testGetTableCreationQuery($expected, $db, $table, $request): void
     {
-        $_REQUEST = $request;
-        $actual = CreateAddField::getTableCreationQuery($db, $table);
+        $_POST = $request;
+        $actual = $this->createAddField->getTableCreationQuery($db, $table);
         $this->assertEquals($expected, $actual);
     }
 
@@ -80,14 +101,19 @@ class CreateAddFieldTest extends TestCase
     public function providerGetTableCreationQuery()
     {
         return [
-            ['CREATE TABLE `db`.`table` ();', 'db', 'table', [
-                'field_name' => [],
-                'primary_indexes' => '{}',
-                'indexes' => '{}',
-                'unique_indexes' => '{}',
-                'fulltext_indexes' => '{}',
-                'spatial_indexes' => '{}',
-            ]],
+            [
+                'CREATE TABLE `db`.`table` ();',
+                'db',
+                'table',
+                [
+                    'field_name' => [],
+                    'primary_indexes' => '{}',
+                    'indexes' => '{}',
+                    'unique_indexes' => '{}',
+                    'fulltext_indexes' => '{}',
+                    'spatial_indexes' => '{}',
+                ],
+            ],
         ];
     }
 
@@ -101,10 +127,10 @@ class CreateAddFieldTest extends TestCase
      *
      * @return void
      */
-    public function testGetNumberOfFieldsFromRequest($expected, $request)
+    public function testGetNumberOfFieldsFromRequest($expected, $request): void
     {
-        $_REQUEST = $request;
-        $actual = CreateAddField::getNumberOfFieldsFromRequest();
+        $_POST = $request;
+        $actual = $this->createAddField->getNumberOfFieldsFromRequest();
         $this->assertEquals($expected, $actual);
     }
 
@@ -116,7 +142,10 @@ class CreateAddFieldTest extends TestCase
     public function providerGetNumberOfFieldsFromRequest()
     {
         return [
-            [4, []],
+            [
+                4,
+                [],
+            ],
         ];
     }
 }

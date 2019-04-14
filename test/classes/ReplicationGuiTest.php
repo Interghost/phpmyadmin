@@ -5,6 +5,8 @@
  *
  * @package PhpMyAdmin-test
  */
+declare(strict_types=1);
+
 namespace PhpMyAdmin\Tests;
 
 use PhpMyAdmin\DatabaseInterface;
@@ -15,7 +17,7 @@ use PHPUnit\Framework\TestCase;
 /*
 * Include to test.
 */
-require_once 'libraries/replication.inc.php';
+require_once ROOT_PATH . 'libraries/replication.inc.php';
 
 /**
  * PhpMyAdmin\Tests\ReplicationGuiTest class
@@ -27,22 +29,27 @@ require_once 'libraries/replication.inc.php';
 class ReplicationGuiTest extends TestCase
 {
     /**
+     * ReplicationGui instance
+     *
+     * @var ReplicationGui
+     */
+    private $replicationGui;
+
+    /**
      * Prepares environment for the test.
      *
      * @return void
      */
-    public function setUp()
+    protected function setUp(): void
     {
-        //$_REQUEST
-        $_REQUEST['log'] = "index1";
-        $_REQUEST['pos'] = 3;
-        $_REQUEST['mr_adduser'] = "mr_adduser";
+        //$_POST
+        $_POST['mr_adduser'] = "mr_adduser";
 
         //$GLOBALS
         $GLOBALS['cfg']['MaxRows'] = 10;
         $GLOBALS['cfg']['ServerDefault'] = "server";
         $GLOBALS['cfg']['RememberSorting'] = true;
-        $GLOBALS['cfg']['SQP'] = array();
+        $GLOBALS['cfg']['SQP'] = [];
         $GLOBALS['cfg']['MaxCharactersInDisplayedSQL'] = 1000;
         $GLOBALS['cfg']['ShowSQL'] = true;
         $GLOBALS['cfg']['TableNavigationLinksMode'] = 'icons';
@@ -51,27 +58,35 @@ class ReplicationGuiTest extends TestCase
         $GLOBALS['cfg']['ShowHint'] = true;
 
         $GLOBALS['table'] = "table";
-        $GLOBALS['url_params'] = array();
+        $GLOBALS['url_params'] = [];
+
+        $this->replicationGui = new ReplicationGui();
 
         //$_SESSION
 
         //Mock DBI
 
-        $slave_host = array(
-            array('Server_id'=>'Server_id1', 'Host'=>'Host1'),
-            array('Server_id'=>'Server_id2', 'Host'=>'Host2'),
-        );
+        $slave_host = [
+            [
+                'Server_id' => 'Server_id1',
+                'Host' => 'Host1'
+            ],
+            [
+                'Server_id' => 'Server_id2',
+                'Host' => 'Host2'
+            ],
+        ];
 
-        $fetchResult = array(
-            array(
+        $fetchResult = [
+            [
                 "SHOW SLAVE HOSTS",
                 null,
                 null,
                 DatabaseInterface::CONNECT_USER,
                 0,
-                $slave_host
-            ),
-        );
+                $slave_host,
+            ],
+        ];
 
         $dbi = $this->getMockBuilder('PhpMyAdmin\DatabaseInterface')
             ->disableOriginalConstructor()
@@ -80,13 +95,13 @@ class ReplicationGuiTest extends TestCase
         $dbi->expects($this->any())->method('fetchResult')
             ->will($this->returnValueMap($fetchResult));
 
-        $fields_info = array(
-            "Host" => array(
+        $fields_info = [
+            "Host" => [
                 "Field" => "host",
                 "Type" => "char(60)",
                 "Null" => "NO",
-            )
-        );
+            ],
+        ];
         $dbi->expects($this->any())->method('getColumns')
             ->will($this->returnValue($fields_info));
 
@@ -94,12 +109,12 @@ class ReplicationGuiTest extends TestCase
     }
 
     /**
-     * Test for ReplicationGui::getHtmlForMasterReplication
+     * Test for getHtmlForMasterReplication
      *
      * @return void
      * @group medium
      */
-    public function testPMAGetHtmlForMasterReplication()
+    public function testGetHtmlForMasterReplication()
     {
         global $master_variables_alerts;
         global $master_variables_oks;
@@ -110,189 +125,171 @@ class ReplicationGuiTest extends TestCase
         $strReplicationStatus_master = null;
 
         //Call the test function
-        $html = ReplicationGui::getHtmlForMasterReplication();
+        $html = $this->replicationGui->getHtmlForMasterReplication();
 
         //validate 1: Master replication
-        $this->assertContains(
+        $this->assertStringContainsString(
             '<legend>Master replication</legend>',
             $html
         );
-        $this->assertContains(
+        $this->assertStringContainsString(
             'This server is configured as master in a replication process.',
             $html
         );
 
-        //validate 2: ReplicationGui::getHtmlForReplicationStatusTable
-        $this->assertContains(
+        //validate 2: getHtmlForReplicationStatusTable
+        $this->assertStringContainsString(
             '<div id="replication_master_section"',
             $html
         );
         //$master_variables
-        $this->assertContains(
+        $this->assertStringContainsString(
             "Binlog_Do_DB",
             $html
         );
-        $this->assertContains(
+        $this->assertStringContainsString(
             "Binlog_Ignore_DB",
             $html
         );
         //$server_master_replication
-        $this->assertContains(
+        $this->assertStringContainsString(
             "master-bin.000030",
             $html
         );
 
-        //validate 3: ReplicationGui::getHtmlForReplicationSlavesTable
-        $this->assertContains(
+        //validate 3: getHtmlForReplicationSlavesTable
+        $this->assertStringContainsString(
             'replication_slaves_section',
             $html
         );
-        $this->assertContains(
+        $this->assertStringContainsString(
             '<th>Server ID</th>',
             $html
         );
-        $this->assertContains(
+        $this->assertStringContainsString(
             '<th>Host</th>',
             $html
         );
         //slave host
-        $this->assertContains(
+        $this->assertStringContainsString(
             '<td class="value">Server_id1</td>',
             $html
         );
-        $this->assertContains(
+        $this->assertStringContainsString(
             '<td class="value">Server_id2</td>',
             $html
         );
-        $this->assertContains(
+        $this->assertStringContainsString(
             '<td class="value">Host1</td>',
             $html
         );
-        $this->assertContains(
+        $this->assertStringContainsString(
             '<td class="value">Host2</td>',
             $html
         );
         //Notice
-        $this->assertContains(
+        $this->assertStringContainsString(
             'Only slaves started with the',
             $html
         );
 
         //validate 4: navigation URL
-        $this->assertContains(
+        $this->assertStringContainsString(
             '<a href="server_replication.php',
             $html
         );
-        $this->assertContains(
+        $this->assertStringContainsString(
             'Add slave replication user',
             $html
         );
 
         //validate 5: 'Add replication slave user' form
-        $this->assertContains(
+        $this->assertStringContainsString(
             '<div id="master_addslaveuser_gui">',
             $html
         );
     }
 
     /**
-     * Test for ReplicationGui::getHtmlForNotServerReplication
+     * Test for getHtmlForSlaveConfiguration
      *
      * @return void
      */
-    public function testPMAGetHtmlForNotServerReplication()
-    {
-        //Call the test function
-        $html = ReplicationGui::getHtmlForNotServerReplication();
-
-        $this->assertContains(
-            '<legend>Master replication</legend>',
-            $html
-        );
-        $this->assertContains(
-            'This server is not configured as master in a replication process.',
-            $html
-        );
-    }
-
-    /**
-     * Test for ReplicationGui::getHtmlForSlaveConfiguration
-     *
-     * @return void
-     */
-    public function testPMAGetHtmlForSlaveConfiguration()
+    public function testGetHtmlForSlaveConfiguration()
     {
         global $server_slave_replication;
 
         //Call the test function
-        $html = ReplicationGui::getHtmlForSlaveConfiguration(
+        $html = $this->replicationGui->getHtmlForSlaveConfiguration(
             true,
             $server_slave_replication
         );
 
         //legend
-        $this->assertContains(
+        $this->assertStringContainsString(
             '<legend>Slave replication</legend>',
             $html
         );
-        $this->assertContains(
+        $this->assertStringContainsString(
             '<div id="slave_configuration_gui">',
             $html
         );
         //notice
-        $this->assertContains(
+        $this->assertStringContainsString(
             'Server is configured as slave in a replication process.',
             $html
         );
         //slave session
-        $this->assertContains(
+        $this->assertStringContainsString(
             '<div id="replication_slave_section"',
             $html
         );
         //variable
-        $this->assertContains(
+        $this->assertStringContainsString(
             'Master_SSL_CA_Path',
             $html
         );
-        $this->assertContains(
+        $this->assertStringContainsString(
             'Master_SSL_Cert',
             $html
         );
-        $this->assertContains(
+        $this->assertStringContainsString(
             'Master_SSL_Cipher',
             $html
         );
-        $this->assertContains(
+        $this->assertStringContainsString(
             'Seconds_Behind_Master',
             $html
         );
     }
 
     /**
-     * Test for ReplicationGui::getHtmlForReplicationChangeMaster
+     * Test for getHtmlForReplicationChangeMaster
      *
      * @return void
      */
-    public function testPMAGetHtmlForReplicationChangeMaster()
+    public function testGetHtmlForReplicationChangeMaster()
     {
         //Call the test function
-        $html = ReplicationGui::getHtmlForReplicationChangeMaster("slave_changemaster");
+        $html = $this->replicationGui->getHtmlForReplicationChangeMaster(
+            'slave_changemaster'
+        );
 
-        $this->assertContains(
+        $this->assertStringContainsString(
             '<form method="post" action="server_replication.php">',
             $html
         );
-        $this->assertContains(
+        $this->assertStringContainsString(
             'Slave configuration',
             $html
         );
-        $this->assertContains(
+        $this->assertStringContainsString(
             'Change or reconfigure master server',
             $html
         );
         $notice = 'Make sure you have a unique server-id '
             . 'in your configuration file (my.cnf)';
-        $this->assertContains(
+        $this->assertStringContainsString(
             $notice,
             $html
         );

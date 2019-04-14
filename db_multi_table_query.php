@@ -5,26 +5,41 @@
  *
  * @package PhpMyAdmin
  */
-use PhpMyAdmin\Database\MultiTableQuery;
+declare(strict_types=1);
+
+use PhpMyAdmin\Controllers\Database\MultiTableQueryController;
 use PhpMyAdmin\Response;
 
-require_once 'libraries/common.inc.php';
+if (! defined('ROOT_PATH')) {
+    define('ROOT_PATH', __DIR__ . DIRECTORY_SEPARATOR);
+}
 
-if (isset($_REQUEST['sql_query'])) {
-    MultiTableQuery::displayResults(
-        $_REQUEST['sql_query'],
-        $_REQUEST['db'],
-        $pmaThemeImage
-    );
+require_once ROOT_PATH . 'libraries/common.inc.php';
+
+$response = Response::getInstance();
+
+$controller = new MultiTableQueryController(
+    $response,
+    $GLOBALS['dbi'],
+    $db
+);
+
+if (isset($_POST['sql_query'])) {
+    $controller->displayResults([
+        'sql_query' => $_POST['sql_query'],
+        'db' => $_REQUEST['db'] ?? null,
+    ]);
+} elseif (isset($_GET['tables'])) {
+    $response->addJSON($controller->table([
+        'tables' => $_GET['tables'],
+        'db' => $_REQUEST['db'] ?? null,
+    ]));
 } else {
-    $response = Response::getInstance();
-
     $header = $response->getHeader();
     $scripts = $header->getScripts();
     $scripts->addFile('vendor/jquery/jquery.md5.js');
     $scripts->addFile('db_multi_table_query.js');
+    $scripts->addFile('db_query_generator.js');
 
-    $queryInstance = new MultiTableQuery($GLOBALS['dbi'], $db);
-
-    $response->addHTML($queryInstance->getFormHtml());
+    $response->addHTML($controller->index());
 }

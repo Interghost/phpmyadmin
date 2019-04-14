@@ -15,11 +15,15 @@ var ErrorReport = {
      * @return void
      */
     error_handler: function (exception) {
+        // issue: 14359
+        if (JSON.stringify(ErrorReport._last_exception) === JSON.stringify(exception)) {
+            return;
+        }
         if (exception.name === null || typeof(exception.name) === 'undefined') {
             exception.name = ErrorReport._extractExceptionName(exception);
         }
         ErrorReport._last_exception = exception;
-        $.get('error_report.php', {
+        $.post('error_report.php', {
             ajax_request: true,
             server: PMA_commonParams.get('server'),
             get_settings: true,
@@ -107,7 +111,7 @@ var ErrorReport = {
                         }
                     });
             }
-        }); // end $.get()
+        });
     },
     /**
      * Shows the small notification that asks for user permission
@@ -142,9 +146,9 @@ var ErrorReport = {
 
         $div.append($buttons);
         $div.appendTo(document.body);
-        $('#change_error_settings').on('click', ErrorReport._redirect_to_settings);
-        $('#show_error_report').on('click', ErrorReport._createReportDialog);
-        $('#ignore_error').on('click', ErrorReport._removeErrorNotification);
+        $(document).on('click', '#change_error_settings', ErrorReport._redirect_to_settings);
+        $(document).on('click', '#show_error_report', ErrorReport._createReportDialog);
+        $(document).on('click', '#ignore_error', ErrorReport._removeErrorNotification);
     },
     /**
      * Removes the notification if it was displayed before
@@ -205,6 +209,7 @@ var ErrorReport = {
      */
     _get_report_data: function (exception) {
         var report_data = {
+            'server': PMA_commonParams.get('server'),
             'ajax_request': true,
             'exception': exception,
             'current_url': window.location.href,

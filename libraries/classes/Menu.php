@@ -5,13 +5,9 @@
  *
  * @package PhpMyAdmin
  */
-namespace PhpMyAdmin;
+declare(strict_types=1);
 
-use PhpMyAdmin\DatabaseInterface;
-use PhpMyAdmin\Relation;
-use PhpMyAdmin\Tracker;
-use PhpMyAdmin\Url;
-use PhpMyAdmin\Util;
+namespace PhpMyAdmin;
 
 /**
  * Class for generating the top menu
@@ -43,6 +39,11 @@ class Menu
     private $_table;
 
     /**
+     * @var Relation
+     */
+    private $relation;
+
+    /**
      * Creates a new instance of Menu
      *
      * @param int    $server Server id
@@ -52,8 +53,9 @@ class Menu
     public function __construct($server, $db, $table)
     {
         $this->_server = $server;
-        $this->_db     = $db;
-        $this->_table  = $table;
+        $this->_db = $db;
+        $this->_table = $table;
+        $this->relation = new Relation($GLOBALS['dbi']);
     }
 
     /**
@@ -99,14 +101,14 @@ class Menu
      */
     private function _getMenu()
     {
-        $url_params = array();
+        $url_params = [];
 
-        if (strlen($this->_table) > 0) {
+        if (strlen((string) $this->_table) > 0) {
             $tabs = $this->_getTableTabs();
             $url_params['db'] = $this->_db;
             $url_params['table'] = $this->_table;
             $level = 'table';
-        } else if (strlen($this->_db) > 0) {
+        } elseif (strlen($this->_db) > 0) {
             $tabs = $this->_getDbTabs();
             $url_params['db'] = $this->_db;
             $level = 'db';
@@ -138,7 +140,7 @@ class Menu
             return Util::cacheGet($cache_key);
         }
         $allowedTabs = Util::getMenuTabList($level);
-        $cfgRelation = Relation::getRelationsParam();
+        $cfgRelation = $this->relation->getRelationsParam();
         if ($cfgRelation['menuswork']) {
             $groupTable = Util::backquote($cfgRelation['db'])
                 . "."
@@ -153,7 +155,7 @@ class Menu
                 . $userTable . " WHERE `username` = '"
                 . $GLOBALS['dbi']->escapeString($GLOBALS['cfg']['Server']['user']) . "')";
 
-            $result = Relation::queryAsControlUser($sql_query, false);
+            $result = $this->relation->queryAsControlUser($sql_query, false);
             if ($result) {
                 while ($row = $GLOBALS['dbi']->fetchAssoc($result)) {
                     $tabName = mb_substr(
@@ -176,7 +178,7 @@ class Menu
     private function _getBreadcrumbs()
     {
         $retval = '';
-        $tbl_is_view = $GLOBALS['dbi']->getTable($this->_db, $this->_table)
+        $tbl_is_view = $GLOBALS['dbi']->getTable($this->_db, (string) $this->_table)
             ->isView();
         if (empty($GLOBALS['cfg']['Server']['host'])) {
             $GLOBALS['cfg']['Server']['host'] = '';
@@ -201,13 +203,14 @@ class Menu
             $retval .= Util::getImage(
                 's_host',
                 '',
-                array('class' => 'item')
+                ['class' => 'item']
             );
         }
         $retval .= sprintf(
             $item,
             Util::getScriptNameForOption(
-                $GLOBALS['cfg']['DefaultTabServer'], 'server'
+                $GLOBALS['cfg']['DefaultTabServer'],
+                'server'
             ),
             Url::getCommon(),
             htmlspecialchars($server_info),
@@ -220,21 +223,22 @@ class Menu
                 $retval .= Util::getImage(
                     's_db',
                     '',
-                    array('class' => 'item')
+                    ['class' => 'item']
                 );
             }
             $retval .= sprintf(
                 $item,
                 Util::getScriptNameForOption(
-                    $GLOBALS['cfg']['DefaultTabDatabase'], 'database'
+                    $GLOBALS['cfg']['DefaultTabDatabase'],
+                    'database'
                 ),
-                Url::getCommon(array('db' => $this->_db)),
+                Url::getCommon(['db' => $this->_db]),
                 htmlspecialchars($this->_db),
                 __('Database')
             );
             // if the table is being dropped, $_REQUEST['purge'] is set to '1'
             // so do not display the table name in upper div
-            if (strlen($this->_table) > 0
+            if (strlen((string) $this->_table) > 0
                 && ! (isset($_REQUEST['purge']) && $_REQUEST['purge'] == '1')
             ) {
                 $table_class_object = $GLOBALS['dbi']->getTable(
@@ -254,18 +258,20 @@ class Menu
                     $retval .= Util::getImage(
                         $icon,
                         '',
-                        array('class' => 'item')
+                        ['class' => 'item']
                     );
                 }
                 $retval .= sprintf(
                     $item,
                     Util::getScriptNameForOption(
-                        $GLOBALS['cfg']['DefaultTabTable'], 'table'
+                        $GLOBALS['cfg']['DefaultTabTable'],
+                        'table'
                     ),
                     Url::getCommon(
-                        array(
-                            'db' => $this->_db, 'table' => $this->_table
-                        )
+                        [
+                            'db' => $this->_db,
+                            'table' => $this->_table,
+                        ]
                     ),
                     str_replace(' ', '&nbsp;', htmlspecialchars($this->_table)),
                     $tbl_is_view ? __('View') : __('Table')
@@ -287,18 +293,19 @@ class Menu
                     $retval .= '<span class="table_comment"';
                     $retval .= ' id="span_table_comment">';
                     $retval .= sprintf(
-                        __('“%s”'), htmlspecialchars($show_comment)
+                        __('“%s”'),
+                        htmlspecialchars($show_comment)
                     );
                     $retval .= '</span>';
                 } // end if
             } else {
                 // no table selected, display database comment if present
-                $cfgRelation = Relation::getRelationsParam();
+                $cfgRelation = $this->relation->getRelationsParam();
 
                 // Get additional information about tables for tooltip is done
                 // in Util::getDbInfo() only once
                 if ($cfgRelation['commwork']) {
-                    $comment = Relation::getDbComment($this->_db);
+                    $comment = $this->relation->getDbComment($this->_db);
                     /**
                      * Displays table comment
                      */
@@ -338,7 +345,7 @@ class Menu
         $isCreateOrGrantUser = $GLOBALS['dbi']->isUserType('grant')
             || $GLOBALS['dbi']->isUserType('create');
 
-        $tabs = array();
+        $tabs = [];
 
         $tabs['browse']['icon'] = 'b_browse';
         $tabs['browse']['text'] = __('Browse');
@@ -350,7 +357,10 @@ class Menu
         $tabs['structure']['text'] = __('Structure');
         $tabs['structure']['active'] = in_array(
             basename($GLOBALS['PMA_PHP_SELF']),
-            array('tbl_structure.php', 'tbl_relation.php')
+            [
+                'tbl_structure.php',
+                'tbl_relation.php',
+            ]
         );
 
         $tabs['sql']['icon'] = 'b_sql';
@@ -362,7 +372,11 @@ class Menu
         $tabs['search']['link'] = 'tbl_select.php';
         $tabs['search']['active'] = in_array(
             basename($GLOBALS['PMA_PHP_SELF']),
-            array('tbl_select.php', 'tbl_zoom_select.php', 'tbl_find_replace.php')
+            [
+                'tbl_select.php',
+                'tbl_zoom_select.php',
+                'tbl_find_replace.php',
+            ]
         );
 
         if (! $db_is_system_schema && (! $tbl_is_view || $updatable_view)) {
@@ -449,9 +463,9 @@ class Menu
         /**
          * Gets the relation settings
          */
-        $cfgRelation = Relation::getRelationsParam();
+        $cfgRelation = $this->relation->getRelationsParam();
 
-        $tabs = array();
+        $tabs = [];
 
         $tabs['structure']['link'] = 'db_structure.php';
         $tabs['structure']['text'] = __('Structure');
@@ -468,11 +482,18 @@ class Menu
             $tabs['search']['warning'] = __('Database seems to be empty!');
         }
 
-        $tabs['multi_table_query']['text'] = __('Query');
-        $tabs['multi_table_query']['icon'] = 's_db';
-        $tabs['multi_table_query']['link'] = 'db_multi_table_query.php';
+        $tabs['query']['text'] = __('Query');
+        $tabs['query']['icon'] = 's_db';
+        $tabs['query']['link'] = 'db_multi_table_query.php';
+        $tabs['query']['active'] = in_array(
+            basename($GLOBALS['PMA_PHP_SELF']),
+            [
+                'db_multi_table_query.php',
+                'db_qbe.php',
+            ]
+        );
         if ($num_tables == 0) {
-            $tabs['qbe']['warning'] = __('Database seems to be empty!');
+            $tabs['query']['warning'] = __('Database seems to be empty!');
         }
 
         $tabs['export']['text'] = __('Export');
@@ -491,7 +512,7 @@ class Menu
             $tabs['operation']['text'] = __('Operations');
             $tabs['operation']['icon'] = 'b_tblops';
 
-            if (($is_superuser || $isCreateOrGrantUser)) {
+            if ($is_superuser || $isCreateOrGrantUser) {
                 $tabs['privileges']['link'] = 'server_privileges.php';
                 $tabs['privileges']['args']['checkprivsdb'] = $this->_db;
                 // stay on database view
@@ -563,7 +584,7 @@ class Menu
             Util::cacheSet('binary_logs', $binary_logs);
         }
 
-        $tabs = array();
+        $tabs = [];
 
         $tabs['databases']['icon'] = 's_db';
         $tabs['databases']['link'] = 'server_databases.php';
@@ -578,14 +599,14 @@ class Menu
         $tabs['status']['text'] = __('Status');
         $tabs['status']['active'] = in_array(
             basename($GLOBALS['PMA_PHP_SELF']),
-            array(
+            [
                 'server_status.php',
                 'server_status_advisor.php',
                 'server_status_monitor.php',
                 'server_status_queries.php',
                 'server_status_variables.php',
-                'server_status_processes.php'
-            )
+                'server_status_processes.php',
+            ]
         );
 
         if ($is_superuser || $isCreateOrGrantUser) {
@@ -594,7 +615,10 @@ class Menu
             $tabs['rights']['text'] = __('User accounts');
             $tabs['rights']['active'] = in_array(
                 basename($GLOBALS['PMA_PHP_SELF']),
-                array('server_privileges.php', 'server_user_groups.php')
+                [
+                    'server_privileges.php',
+                    'server_user_groups.php',
+                ]
             );
             $tabs['rights']['args']['viewing_mode'] = 'server';
         }
@@ -612,7 +636,10 @@ class Menu
         $tabs['settings']['text']   = __('Settings');
         $tabs['settings']['active'] = in_array(
             basename($GLOBALS['PMA_PHP_SELF']),
-            array('prefs_forms.php', 'prefs_manage.php')
+            [
+                'prefs_forms.php',
+                'prefs_manage.php',
+            ]
         );
 
         if (! empty($binary_logs)) {
@@ -651,7 +678,7 @@ class Menu
      *
      * @param string $table Current table
      *
-     * @return $this
+     * @return Menu
      */
     public function setTable($table)
     {

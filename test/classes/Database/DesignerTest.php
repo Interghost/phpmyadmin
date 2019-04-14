@@ -4,11 +4,14 @@
  *
  * @package PhpMyAdmin-test
  */
+declare(strict_types=1);
+
 namespace PhpMyAdmin\Tests\Database;
 
 use PhpMyAdmin\Database\Designer;
 use PhpMyAdmin\DatabaseInterface;
 use PHPUnit\Framework\TestCase;
+use ReflectionMethod;
 
 /**
  * Tests for PhpMyAdmin\Database\Designer
@@ -17,32 +20,39 @@ use PHPUnit\Framework\TestCase;
  */
 class DesignerTest extends TestCase
 {
+    /**
+     * @var Designer
+     */
+    private $designer;
 
     /**
      * Setup for test cases
      *
      * @return void
      */
-    public function setup()
+    protected function setUp(): void
     {
         $GLOBALS['server'] = 1;
         $GLOBALS['cfg']['ServerDefault'] = 1;
-        $GLOBALS['cfg']['PDFPageSizes'] = array('A3', 'A4');
+        $GLOBALS['cfg']['PDFPageSizes'] = [
+            'A3',
+            'A4',
+        ];
         $GLOBALS['cfg']['PDFDefaultPageSize'] = 'A4';
         $GLOBALS['cfg']['Schema']['pdf_orientation'] = 'L';
         $GLOBALS['cfg']['Schema']['pdf_paper'] = 'A4';
 
-        $_SESSION = array(
-            'relation' => array(
-                '1' => array(
+        $_SESSION = [
+            'relation' => [
+                '1' => [
                     'PMA_VERSION' => PMA_VERSION,
                     'db' => 'pmadb',
                     'pdf_pages' => 'pdf_pages',
                     'pdfwork' => true
-                )
-            ),
-            ' PMA_token ' => 'token'
-        );
+                ],
+            ],
+            ' PMA_token ' => 'token',
+        ];
     }
 
     /**
@@ -72,8 +82,14 @@ class DesignerTest extends TestCase
         $dbi->expects($this->exactly(3))
             ->method('fetchAssoc')
             ->willReturnOnConsecutiveCalls(
-                array('page_nr' => '1', 'page_descr' => 'page1'),
-                array('page_nr' => '2', 'page_descr' => 'page2'),
+                [
+                    'page_nr' => '1',
+                    'page_descr' => 'page1',
+                ],
+                [
+                    'page_nr' => '2',
+                    'page_descr' => 'page2',
+                ],
                 false
             );
 
@@ -85,7 +101,7 @@ class DesignerTest extends TestCase
     }
 
     /**
-     * Test for Designer::getPageIdsAndNames()
+     * Test for getPageIdsAndNames()
      *
      * @return void
      */
@@ -94,19 +110,23 @@ class DesignerTest extends TestCase
         $db = 'db';
         $this->_mockDatabaseInteraction($db);
 
-        $result = Designer::getPageIdsAndNames($db);
+        $this->designer = new Designer($GLOBALS['dbi']);
+
+        $method = new ReflectionMethod(Designer::class, 'getPageIdsAndNames');
+        $method->setAccessible(true);
+        $result = $method->invokeArgs($this->designer, [$db]);
 
         $this->assertEquals(
-            array(
+            [
                 '1' => 'page1',
-                '2' => 'page2'
-            ),
+                '2' => 'page2',
+            ],
             $result
         );
     }
 
     /**
-     * Test for Designer::getHtmlForEditOrDeletePages()
+     * Test for getHtmlForEditOrDeletePages()
      *
      * @return void
      */
@@ -116,24 +136,26 @@ class DesignerTest extends TestCase
         $operation = 'edit';
         $this->_mockDatabaseInteraction($db);
 
-        $result = Designer::getHtmlForEditOrDeletePages($db, $operation);
-        $this->assertContains(
-            '<input type="hidden" name="operation" value="' . $operation . '" />',
+        $this->designer = new Designer($GLOBALS['dbi']);
+
+        $result = $this->designer->getHtmlForEditOrDeletePages($db, $operation);
+        $this->assertStringContainsString(
+            '<input type="hidden" name="operation" value="' . $operation . '">',
             $result
         );
-        $this->assertContains(
+        $this->assertStringContainsString(
             '<select name="selected_page" id="selected_page">',
             $result
         );
-        $this->assertContains('<option value="0">', $result);
-        $this->assertContains('<option value="1">', $result);
-        $this->assertContains('page1', $result);
-        $this->assertContains('<option value="2">', $result);
-        $this->assertContains('page2', $result);
+        $this->assertStringContainsString('<option value="0">', $result);
+        $this->assertStringContainsString('<option value="1">', $result);
+        $this->assertStringContainsString('page1', $result);
+        $this->assertStringContainsString('<option value="2">', $result);
+        $this->assertStringContainsString('page2', $result);
     }
 
     /**
-     * Test for Designer::getHtmlForPageSaveAs()
+     * Test for getHtmlForPageSaveAs()
      *
      * @return void
      */
@@ -142,38 +164,40 @@ class DesignerTest extends TestCase
         $db = 'db';
         $this->_mockDatabaseInteraction($db);
 
-        $result = Designer::getHtmlForPageSaveAs($db);
-        $this->assertContains(
-            '<input type="hidden" name="operation" value="savePage" />',
+        $this->designer = new Designer($GLOBALS['dbi']);
+
+        $result = $this->designer->getHtmlForPageSaveAs($db);
+        $this->assertStringContainsString(
+            '<input type="hidden" name="operation" value="savePage">',
             $result
         );
-        $this->assertContains(
+        $this->assertStringContainsString(
             '<select name="selected_page" id="selected_page">',
             $result
         );
-        $this->assertContains('<option value="0">', $result);
-        $this->assertContains('<option value="1">', $result);
-        $this->assertContains('page1', $result);
-        $this->assertContains('<option value="2">', $result);
-        $this->assertContains('page2', $result);
+        $this->assertStringContainsString('<option value="0">', $result);
+        $this->assertStringContainsString('<option value="1">', $result);
+        $this->assertStringContainsString('page1', $result);
+        $this->assertStringContainsString('<option value="2">', $result);
+        $this->assertStringContainsString('page2', $result);
 
-        $this->assertContains(
+        $this->assertStringContainsString(
             '<input type="radio" name="save_page" id="save_page_same" value="same"'
-            . ' checked="checked" />',
+            . ' checked="checked">',
             $result
         );
-        $this->assertContains(
-            '<input type="radio" name="save_page" id="save_page_new" value="new" />',
+        $this->assertStringContainsString(
+            '<input type="radio" name="save_page" id="save_page_new" value="new">',
             $result
         );
-        $this->assertContains(
-            '<input type="text" name="selected_value" id="selected_value" />',
+        $this->assertStringContainsString(
+            '<input type="text" name="selected_value" id="selected_value">',
             $result
         );
     }
 
     /**
-     * Test for Designer::getHtmlForSchemaExport()
+     * Test for getHtmlForSchemaExport()
      *
      * @return void
      */
@@ -182,37 +206,39 @@ class DesignerTest extends TestCase
         $db = 'db';
         $page = 2;
 
-        $result = Designer::getHtmlForSchemaExport($db, $page);
+        $this->designer = new Designer($GLOBALS['dbi']);
+
+        $result = $this->designer->getHtmlForSchemaExport($db, $page);
         // export type
-        $this->assertContains(
+        $this->assertStringContainsString(
             '<select id="plugins" name="export_type">',
             $result
         );
 
         // hidden field
-        $this->assertContains(
-            '<input type="hidden" name="page_number" value="' . $page . '" />',
+        $this->assertStringContainsString(
+            '<input type="hidden" name="page_number" value="' . $page . '">',
             $result
         );
 
         // orientation
-        $this->assertContains(
+        $this->assertStringContainsString(
             '<select name="pdf_orientation" id="select_pdf_orientation">',
             $result
         );
-        $this->assertContains(
+        $this->assertStringContainsString(
             '<option value="L" selected="selected">Landscape</option>',
             $result
         );
-        $this->assertContains('<option value="P">Portrait</option>', $result);
+        $this->assertStringContainsString('<option value="P">Portrait</option>', $result);
 
         // paper size
-        $this->assertContains(
+        $this->assertStringContainsString(
             '<select name="pdf_paper" id="select_pdf_paper">',
             $result
         );
-        $this->assertContains('<option value="A3">A3</option>', $result);
-        $this->assertContains(
+        $this->assertStringContainsString('<option value="A3">A3</option>', $result);
+        $this->assertStringContainsString(
             '<option value="A4" selected="selected">A4</option>',
             $result
         );

@@ -4,18 +4,14 @@
  *
  * @package PhpMyAdmin-test
  */
+declare(strict_types=1);
+
 namespace PhpMyAdmin\Tests\Plugins\Import;
 
 use PhpMyAdmin\File;
 use PhpMyAdmin\Plugins\Import\ImportCsv;
 use PhpMyAdmin\Tests\PmaTestCase;
 use PhpMyAdmin\Theme;
-
-/**
- * we must set $GLOBALS['server'] here
- * since 'check_user_privileges.inc.php' will use it globally
- */
-$GLOBALS['server'] = 0;
 
 /**
  * Tests for PhpMyAdmin\Plugins\Import\ImportCsv class
@@ -37,8 +33,9 @@ class ImportCsvTest extends PmaTestCase
      * @access protected
      * @return void
      */
-    protected function setUp()
+    protected function setUp(): void
     {
+        $GLOBALS['server'] = 0;
         $GLOBALS['plugin_param'] = "csv";
         $this->object = new ImportCsv();
 
@@ -63,6 +60,7 @@ class ImportCsvTest extends PmaTestCase
         $GLOBALS['csv_enclosed'] = '"';
         $GLOBALS['csv_escaped'] = '"';
         $GLOBALS['csv_new_line'] = 'auto';
+        $GLOBALS['import_file_name'] = basename($GLOBALS['import_file'], ".csv");
 
         //$_SESSION
 
@@ -80,7 +78,7 @@ class ImportCsvTest extends PmaTestCase
      * @access protected
      * @return void
      */
-    protected function tearDown()
+    protected function tearDown(): void
     {
         unset($this->object);
     }
@@ -122,12 +120,49 @@ class ImportCsvTest extends PmaTestCase
         $this->object->doImport();
 
         //asset that all sql are executed
-        $this->assertContains(
-            'CREATE DATABASE IF NOT EXISTS `CSV_DB` DEFAULT CHARACTER',
+        $this->assertStringContainsString(
+            'CREATE DATABASE IF NOT EXISTS `CSV_DB 1` DEFAULT CHARACTER',
             $sql_query
         );
-        $this->assertContains(
-            'CREATE TABLE IF NOT EXISTS `CSV_DB`.`TBL_NAME`',
+        $this->assertStringContainsString(
+            'CREATE TABLE IF NOT EXISTS `CSV_DB 1`.`' . $GLOBALS['import_file_name'] . '`',
+            $sql_query
+        );
+
+        $this->assertEquals(
+            true,
+            $GLOBALS['finished']
+        );
+    }
+
+    /**
+     * Test for partial import/setting table and database names in doImport
+     *
+     * @return void
+     *
+     * @group medium
+     */
+    public function testDoPartialImport()
+    {
+        //$sql_query_disabled will show the import SQL detail
+        global $sql_query, $sql_query_disabled;
+        $sql_query_disabled = false;
+
+        $GLOBALS['import_file'] = 'test/test_data/db_test_partial_import.csv';
+        $_REQUEST['csv_new_tbl_name'] = 'ImportTestTable';
+        $_REQUEST['csv_new_db_name'] = 'ImportTestDb';
+        $_REQUEST['csv_partial_import'] = 5;
+
+        //Test function called
+        $this->object->doImport();
+
+        //asset that all sql are executed
+        $this->assertStringContainsString(
+            'CREATE DATABASE IF NOT EXISTS `ImportTestDb` DEFAULT CHARACTER',
+            $sql_query
+        );
+        $this->assertStringContainsString(
+            'CREATE TABLE IF NOT EXISTS `ImportTestDb`.`ImportTestTable`',
             $sql_query
         );
 
@@ -176,13 +211,13 @@ class ImportCsvTest extends PmaTestCase
         $this->object->doImport();
 
         //asset that all sql are executed
-        $this->assertContains(
-            'CREATE DATABASE IF NOT EXISTS `CSV_DB` DEFAULT CHARACTER',
+        $this->assertStringContainsString(
+            'CREATE DATABASE IF NOT EXISTS `CSV_DB 1` DEFAULT CHARACTER',
             $sql_query
         );
 
-        $this->assertContains(
-            'CREATE TABLE IF NOT EXISTS `CSV_DB`.`TBL_NAME`',
+        $this->assertStringContainsString(
+            'CREATE TABLE IF NOT EXISTS `CSV_DB 1`.`' . $GLOBALS['import_file_name'] . '`',
             $sql_query
         );
 

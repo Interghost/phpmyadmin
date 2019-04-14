@@ -43,7 +43,7 @@ AJAX.registerOnload('server_databases.js', function () {
         });
         if (! selected_dbs.length) {
             PMA_ajaxShowMessage(
-                $('<div class="notice" />').text(
+                $('<div class="notice"></div>').text(
                     PMA_messages.strNoDatabasesSelected
                 ),
                 2000
@@ -54,18 +54,20 @@ AJAX.registerOnload('server_databases.js', function () {
          * @var question    String containing the question to be asked for confirmation
          */
         var question = PMA_messages.strDropDatabaseStrongWarning + ' ' +
-            PMA_sprintf(PMA_messages.strDoYouReally, selected_dbs.join('<br />'));
+            PMA_sprintf(PMA_messages.strDoYouReally, selected_dbs.join('<br>'));
 
+        var argsep = PMA_commonParams.get('arg_separator');
         $(this).PMA_confirm(
             question,
             $form.prop('action') + '?' + $(this).serialize() +
-                '&drop_selected_dbs=1&is_js_confirmed=1&ajax_request=true',
+                argsep + 'drop_selected_dbs=1',
             function (url) {
                 PMA_ajaxShowMessage(PMA_messages.strProcessingRequest, false);
 
-                var params = getJSConfirmCommonParam(this);
+                var parts = url.split('?');
+                var params = getJSConfirmCommonParam(this, parts[1]);
 
-                $.post(url, params, function (data) {
+                $.post(parts[0], params, function (data) {
                     if (typeof data !== 'undefined' && data.success === true) {
                         PMA_ajaxShowMessage(data.message);
 
@@ -122,7 +124,7 @@ AJAX.registerOnload('server_databases.js', function () {
                 // make ajax request to load db structure page - taken from ajax.js
                 var dbStruct_url = data.url_query;
                 dbStruct_url = dbStruct_url.replace(/amp;/ig, '');
-                var params = 'ajax_request=true&ajax_page_request=true';
+                var params = 'ajax_request=true' + PMA_commonParams.get('arg_separator') + 'ajax_page_request=true';
                 if (! (history && history.pushState)) {
                     params += PMA_MicroHistory.menus.getRequestParam();
                 }
@@ -141,7 +143,7 @@ AJAX.registerOnload('server_databases.js', function () {
 
     var tableRows = $('.server_databases');
     $.each(tableRows, function (index, item) {
-        $(this).click(function () {
+        $(this).on('click', function () {
             PMA_commonActions.setDb($(this).attr('data'));
         });
     });

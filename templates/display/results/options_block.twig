@@ -1,5 +1,5 @@
 <form method="post" action="sql.php" name="displayOptionsForm" class="ajax print_ignore">
-    {{ Url_getHiddenInputs({
+    {{ get_hidden_inputs({
         'db': db,
         'table': table,
         'sql_query': sql_query,
@@ -7,11 +7,15 @@
         'display_options_form': 1
     }) }}
 
-    {{ Util_getDivForSliderEffect('', 'Options'|trans) }}
+    {% include 'div_for_slider_effect.twig' with {
+        'id': '',
+        'message': 'Options'|trans,
+        'initial_sliders_state': default_sliders_state
+    } only %}
         <fieldset>
             <div class="formelement">
                 {# pftext means "partial or full texts" (done to reduce line lengths #}
-                {{ Util_getRadioFields(
+                {{ get_radio_fields(
                     'pftext',
                     {
                         'P': 'Partial texts'|trans,
@@ -27,7 +31,7 @@
 
             {% if relwork and displaywork %}
                 <div class="formelement">
-                    {{ Util_getRadioFields(
+                    {{ get_radio_fields(
                         'relational_display',
                         {
                             'K': 'Relational key'|trans,
@@ -73,27 +77,45 @@
                 } only %}
             </div>
 
-            <div class="formelement">
-                {{ Util_getRadioFields(
-                    'geoOption',
-                    {
-                        'GEOM': 'Geometry'|trans,
-                        'WKT': 'Well Known Text'|trans,
-                        'WKB': 'Well Known Binary'|trans
-                    },
-                    geo_option,
-                    true,
-                    true,
-                    '',
-                    'geoOption_' ~ unique_id
-                ) }}
-            </div>
 
+            {% if possible_as_geometry %}
+                <div class="formelement">
+                    {{ get_radio_fields(
+                        'geoOption',
+                        {
+                            'GEOM': 'Geometry'|trans,
+                            'WKT': 'Well Known Text'|trans,
+                            'WKB': 'Well Known Binary'|trans
+                        },
+                        geo_option,
+                        true,
+                        true,
+                        '',
+                        'geoOption_' ~ unique_id
+                    ) }}
+                </div>
+            {% else %}
+                <div class="formelement">
+                    {{ possible_as_geometry }}
+                    {{ get_radio_fields(
+                        'geoOption',
+                        {
+                            'WKT': 'Well Known Text'|trans,
+                            'WKB': 'Well Known Binary'|trans
+                        },
+                        geo_option,
+                        true,
+                        true,
+                        '',
+                        'geoOption_' ~ unique_id
+                    ) }}
+                </div>
+            {% endif %}
             <div class="clearfloat"></div>
         </fieldset>
 
         <fieldset class="tblFooters">
-            <input type="submit" value="{% trans 'Go' %}" />
+            <input class="btn btn-primary" type="submit" value="{% trans 'Go' %}">
         </fieldset>
     </div>{# slider effect div #}
 </form>

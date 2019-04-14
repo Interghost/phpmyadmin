@@ -3,7 +3,7 @@
 Bookmarks
 =========
 
-.. note:: 
+.. note::
 
     You need to have configured the :ref:`linked-tables` for using bookmarks
     feature.
@@ -26,6 +26,7 @@ This is done by inserting into the query SQL comments between ``/*`` and
 ``*/``. Inside the comments, the special strings ``[VARIABLE{variable-number}]`` is used.
 Be aware that the whole query minus the SQL comments must be
 valid by itself, otherwise you won't be able to store it as a bookmark.
+Note also that the text 'VARIABLE' is case-sensitive.
 
 When you execute the bookmark, everything typed into the *Variables*
 input boxes on the query box page will replace the strings ``/*[VARIABLE{variable-number}]*/`` in
@@ -66,10 +67,10 @@ inserted there will be later also inserted as spaces in your query and may lead
 to unexpected results especially when using the variable expansion inside of a
 "LIKE ''" expression.
 
-Browsing table using bookmark
------------------------------
+Browsing a table using a bookmark
+---------------------------------
 
-When bookmark is named same as table, it will be used as query when browsing
+When a bookmark has the same name as the table, it will be used as the query when browsing
 this table.
 
 .. seealso::

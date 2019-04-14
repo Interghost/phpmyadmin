@@ -347,7 +347,7 @@ AJAX.registerOnload('tbl_change.js', function () {
             } else if (theType === 'datetime' || theType === 'timestamp') {
                 var tmstmp = false;
                 dt_value = dt_value.trim();
-                if (dt_value === 'CURRENT_TIMESTAMP') {
+                if (dt_value === 'CURRENT_TIMESTAMP' || dt_value === 'current_timestamp()') {
                     return true;
                 }
                 if (theType === 'timestamp') {
@@ -606,7 +606,7 @@ AJAX.registerOnload('tbl_change.js', function () {
 
                 // Insert/Clone the ignore checkboxes
                 if (curr_rows === 1) {
-                    $('<input id="insert_ignore_1" type="checkbox" name="insert_ignore_1" checked="checked" />')
+                    $('<input id="insert_ignore_1" type="checkbox" name="insert_ignore_1" checked="checked">')
                         .insertBefore('table.insertRowTable:last')
                         .after('<label for="insert_ignore_1">' + PMA_messages.strIgnore + '</label>');
                 } else {
@@ -622,7 +622,7 @@ AJAX.registerOnload('tbl_change.js', function () {
                     /** name of new {@link $last_checkbox} */
                     var new_name = last_checkbox_name.replace(/\d+/, last_checkbox_index + 1);
 
-                    $('<br/><div class="clearfloat"></div>')
+                    $('<br><div class="clearfloat"></div>')
                         .insertBefore('table.insertRowTable:last');
 
                     $last_checkbox
@@ -636,7 +636,7 @@ AJAX.registerOnload('tbl_change.js', function () {
                         .attr('for', new_name)
                         .insertBefore('table.insertRowTable:last');
 
-                    $('<br/>')
+                    $('<br>')
                         .insertBefore('table.insertRowTable:last');
                 }
                 curr_rows++;
@@ -667,12 +667,21 @@ AJAX.registerOnload('tbl_change.js', function () {
                     $(this).attr('tabindex', tabindex);
                 });
         } else if (curr_rows > target_rows) {
-            while (curr_rows > target_rows) {
-                $('input[id^=insert_ignore]:last')
-                    .nextUntil('fieldset')
-                    .addBack()
-                    .remove();
-                curr_rows--;
+            /**
+             * Displays alert if data loss possible on decrease
+             * of rows.
+             */
+            var checkLock = jQuery.isEmptyObject(AJAX.lockedTargets);
+            if (checkLock || confirm(PMA_messages.strConfirmRowChange) === true) {
+                while (curr_rows > target_rows) {
+                    $('input[id^=insert_ignore]:last')
+                        .nextUntil('fieldset')
+                        .addBack()
+                        .remove();
+                    curr_rows--;
+                }
+            } else {
+                document.getElementById('insert_rows').value = curr_rows;
             }
         }
         // Add all the required datepickers back

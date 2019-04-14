@@ -1,10 +1,12 @@
 <?php
 /* vim: set expandtab sw=4 ts=4 sts=4: */
 /**
- * Functions for user_password.php
+ * Holds the PhpMyAdmin\UserPassword class
  *
  * @package PhpMyAdmin
  */
+declare(strict_types=1);
+
 namespace PhpMyAdmin;
 
 use PhpMyAdmin\Core;
@@ -15,12 +17,27 @@ use PhpMyAdmin\Url;
 use PhpMyAdmin\Util;
 
 /**
- * PhpMyAdmin\UserPassword class
+ * Functions for user_password.php
  *
  * @package PhpMyAdmin
  */
 class UserPassword
 {
+    /**
+     * @var Privileges
+     */
+    private $serverPrivileges;
+
+    /**
+     * UserPassword constructor.
+     *
+     * @param Privileges $serverPrivileges Privileges object
+     */
+    public function __construct(Privileges $serverPrivileges)
+    {
+        $this->serverPrivileges = $serverPrivileges;
+    }
+
     /**
      * Send the message as an ajax request
      *
@@ -29,7 +46,7 @@ class UserPassword
      *
      * @return void
      */
-    public static function getChangePassMessage(array $change_password_message, $sql_query = '')
+    public function getChangePassMessage(array $change_password_message, $sql_query = '')
     {
         $response = Response::getInstance();
         if ($response->isAjax()) {
@@ -56,26 +73,29 @@ class UserPassword
      *
      * @return array   error value and message
      */
-    public static function setChangePasswordMsg()
+    public function setChangePasswordMsg()
     {
         $error = false;
         $message = Message::success(__('The profile has been updated.'));
 
-        if (($_REQUEST['nopass'] != '1')) {
-            if (strlen($_REQUEST['pma_pw']) === 0 || strlen($_REQUEST['pma_pw2']) === 0) {
+        if ($_POST['nopass'] != '1') {
+            if (strlen($_POST['pma_pw']) === 0 || strlen($_POST['pma_pw2']) === 0) {
                 $message = Message::error(__('The password is empty!'));
                 $error = true;
-            } elseif ($_REQUEST['pma_pw'] !== $_REQUEST['pma_pw2']) {
+            } elseif ($_POST['pma_pw'] !== $_POST['pma_pw2']) {
                 $message = Message::error(
                     __('The passwords aren\'t the same!')
                 );
                 $error = true;
-            } elseif (strlen($_REQUEST['pma_pw']) > 256) {
+            } elseif (strlen($_POST['pma_pw']) > 256) {
                 $message = Message::error(__('Password is too long!'));
                 $error = true;
             }
         }
-        return array('error' => $error, 'msg' => $message);
+        return [
+            'error' => $error,
+            'msg' => $message
+        ];
     }
 
     /**
@@ -87,24 +107,26 @@ class UserPassword
      *
      * @return void
      */
-    public static function changePassword($password, $message, array $change_password_message)
+    public function changePassword($password, $message, array $change_password_message)
     {
         global $auth_plugin;
 
-        $hashing_function = self::changePassHashingFunction();
+        $hashing_function = $this->changePassHashingFunction();
 
         list($username, $hostname) = $GLOBALS['dbi']->getCurrentUserAndHost();
 
         $serverType = Util::getServerType();
         $serverVersion = $GLOBALS['dbi']->getVersion();
 
-        if (isset($_REQUEST['authentication_plugin'])
-            && ! empty($_REQUEST['authentication_plugin'])
+        if (isset($_POST['authentication_plugin'])
+            && ! empty($_POST['authentication_plugin'])
         ) {
-            $orig_auth_plugin = $_REQUEST['authentication_plugin'];
+            $orig_auth_plugin = $_POST['authentication_plugin'];
         } else {
-            $orig_auth_plugin = Privileges::getCurrentAuthenticationPlugin(
-                'change', $username, $hostname
+            $orig_auth_plugin = $this->serverPrivileges->getCurrentAuthenticationPlugin(
+                'change',
+                $username,
+                $hostname
             );
         }
 
@@ -117,7 +139,7 @@ class UserPassword
             $sql_query = 'ALTER USER \'' . $username . '\'@\'' . $hostname
                 . '\' IDENTIFIED WITH ' . $orig_auth_plugin . ' BY '
                 . (($password == '') ? '\'\'' : '\'***\'');
-        } else if (($serverType == 'MySQL'
+        } elseif (($serverType == 'MySQL'
             && $serverVersion >= 50507)
             || ($serverType == 'MariaDB'
             && $serverVersion >= 50200)
@@ -134,25 +156,31 @@ class UserPassword
             $GLOBALS['dbi']->tryQuery('SET `old_passwords` = ' . $value . ';');
         }
 
-        self::changePassUrlParamsAndSubmitQuery(
-            $username, $hostname, $password,
-            $sql_query, $hashing_function, $orig_auth_plugin
+        $this->changePassUrlParamsAndSubmitQuery(
+            $username,
+            $hostname,
+            $password,
+            $sql_query,
+            $hashing_function,
+            $orig_auth_plugin
         );
 
         $auth_plugin->handlePasswordChange($password);
-        self::getChangePassMessage($change_password_message, $sql_query);
-        self::changePassDisplayPage($message, $sql_query);
+        $this->getChangePassMessage($change_password_message, $sql_query);
+        $this->changePassDisplayPage($message, $sql_query);
     }
 
     /**
      * Generate the hashing function
      *
-     * @return string  $hashing_function
+     * @return string
      */
-    public static function changePassHashingFunction()
+    private function changePassHashingFunction()
     {
         if (Core::isValid(
-            $_REQUEST['authentication_plugin'], 'identical', 'mysql_old_password'
+            $_POST['authentication_plugin'],
+            'identical',
+            'mysql_old_password'
         )) {
             $hashing_function = 'OLD_PASSWORD';
         } else {
@@ -173,8 +201,13 @@ class UserPassword
      *
      * @return void
      */
-    public static function changePassUrlParamsAndSubmitQuery(
-        $username, $hostname, $password, $sql_query, $hashing_function, $orig_auth_plugin
+    private function changePassUrlParamsAndSubmitQuery(
+        $username,
+        $hostname,
+        $password,
+        $sql_query,
+        $hashing_function,
+        $orig_auth_plugin
     ) {
         $err_url = 'user_password.php' . Url::getCommon();
 
@@ -187,7 +220,7 @@ class UserPassword
                 . (($password == '')
                 ? '\'\''
                 : '\'' . $GLOBALS['dbi']->escapeString($password) . '\'');
-        } else if ($serverType == 'MariaDB'
+        } elseif ($serverType == 'MariaDB'
             && $serverVersion >= 50200
             && $serverVersion < 100100
             && $orig_auth_plugin !== ''
@@ -196,13 +229,13 @@ class UserPassword
                 // Set the hashing method used by PASSWORD()
                 // to be 'mysql_native_password' type
                 $GLOBALS['dbi']->tryQuery('SET old_passwords = 0;');
-            } else if ($orig_auth_plugin == 'sha256_password') {
+            } elseif ($orig_auth_plugin == 'sha256_password') {
                 // Set the hashing method used by PASSWORD()
                 // to be 'sha256_password' type
                 $GLOBALS['dbi']->tryQuery('SET `old_passwords` = 2;');
             }
 
-            $hashedPassword = Privileges::getHashedPassword($_POST['pma_pw']);
+            $hashedPassword = $this->serverPrivileges->getHashedPassword($_POST['pma_pw']);
 
             $local_query = "UPDATE `mysql`.`user` SET"
                 . " `authentication_string` = '" . $hashedPassword
@@ -237,11 +270,13 @@ class UserPassword
      *
      * @return void
      */
-    public static function changePassDisplayPage($message, $sql_query)
+    private function changePassDisplayPage($message, $sql_query)
     {
         echo '<h1>' , __('Change password') , '</h1>' , "\n\n";
         echo Util::getMessage(
-            $message, $sql_query, 'success'
+            $message,
+            $sql_query,
+            'success'
         );
         echo '<a href="index.php' , Url::getCommon()
             , ' target="_parent">' , "\n"

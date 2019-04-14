@@ -6,6 +6,8 @@
  * @package    PhpMyAdmin-Authentication
  * @subpackage Config
  */
+declare(strict_types=1);
+
 namespace PhpMyAdmin\Plugins\Auth;
 
 use PhpMyAdmin\Plugins\AuthenticationPlugin;
@@ -71,7 +73,7 @@ class AuthenticationConfig extends AuthenticationPlugin
     {
         parent::showFailure($failure);
         $conn_error = $GLOBALS['dbi']->getError();
-        if (!$conn_error) {
+        if (! $conn_error) {
             $conn_error = __('Cannot connect: invalid settings.');
         }
 
@@ -83,14 +85,14 @@ class AuthenticationConfig extends AuthenticationPlugin
         $header->setBodyId('loginform');
         $header->setTitle(__('Access denied!'));
         $header->disableMenuAndConsole();
-        echo '<br /><br />
+        echo '<br><br>
     <center>
         <h1>';
         echo sprintf(__('Welcome to %s'), ' phpMyAdmin ');
         echo '</h1>
     </center>
-    <br />
-    <table cellpadding="0" cellspacing="3" style="margin: 0 auto" width="80%">
+    <br>
+    <table cellpadding="0" cellspacing="3" class= "auth_config_tbl" width="80%">
         <tr>
             <td>';
         if (isset($GLOBALS['allowDeny_forbidden'])
@@ -109,7 +111,7 @@ class AuthenticationConfig extends AuthenticationPlugin
                     '<a href="setup/">',
                     '</a>'
                 ) , '</p>' , "\n";
-            } elseif (!isset($GLOBALS['errno'])
+            } elseif (! isset($GLOBALS['errno'])
                 || (isset($GLOBALS['errno']) && $GLOBALS['errno'] != 2002)
                 && $GLOBALS['errno'] != 2003
             ) {
@@ -163,7 +165,7 @@ class AuthenticationConfig extends AuthenticationPlugin
             echo '</tr>' , "\n";
         }
         echo '</table>' , "\n";
-        if (!defined('TESTSUITE')) {
+        if (! defined('TESTSUITE')) {
             exit;
         }
     }
