@@ -120,6 +120,9 @@ class TwoFactor
         if (class_exists('Samyoul\U2F\U2FServer\U2FServer')) {
             $result[] = 'key';
         }
+        if (isset($GLOBALS['cfg']['App2FA'])) {
+            $result[] = 'app';
+        }
         return $result;
     }
 
