@@ -2177,7 +2177,7 @@ EOT;
         if (! empty($analyzed_sql_results)
             && $this->isRememberSortingOrder($analyzed_sql_results)
             && empty($analyzed_sql_results['union'])
-            && ! isset($_POST['sort_by_key'])
+            /*&& ! isset($_POST['sort_by_key'])*/
         ) {
             if (! isset($_SESSION['sql_from_query_box'])) {
                 $this->handleSortOrder($db, $table, $analyzed_sql_results, $sql_query);
