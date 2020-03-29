@@ -4,7 +4,7 @@ msgstr ""
 "Project-Id-Version: phpMyAdmin 4.9.3-dev\n"
 "Report-Msgid-Bugs-To: translators@phpmyadmin.net\n"
 "POT-Creation-Date: 2019-12-23 15:36-0300\n"
-"PO-Revision-Date: 2019-11-26 00:04+0000\n"
+"PO-Revision-Date: 2020-03-23 20:52+0000\n"
 "Last-Translator: Burak Yavuz <hitowerdigit@hotmail.com>\n"
 "Language-Team: Turkish <https://hosted.weblate.org/projects/phpmyadmin/4-9/"
 "tr/>\n"
@@ -13,7 +13,7 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=2; plural=n != 1;\n"
-"X-Generator: Weblate 3.10-dev\n"
+"X-Generator: Weblate 4.0-dev\n"
 
 #: ajax.php:21 ajax.php:50 export.php:196 libraries/classes/Export.php:1095
 msgid "Bad type!"
@@ -774,7 +774,7 @@ msgid ""
 msgstr ""
 "mbstring PHP uzantısı bulunamadı ve çoklu bayt karakter grubu kullandığınız "
 "görünüyor. Mbstring uzantısı olmadan phpMyAdmin karakter dizgilerini doğru "
-"olarak bölemez ve bu beklenmedik sonuçlar doğurabilir."
+"olarak bölemez ve bu beklenmeyen sonuçlar doğurabilir."
 
 #: index.php:528
 msgid ""
@@ -1703,7 +1703,7 @@ msgstr "Sorun"
 
 #: js/messages.php:343
 msgid "Recommendation"
-msgstr "Tavsiye"
+msgstr "Öneri"
 
 #: js/messages.php:344
 msgid "Rule details"
@@ -3107,13 +3107,13 @@ msgstr "%s. satırda geçersiz kural bildirimi."
 #: libraries/classes/Advisor.php:575
 #, php-format
 msgid "Unexpected characters on line %s."
-msgstr "%s. satırda beklenmedik karakterler."
+msgstr "%s. satırda beklenmeyen karakterler."
 
 #: libraries/classes/Advisor.php:590
 #, php-format
 msgid "Unexpected character on line %1$s. Expected tab, but found \"%2$s\"."
 msgstr ""
-"%1$s. satırda beklenmedik karakter. Beklenen sekme, ama bulunan \"%2$s\"."
+"%1$s. satırda beklenmeyen karakter. Beklenen sekme, ama bulunan \"%2$s\"."
 
 #: libraries/classes/Advisor.php:625
 msgid "per second"
@@ -17464,7 +17464,7 @@ msgstr ""
 "Sorgu önbelleğinin, eğer doğru şekilde yapılandırılmışsa fazlasıyla "
 "performansı geliştirdiği biliniyor. {query_cache_size} 2 basamaklı MiB "
 "değeri olarak ve {query_cache_type} ayarı 'ON' ayarlayarak etkinleştirin. "
-"<b>Not:</b> Eğer memcached kullanıyorsanız, bu tavsiyeyi göz ardı edin."
+"<b>Not:</b> Eğer memcached kullanıyorsanız, bu öneriyi yoksayın."
 
 #: libraries/advisory_rules_mysql_before80003.txt:15
 msgid "query_cache_size is set to 0 or query_cache_type is set to 'OFF'"
