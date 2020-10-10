@@ -4021,7 +4021,7 @@ class Results
             $query['display_binary'] = true;
         }
 
-        if (isset($_REQUEST['display_blob'])) {
+        if (isset($_REQUEST['display_blob']) || (isset($GLOBALS['cfg']['ForceShowBlob']) && $GLOBALS['cfg']['ForceShowBlob'])) {
             $query['display_blob'] = true;
             unset($_REQUEST['display_blob']);
         } elseif (isset($_REQUEST['display_options_form'])) {
@@ -5145,8 +5145,9 @@ class Results
             ) {
                 // show as text if it's valid utf-8
                 $result = '<pre>' . htmlspecialchars($content) . '</pre>';
+                $url_params = [];
             } else {
-                $result = '-';
+                $result = '[blob]';
             }
             list(
                 $is_truncated,
