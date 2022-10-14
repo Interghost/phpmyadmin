@@ -1,78 +1,81 @@
 <?php
-/* vim: set expandtab sw=4 ts=4 sts=4: */
-/**
- * Holds the PhpMyAdmin\Controllers\BrowseForeignersController
- *
- * @package PhpMyAdmin\Controllers
- */
+
 declare(strict_types=1);
 
 namespace PhpMyAdmin\Controllers;
 
 use PhpMyAdmin\BrowseForeigners;
-use PhpMyAdmin\Relation;
+use PhpMyAdmin\ConfigStorage\Relation;
+use PhpMyAdmin\Http\ServerRequest;
+use PhpMyAdmin\ResponseRenderer;
+use PhpMyAdmin\Template;
 
 /**
  * Display selection for relational field values
- *
- * @package PhpMyAdmin\Controllers
  */
 class BrowseForeignersController extends AbstractController
 {
-    /**
-     * @var BrowseForeigners
-     */
+    /** @var BrowseForeigners */
     private $browseForeigners;
 
-    /**
-     * @var Relation
-     */
+    /** @var Relation */
     private $relation;
 
-    /**
-     * BrowseForeignersController constructor.
-     *
-     * @param \PhpMyAdmin\Response          $response         Response instance
-     * @param \PhpMyAdmin\DatabaseInterface $dbi              DatabaseInterface instance
-     * @param BrowseForeigners              $browseForeigners BrowseForeigners instance
-     * @param Relation                      $relation         Relation instance
-     */
-    public function __construct($response, $dbi, $browseForeigners, $relation)
-    {
-        parent::__construct($response, $dbi);
+    public function __construct(
+        ResponseRenderer $response,
+        Template $template,
+        BrowseForeigners $browseForeigners,
+        Relation $relation
+    ) {
+        parent::__construct($response, $template);
         $this->browseForeigners = $browseForeigners;
         $this->relation = $relation;
     }
 
-    /**
-     * @param array $params Request parameters
-     * @return string HTML
-     */
-    public function index(array $params): string
+    public function __invoke(ServerRequest $request): void
     {
-        $foreigners = $this->relation->getForeigners(
-            $params['db'],
-            $params['table']
-        );
-        $foreignLimit = $this->browseForeigners->getForeignLimit(
-            $params['foreign_showAll']
-        );
+        /** @var string|null $database */
+        $database = $request->getParsedBodyParam('db');
+        /** @var string|null $table */
+        $table = $request->getParsedBodyParam('table');
+        /** @var string|null $field */
+        $field = $request->getParsedBodyParam('field');
+        /** @var string $fieldKey */
+        $fieldKey = $request->getParsedBodyParam('fieldkey', '');
+        /** @var string $data */
+        $data = $request->getParsedBodyParam('data', '');
+        /** @var string|null $foreignShowAll */
+        $foreignShowAll = $request->getParsedBodyParam('foreign_showAll');
+        /** @var string $foreignFilter */
+        $foreignFilter = $request->getParsedBodyParam('foreign_filter', '');
+
+        if (! isset($database, $table, $field)) {
+            return;
+        }
+
+        $this->response->setMinimalFooter();
+        $header = $this->response->getHeader();
+        $header->disableMenuAndConsole();
+        $header->setBodyId('body_browse_foreigners');
+
+        $foreigners = $this->relation->getForeigners($database, $table);
+        $foreignLimit = $this->browseForeigners->getForeignLimit($foreignShowAll);
         $foreignData = $this->relation->getForeignData(
             $foreigners,
-            $params['field'],
+            $field,
             true,
-            $params['foreign_filter'] ?? '',
-            $foreignLimit ?? null,
+            $foreignFilter,
+            $foreignLimit ?? '',
             true
         );
 
-        return $this->browseForeigners->getHtmlForRelationalFieldSelection(
-            $params['db'],
-            $params['table'],
-            $params['field'],
+        $this->response->addHTML($this->browseForeigners->getHtmlForRelationalFieldSelection(
+            $database,
+            $table,
+            $field,
             $foreignData,
-            $params['fieldkey'] ?? '',
-            $params['data'] ?? ''
-        );
+            $fieldKey,
+            $data
+        ));
     }
 }

@@ -1,51 +1,49 @@
 <?php
-/* vim: set expandtab sw=4 ts=4 sts=4: */
-/**
- * Tests for methods in Sanitize class
- *
- * @package PhpMyAdmin-test
- */
+
 declare(strict_types=1);
 
 namespace PhpMyAdmin\Tests;
 
 use PhpMyAdmin\Sanitize;
-use PHPUnit\Framework\TestCase;
 
 /**
- * Tests for methods in Sanitize class
- *
- * @package PhpMyAdmin-test
+ * @covers \PhpMyAdmin\Sanitize
  */
-class SanitizeTest extends TestCase
+class SanitizeTest extends AbstractTestCase
 {
     /**
-     * Tests for proper escaping of XSS.
-     *
-     * @return void
+     * Sets up the fixture, for example, opens a network connection.
+     * This method is called before a test is executed.
      */
-    public function testXssInHref()
+    protected function setUp(): void
+    {
+        parent::setUp();
+        parent::setLanguage();
+    }
+
+    /**
+     * Tests for proper escaping of XSS.
+     */
+    public function testXssInHref(): void
     {
         $this->assertEquals(
             '[a@javascript:alert(\'XSS\');@target]link</a>',
-            Sanitize::sanitize('[a@javascript:alert(\'XSS\');@target]link[/a]')
+            Sanitize::sanitizeMessage('[a@javascript:alert(\'XSS\');@target]link[/a]')
         );
     }
 
     /**
      * Tests correct generating of link redirector.
-     *
-     * @return void
      */
-    public function testLink()
+    public function testLink(): void
     {
         $lang = $GLOBALS['lang'];
 
         unset($GLOBALS['server']);
         unset($GLOBALS['lang']);
         $this->assertEquals(
-            '<a href="./url.php?url=https%3A%2F%2Fwww.phpmyadmin.net%2F" target="target">link</a>',
-            Sanitize::sanitize('[a@https://www.phpmyadmin.net/@target]link[/a]')
+            '<a href="index.php?route=/url&url=https%3A%2F%2Fwww.phpmyadmin.net%2F" target="target">link</a>',
+            Sanitize::sanitizeMessage('[a@https://www.phpmyadmin.net/@target]link[/a]')
         );
 
         $GLOBALS['lang'] = $lang;
@@ -57,15 +55,14 @@ class SanitizeTest extends TestCase
      * @param string $link     link
      * @param string $expected expected result
      *
-     * @return void
-     *
      * @dataProvider docLinks
      */
-    public function testDoc($link, $expected): void
+    public function testDoc(string $link, string $expected): void
     {
         $this->assertEquals(
-            '<a href="./url.php?url=https%3A%2F%2Fdocs.phpmyadmin.net%2Fen%2Flatest%2F' . $expected . '" target="documentation">doclink</a>',
-            Sanitize::sanitize('[doc@' . $link . ']doclink[/doc]')
+            '<a href="index.php?route=/url&url=https%3A%2F%2Fdocs.phpmyadmin.net%2Fen%2Flatest%2F'
+                . $expected . '" target="documentation">doclink</a>',
+            Sanitize::sanitizeMessage('[doc@' . $link . ']doclink[/doc]')
         );
     }
 
@@ -74,7 +71,7 @@ class SanitizeTest extends TestCase
      *
      * @return array
      */
-    public function docLinks()
+    public function docLinks(): array
     {
         return [
             [
@@ -98,88 +95,77 @@ class SanitizeTest extends TestCase
 
     /**
      * Tests link target validation.
-     *
-     * @return void
      */
-    public function testInvalidTarget()
+    public function testInvalidTarget(): void
     {
         $this->assertEquals(
             '[a@./Documentation.html@INVALID9]doc</a>',
-            Sanitize::sanitize('[a@./Documentation.html@INVALID9]doc[/a]')
+            Sanitize::sanitizeMessage('[a@./Documentation.html@INVALID9]doc[/a]')
         );
     }
 
     /**
      * Tests XSS escaping after valid link.
-     *
-     * @return void
      */
-    public function testLinkDocXss()
+    public function testLinkDocXss(): void
     {
         $this->assertEquals(
             '[a@./Documentation.html" onmouseover="alert(foo)"]doc</a>',
-            Sanitize::sanitize('[a@./Documentation.html" onmouseover="alert(foo)"]doc[/a]')
+            Sanitize::sanitizeMessage('[a@./Documentation.html" onmouseover="alert(foo)"]doc[/a]')
         );
     }
 
     /**
      * Tests proper handling of multi link code.
-     *
-     * @return void
      */
-    public function testLinkAndXssInHref()
+    public function testLinkAndXssInHref(): void
     {
         $this->assertEquals(
-            '<a href="./url.php?url=https%3A%2F%2Fdocs.phpmyadmin.net%2F">doc</a>[a@javascript:alert(\'XSS\');@target]link</a>',
-            Sanitize::sanitize('[a@https://docs.phpmyadmin.net/]doc[/a][a@javascript:alert(\'XSS\');@target]link[/a]')
+            '<a href="index.php?route=/url&url=https%3A%2F%2Fdocs.phpmyadmin.net%2F">doc</a>'
+                . '[a@javascript:alert(\'XSS\');@target]link</a>',
+            Sanitize::sanitizeMessage(
+                '[a@https://docs.phpmyadmin.net/]doc[/a][a@javascript:alert(\'XSS\');@target]link[/a]'
+            )
         );
     }
 
     /**
      * Test escaping of HTML tags
-     *
-     * @return void
      */
-    public function testHtmlTags()
+    public function testHtmlTags(): void
     {
         $this->assertEquals(
             '&lt;div onclick=""&gt;',
-            Sanitize::sanitize('<div onclick="">')
+            Sanitize::sanitizeMessage('<div onclick="">')
         );
     }
 
     /**
      * Tests basic BB code.
-     *
-     * @return void
      */
-    public function testBBCode()
+    public function testBBCode(): void
     {
         $this->assertEquals(
             '<strong>strong</strong>',
-            Sanitize::sanitize('[strong]strong[/strong]')
+            Sanitize::sanitizeMessage('[strong]strong[/strong]')
         );
     }
 
     /**
      * Tests output escaping.
-     *
-     * @return void
      */
-    public function testEscape()
+    public function testEscape(): void
     {
         $this->assertEquals(
             '&lt;strong&gt;strong&lt;/strong&gt;',
-            Sanitize::sanitize('[strong]strong[/strong]', true)
+            Sanitize::sanitizeMessage('[strong]strong[/strong]', true)
         );
     }
 
     /**
      * Test for Sanitize::sanitizeFilename
-     *
-     * @return void
      */
-    public function testSanitizeFilename()
+    public function testSanitizeFilename(): void
     {
         $this->assertEquals(
             'File_name_123',
@@ -190,15 +176,13 @@ class SanitizeTest extends TestCase
     /**
      * Test for Sanitize::getJsValue
      *
-     * @param string $key      Key
-     * @param string $value    Value
-     * @param string $expected Expected output
+     * @param string          $key      Key
+     * @param string|bool|int $value    Value
+     * @param string          $expected Expected output
      *
      * @dataProvider variables
-     *
-     * @return void
      */
-    public function testGetJsValue($key, $value, $expected): void
+    public function testGetJsValue(string $key, $value, string $expected): void
     {
         $this->assertEquals($expected, Sanitize::getJsValue($key, $value));
         $this->assertEquals('foo = 100', Sanitize::getJsValue('foo', '100', false));
@@ -219,12 +203,10 @@ class SanitizeTest extends TestCase
 
     /**
      * Test for Sanitize::jsFormat
-     *
-     * @return void
      */
-    public function testJsFormat()
+    public function testJsFormat(): void
     {
-        $this->assertEquals("`foo`", Sanitize::jsFormat('foo'));
+        $this->assertEquals('`foo`', Sanitize::jsFormat('foo'));
     }
 
     /**
@@ -232,7 +214,7 @@ class SanitizeTest extends TestCase
      *
      * @return array
      */
-    public function variables()
+    public function variables(): array
     {
         return [
             [
@@ -279,11 +261,9 @@ class SanitizeTest extends TestCase
      * @param string $target expected output
      * @param string $source string to be escaped
      *
-     * @return void
-     *
      * @dataProvider escapeDataProvider
      */
-    public function testEscapeJsString($target, $source): void
+    public function testEscapeJsString(string $target, string $source): void
     {
         $this->assertEquals($target, Sanitize::escapeJsString($source));
     }
@@ -293,7 +273,7 @@ class SanitizeTest extends TestCase
      *
      * @return array data for testEscape test case
      */
-    public function escapeDataProvider()
+    public function escapeDataProvider(): array
     {
         return [
             [
@@ -325,11 +305,10 @@ class SanitizeTest extends TestCase
 
     /**
      * Test for removeRequestVars
-     *
-     * @return void
      */
-    public function testRemoveRequestVars()
+    public function testRemoveRequestVars(): void
     {
+        $GLOBALS['_POST'] = [];
         $_REQUEST['foo'] = 'bar';
         $_REQUEST['allow'] = 'all';
         $_REQUEST['second'] = 1;
@@ -341,5 +320,129 @@ class SanitizeTest extends TestCase
         $this->assertArrayNotHasKey('foo', $_REQUEST);
         $this->assertArrayNotHasKey('second', $_REQUEST);
         $this->assertArrayHasKey('allow', $_REQUEST);
+    }
+
+    /**
+     * Data provider for sanitize links
+     *
+     * @return array
+     */
+    public function dataProviderCheckLinks(): array
+    {
+        // Expected
+        // The url
+        // Allow http links
+        // Allow other links
+        return [
+            [
+                false,
+                'foo',
+                false,
+                false,
+            ],
+            [
+                true,
+                './doc/html/',
+                false,
+                false,
+            ],
+            [
+                false,
+                'index.php',
+                false,
+                false,
+            ],
+            [
+                false,
+                './index.php',
+                false,
+                false,
+            ],
+            [
+                true,
+                './index.php?',
+                false,
+                false,
+            ],
+            [
+                true,
+                './index.php?route=/server/sql',
+                false,
+                false,
+            ],
+            [
+                false,
+                'index.php?route=/server/sql',
+                false,
+                false,
+            ],
+            [
+                false,
+                'ftp://ftp.example.com',
+                false,
+                false,
+            ],
+            [
+                true,
+                'ftp://ftp.example.com',
+                false,
+                true,
+            ],
+            [
+                false,
+                'mailto:admin@domain.tld',
+                false,
+                false,
+            ],
+            [
+                true,
+                'mailto:admin@domain.tld',
+                false,
+                true,
+            ],
+            [
+                false,
+                'index.php?route=/url&url=https://example.com',
+                false,
+                false,
+            ],
+            [
+                true,
+                'index.php?route=/url&url=https%3a%2f%2fexample.com',
+                false,
+                false,
+            ],
+            [
+                true,
+                'https://example.com',
+                false,
+                false,
+            ],
+            [
+                false,
+                'http://example.com',
+                false,
+                false,
+            ],
+            [
+                true,
+                'http://example.com',
+                true,
+                false,
+            ],
+        ];
+    }
+
+    /**
+     * Tests link sanitize
+     *
+     * @dataProvider dataProviderCheckLinks
+     */
+    public function testCheckLink(bool $expected, string $url, bool $http, bool $other): void
+    {
+        $this->assertSame(
+            $expected,
+            Sanitize::checkLink($url, $http, $other)
+        );
     }
 }

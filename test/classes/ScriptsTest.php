@@ -1,150 +1,78 @@
 <?php
-/* vim: set expandtab sw=4 ts=4 sts=4: */
-/**
- * Tests for Script.php
- *
- * @package PhpMyAdmin-test
- */
+
 declare(strict_types=1);
 
 namespace PhpMyAdmin\Tests;
 
 use PhpMyAdmin\Scripts;
-use PhpMyAdmin\Tests\PmaTestCase;
-use ReflectionClass;
+use PhpMyAdmin\Version;
+use ReflectionProperty;
+
+use function rawurlencode;
 
 /**
- * Tests for Script.php
- *
- * @package PhpMyAdmin-test
+ * @covers \PhpMyAdmin\Scripts
  */
-class ScriptsTest extends PmaTestCase
+class ScriptsTest extends AbstractTestCase
 {
-    /**
-     * @access protected
-     */
+    /** @var Scripts */
     protected $object;
 
     /**
      * Sets up the fixture, for example, opens a network connection.
      * This method is called before a test is executed.
-     *
-     * @access protected
-     * @return void
      */
     protected function setUp(): void
     {
+        parent::setUp();
         $this->object = new Scripts();
-        if (! defined('PMA_USR_BROWSER_AGENT')) {
-            define('PMA_USR_BROWSER_AGENT', 'MOZILLA');
-        }
     }
 
     /**
      * Tears down the fixture, for example, closes a network connection.
      * This method is called after a test is executed.
-     *
-     * @access protected
-     * @return void
      */
     protected function tearDown(): void
     {
+        parent::tearDown();
         unset($this->object);
     }
 
     /**
-     * Call private functions by setting visibility to public.
-     *
-     * @param string $name   method name
-     * @param array  $params parameters for the invocation
-     *
-     * @return mixed the output from the private method.
-     */
-    private function _callPrivateFunction($name, $params)
-    {
-        $class = new ReflectionClass(Scripts::class);
-        $method = $class->getMethod($name);
-        $method->setAccessible(true);
-        return $method->invokeArgs($this->object, $params);
-    }
-
-    /**
-     * Test for _includeFile
-     *
-     * @return void
-     *
-     * @group medium
-     */
-    public function testIncludeFile()
-    {
-        $this->assertEquals(
-            '<script data-cfasync="false" type="text/javascript" '
-            . 'src="js/common.js?v=' . PMA_VERSION . '"></script>' . "\n",
-            $this->_callPrivateFunction(
-                '_includeFiles',
-                [
-                    [
-                        [
-                            'has_onload' => false,
-                            'filename' => 'common.js'
-                        ],
-                    ],
-                ]
-            )
-        );
-    }
-
-    /**
      * Test for getDisplay
-     *
-     * @return void
      */
-    public function testGetDisplay()
+    public function testGetDisplay(): void
     {
-
         $this->object->addFile('common.js');
 
-        $this->assertRegExp(
-            '@<script data-cfasync="false" type="text/javascript" '
-            . 'src="js/common.js\?v=' . PMA_VERSION . '"></script>' . "\n"
-            . '<script data-cfasync="false" type="text/'
-            . 'javascript">// <!\\[CDATA\\[' . "\n"
-            . 'AJAX.scriptHandler.add\\("common.js",1\\);' . "\n"
-            . '\\$\\(function\\(\\) \\{AJAX.fireOnload\\("common.js"\\);\\}\\);'
-            . "\n"
-            . '// ]]></script>@',
-            $this->object->getDisplay()
+        $actual = $this->object->getDisplay();
+
+        $this->assertStringContainsString(
+            'src="js/dist/common.js?v=' . rawurlencode(Version::VERSION) . '"',
+            $actual
         );
+        $this->assertStringContainsString('.add(\'common.js\', 1)', $actual);
+        $this->assertStringContainsString('window.AJAX.fireOnload(\'common.js\')', $actual);
     }
 
     /**
      * test for addCode
-     *
-     * @return void
      */
-    public function testAddCode()
+    public function testAddCode(): void
     {
-
         $this->object->addCode('alert(\'CodeAdded\');');
 
-        $this->assertEquals(
-            '<script data-cfasync="false" type="text/javascript">// <![CDATA[
-alert(\'CodeAdded\');
-AJAX.scriptHandler;
-$(function() {});
-// ]]></script>',
-            $this->object->getDisplay()
-        );
+        $actual = $this->object->getDisplay();
+
+        $this->assertStringContainsString('alert(\'CodeAdded\');', $actual);
     }
 
     /**
      * test for getFiles
-     *
-     * @return void
      */
-    public function testGetFiles()
+    public function testGetFiles(): void
     {
-        // codemirror's onload event is blacklisted
+        // codemirror's onload event is excluded
         $this->object->addFile('vendor/codemirror/lib/codemirror.js');
 
         $this->object->addFile('common.js');
@@ -165,12 +93,10 @@ $(function() {});
 
     /**
      * test for addFile
-     *
-     * @return void
      */
-    public function testAddFile()
+    public function testAddFile(): void
     {
-        $reflection = new \ReflectionProperty(Scripts::class, '_files');
+        $reflection = new ReflectionProperty(Scripts::class, 'files');
         $reflection->setAccessible(true);
 
         // Assert empty _files property of
@@ -193,12 +119,10 @@ $(function() {});
 
     /**
      * test for addFiles
-     *
-     * @return void
      */
-    public function testAddFiles()
+    public function testAddFiles(): void
     {
-        $reflection = new \ReflectionProperty(Scripts::class, '_files');
+        $reflection = new ReflectionProperty(Scripts::class, 'files');
         $reflection->setAccessible(true);
 
         $filenames = [

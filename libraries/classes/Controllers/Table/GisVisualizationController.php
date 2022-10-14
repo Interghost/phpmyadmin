@@ -1,121 +1,91 @@
 <?php
-/* vim: set expandtab sw=4 ts=4 sts=4: */
-/**
- * Holds the PhpMyAdmin\Controllers\Table\GisVisualizationController
- *
- * @package PhpMyAdmin\Controllers
- */
+
 declare(strict_types=1);
 
 namespace PhpMyAdmin\Controllers\Table;
 
+use PhpMyAdmin\Controllers\AbstractController;
 use PhpMyAdmin\Core;
+use PhpMyAdmin\DatabaseInterface;
 use PhpMyAdmin\Gis\GisVisualization;
+use PhpMyAdmin\Html\Generator;
+use PhpMyAdmin\Http\ServerRequest;
 use PhpMyAdmin\Message;
+use PhpMyAdmin\ResponseRenderer;
+use PhpMyAdmin\Template;
 use PhpMyAdmin\Url;
+use PhpMyAdmin\Util;
+
+use function __;
+use function array_merge;
+use function is_array;
 
 /**
- * Class GisVisualizationController
- *
- * @package PhpMyAdmin\Controllers
+ * Handles creation of the GIS visualizations.
  */
-class GisVisualizationController extends AbstractController
+final class GisVisualizationController extends AbstractController
 {
-    /**
-     * @var array
-     */
-    protected $url_params;
+    /** @var GisVisualization */
+    private $visualization;
 
-    /**
-     * @var string
-     */
-    protected $sql_query;
+    /** @var DatabaseInterface */
+    private $dbi;
 
-    /**
-     * @var array
-     */
-    protected $visualizationSettings;
-
-    /**
-     * @var \PhpMyAdmin\Gis\GisVisualization
-     */
-    protected $visualization;
-
-    /**
-     * Constructor
-     *
-     * @param \PhpMyAdmin\Response          $response              Response object
-     * @param \PhpMyAdmin\DatabaseInterface $dbi                   DatabaseInterface object
-     * @param string                        $db                    Database name
-     * @param string                        $table                 Table name
-     * @param string                        $sql_query             SQL query for retrieving GIS data
-     * @param array                         $url_params            array of URL parameters
-     * @param string                        $goto                  goto script
-     * @param string                        $back                  back script
-     * @param array                         $visualizationSettings visualization settings
-     */
     public function __construct(
-        $response,
-        $dbi,
-        $db,
-        $table,
-        $sql_query,
-        array $url_params,
-        $goto,
-        $back,
-        array $visualizationSettings
+        ResponseRenderer $response,
+        Template $template,
+        DatabaseInterface $dbi
     ) {
-        parent::__construct($response, $dbi, $db, $table);
-
-        require_once ROOT_PATH . 'libraries/common.inc.php';
-        require_once ROOT_PATH . 'libraries/db_common.inc.php';
-
-        $this->sql_query = $sql_query;
-        $this->url_params = $url_params;
-        $this->url_params['goto'] = $goto;
-        $this->url_params['back'] = $back;
-        $this->visualizationSettings = $visualizationSettings;
+        parent::__construct($response, $template);
+        $this->dbi = $dbi;
     }
 
-    /**
-     * Save to file
-     *
-     * @return void
-     */
-    public function saveToFileAction()
+    public function __invoke(ServerRequest $request): void
     {
-        $this->response->disable();
-        $file_name = $this->visualizationSettings['spatialColumn'];
-        $save_format = $_REQUEST['fileFormat'];
-        $this->visualization->toFile($file_name, $save_format);
-    }
+        $GLOBALS['urlParams'] = $GLOBALS['urlParams'] ?? null;
+        $GLOBALS['errorUrl'] = $GLOBALS['errorUrl'] ?? null;
+        $this->checkParameters(['db']);
 
-    /**
-     * Index
-     *
-     * @return void
-     */
-    public function indexAction()
-    {
+        $GLOBALS['errorUrl'] = Util::getScriptNameForOption($GLOBALS['cfg']['DefaultTabDatabase'], 'database');
+        $GLOBALS['errorUrl'] .= Url::getCommon(['db' => $GLOBALS['db']], '&');
+
+        if (! $this->hasDatabase()) {
+            return;
+        }
+
+        // SQL query for retrieving GIS data
+        $sqlQuery = '';
+        if (isset($_GET['sql_query'], $_GET['sql_signature'])) {
+            if (Core::checkSqlQuerySignature($_GET['sql_query'], $_GET['sql_signature'])) {
+                $sqlQuery = $_GET['sql_query'];
+            }
+        } elseif (isset($_POST['sql_query'])) {
+            $sqlQuery = $_POST['sql_query'];
+        }
+
         // Throw error if no sql query is set
-        if (! isset($this->sql_query) || $this->sql_query == '') {
+        if ($sqlQuery == '') {
             $this->response->setRequestStatus(false);
             $this->response->addHTML(
-                Message::error(__('No SQL query was set to fetch data.'))
+                Message::error(__('No SQL query was set to fetch data.'))->getDisplay()
             );
+
             return;
         }
 
         // Execute the query and return the result
-        $result = $this->dbi->tryQuery($this->sql_query);
+        $result = $this->dbi->tryQuery($sqlQuery);
         // Get the meta data of results
-        $meta = $this->dbi->getFieldsMeta($result);
+        $meta = [];
+        if ($result !== false) {
+            $meta = $this->dbi->getFieldsMeta($result);
+        }
 
         // Find the candidate fields for label column and spatial column
         $labelCandidates = [];
         $spatialCandidates = [];
         foreach ($meta as $column_meta) {
-            if ($column_meta->type == 'geometry') {
+            if ($column_meta->isMappedTypeGeometry) {
                 $spatialCandidates[] = $column_meta->name;
             } else {
                 $labelCandidates[] = $column_meta->name;
@@ -123,97 +93,111 @@ class GisVisualizationController extends AbstractController
         }
 
         // Get settings if any posted
-        if (Core::isValid($_REQUEST['visualizationSettings'], 'array')) {
-            $this->visualizationSettings = $_REQUEST['visualizationSettings'];
+        $visualizationSettings = [];
+        // Download as PNG/SVG/PDF use _GET and the normal form uses _POST
+        if (isset($_POST['visualizationSettings']) && is_array($_POST['visualizationSettings'])) {
+            $visualizationSettings = $_POST['visualizationSettings'];
+        } elseif (isset($_GET['visualizationSettings']) && is_array($_GET['visualizationSettings'])) {
+            $visualizationSettings = $_GET['visualizationSettings'];
         }
 
-        if (! isset($this->visualizationSettings['labelColumn'])
-            && isset($labelCandidates[0])
-        ) {
-            $this->visualizationSettings['labelColumn'] = '';
+        // Check mysql version
+        $visualizationSettings['mysqlVersion'] = $this->dbi->getVersion();
+        $visualizationSettings['isMariaDB'] = $this->dbi->isMariaDB();
+
+        if (! isset($visualizationSettings['labelColumn']) && isset($labelCandidates[0])) {
+            $visualizationSettings['labelColumn'] = '';
         }
 
         // If spatial column is not set, use first geometric column as spatial column
-        if (! isset($this->visualizationSettings['spatialColumn'])) {
-            $this->visualizationSettings['spatialColumn'] = $spatialCandidates[0];
+        if (! isset($visualizationSettings['spatialColumn'])) {
+            $visualizationSettings['spatialColumn'] = $spatialCandidates[0];
         }
 
+        // Download as PNG/SVG/PDF use _GET and the normal form uses _POST
         // Convert geometric columns from bytes to text.
-        $pos = isset($_REQUEST['pos']) ? $_REQUEST['pos']
-            : $_SESSION['tmpval']['pos'];
-        if (isset($_REQUEST['session_max_rows'])) {
-            $rows = $_REQUEST['session_max_rows'];
+        $pos = (int) ($_POST['pos'] ?? $_GET['pos'] ?? $_SESSION['tmpval']['pos']);
+        if (isset($_POST['session_max_rows']) || isset($_GET['session_max_rows'])) {
+            $rows = (int) ($_POST['session_max_rows'] ?? $_GET['session_max_rows']);
         } else {
-            if ($_SESSION['tmpval']['max_rows'] != 'all') {
-                $rows = $_SESSION['tmpval']['max_rows'];
+            if ($_SESSION['tmpval']['max_rows'] !== 'all') {
+                $rows = (int) $_SESSION['tmpval']['max_rows'];
             } else {
-                $rows = $GLOBALS['cfg']['MaxRows'];
+                $rows = (int) $GLOBALS['cfg']['MaxRows'];
             }
         }
-        $this->visualization = GisVisualization::get(
-            $this->sql_query,
-            $this->visualizationSettings,
-            $rows,
-            $pos
-        );
 
-        if (isset($_REQUEST['saveToFile'])) {
-            $this->saveToFileAction();
+        $this->visualization = GisVisualization::get($sqlQuery, $visualizationSettings, $rows, $pos);
+
+        if (isset($_GET['saveToFile'])) {
+            $this->saveToFile($visualizationSettings['spatialColumn'], $_GET['fileFormat']);
+
             return;
         }
 
-        $this->response->getHeader()->getScripts()->addFiles(
-            [
-                'vendor/openlayers/OpenLayers.js',
-                'vendor/jquery/jquery.svg.js',
-                'tbl_gis_visualization.js',
-            ]
-        );
+        $this->addScriptFiles(['vendor/openlayers/OpenLayers.js', 'table/gis_visualization.js']);
 
         // If all the rows contain SRID, use OpenStreetMaps on the initial loading.
-        if (! isset($_REQUEST['displayVisualization'])) {
+        if (! isset($_POST['displayVisualization'])) {
             if ($this->visualization->hasSrid()) {
-                $this->visualizationSettings['choice'] = 'useBaseLayer';
+                $visualizationSettings['choice'] = 'useBaseLayer';
             } else {
-                unset($this->visualizationSettings['choice']);
+                unset($visualizationSettings['choice']);
             }
         }
 
-        $this->visualization->setUserSpecifiedSettings($this->visualizationSettings);
-        if ($this->visualizationSettings != null) {
+        $this->visualization->setUserSpecifiedSettings($visualizationSettings);
+        if ($visualizationSettings != null) {
             foreach ($this->visualization->getSettings() as $setting => $val) {
-                if (! isset($this->visualizationSettings[$setting])) {
-                    $this->visualizationSettings[$setting] = $val;
+                if (isset($visualizationSettings[$setting])) {
+                    continue;
                 }
+
+                $visualizationSettings[$setting] = $val;
             }
         }
 
         /**
          * Displays the page
          */
-        $this->url_params['sql_query'] = $this->sql_query;
-        $downloadUrl = 'tbl_gis_visualization.php' . Url::getCommon(
-            array_merge(
-                $this->url_params,
-                [
-                    'saveToFile' => true,
-                    'session_max_rows' => $rows,
-                    'pos' => $pos
-                ]
-            )
-        );
+        $GLOBALS['urlParams']['goto'] = Util::getScriptNameForOption($GLOBALS['cfg']['DefaultTabDatabase'], 'database');
+        $GLOBALS['urlParams']['back'] = Url::getFromRoute('/sql');
+        $GLOBALS['urlParams']['sql_query'] = $sqlQuery;
+        $GLOBALS['urlParams']['sql_signature'] = Core::signSqlQuery($sqlQuery);
+        $downloadUrl = Url::getFromRoute('/table/gis-visualization', array_merge(
+            $GLOBALS['urlParams'],
+            [
+                'saveToFile' => true,
+                'session_max_rows' => $rows,
+                'pos' => $pos,
+                'visualizationSettings[spatialColumn]' => $visualizationSettings['spatialColumn'],
+                'visualizationSettings[labelColumn]' => $visualizationSettings['labelColumn'] ?? null,
+            ]
+        ));
+
+        $startAndNumberOfRowsFieldset = Generator::getStartAndNumberOfRowsFieldsetData($sqlQuery);
+
         $html = $this->template->render('table/gis_visualization/gis_visualization', [
-            'url_params' => $this->url_params,
+            'url_params' => $GLOBALS['urlParams'],
             'download_url' => $downloadUrl,
             'label_candidates' => $labelCandidates,
             'spatial_candidates' => $spatialCandidates,
-            'visualization_settings' => $this->visualizationSettings,
-            'sql_query' => $this->sql_query,
+            'visualization_settings' => $visualizationSettings,
+            'start_and_number_of_rows_fieldset' => $startAndNumberOfRowsFieldset,
             'visualization' => $this->visualization->toImage('svg'),
             'draw_ol' => $this->visualization->asOl(),
-            'pma_theme_image' => $GLOBALS['pmaThemeImage'],
         ]);
 
         $this->response->addHTML($html);
+    }
+
+    /**
+     * @param string $filename File name
+     * @param string $format   Save format
+     */
+    private function saveToFile(string $filename, string $format): void
+    {
+        $this->response->disable();
+        $this->visualization->toFile($filename, $format);
     }
 }

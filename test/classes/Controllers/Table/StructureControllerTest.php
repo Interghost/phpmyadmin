@@ -1,357 +1,162 @@
 <?php
-/* vim: set expandtab sw=4 ts=4 sts=4: */
-/**
- * TableStructureController_Test class
- *
- * this class is for testing StructureController class
- *
- * @package PhpMyAdmin-test
- */
+
 declare(strict_types=1);
 
 namespace PhpMyAdmin\Tests\Controllers\Table;
 
-use PhpMyAdmin\Di\Container;
-use PhpMyAdmin\Tests\PmaTestCase;
-use PhpMyAdmin\Tests\Stubs\Response as ResponseStub;
-use PhpMyAdmin\Theme;
-use ReflectionClass;
+use PhpMyAdmin\Config\PageSettings;
+use PhpMyAdmin\ConfigStorage\Relation;
+use PhpMyAdmin\ConfigStorage\RelationCleanup;
+use PhpMyAdmin\Controllers\Table\StructureController;
+use PhpMyAdmin\CreateAddField;
+use PhpMyAdmin\DatabaseInterface;
+use PhpMyAdmin\FlashMessages;
+use PhpMyAdmin\Http\ServerRequest;
+use PhpMyAdmin\Index;
+use PhpMyAdmin\Template;
+use PhpMyAdmin\Tests\AbstractTestCase;
+use PhpMyAdmin\Tests\Stubs\DbiDummy;
+use PhpMyAdmin\Tests\Stubs\ResponseRenderer;
+use PhpMyAdmin\Transformations;
+use PhpMyAdmin\Util;
 
 /**
- * TableStructureController_Test class
- *
- * this class is for testing StructureController class
- *
- * @package PhpMyAdmin-test
+ * @covers \PhpMyAdmin\Controllers\Table\StructureController
  */
-class StructureControllerTest extends PmaTestCase
+class StructureControllerTest extends AbstractTestCase
 {
-    /**
-     * @var \PhpMyAdmin\Tests\Stubs\Response
-     */
-    private $_response;
+    /** @var DatabaseInterface */
+    protected $dbi;
 
-    /**
-     * Prepares environment for the test.
-     *
-     * @return void
-     */
+    /** @var DbiDummy */
+    protected $dummyDbi;
+
     protected function setUp(): void
     {
-        $GLOBALS['server'] = 1;
-        $GLOBALS['db'] = 'db';
-        $GLOBALS['table'] = 'table';
-        $GLOBALS['cfg']['Server']['DisableIS'] = false;
-        $GLOBALS['cfg']['Server']['user'] = 'pma_user';
+        parent::setUp();
+        $this->dummyDbi = $this->createDbiDummy();
+        $this->dbi = $this->createDatabaseInterface($this->dummyDbi);
+        $GLOBALS['dbi'] = $this->dbi;
+    }
+
+    public function testStructureController(): void
+    {
+        $GLOBALS['server'] = 2;
+        $GLOBALS['db'] = 'test_db';
+        $GLOBALS['table'] = 'test_table';
+        $GLOBALS['text_dir'] = 'ltr';
+        $GLOBALS['lang'] = 'en';
         $GLOBALS['PMA_PHP_SELF'] = 'index.php';
+        $GLOBALS['cfg']['Server'] = $GLOBALS['config']->defaultServer;
+        $GLOBALS['cfg']['Server']['DisableIS'] = true;
+        $GLOBALS['cfg']['ShowStats'] = false;
+        $GLOBALS['cfg']['ShowPropertyComments'] = false;
+        $_SESSION['relation'] = [];
 
-        $table = $this->getMockBuilder('PhpMyAdmin\Table')
-            ->disableOriginalConstructor()
-            ->getMock();
-
-        $dbi = $this->getMockBuilder('PhpMyAdmin\DatabaseInterface')
-            ->disableOriginalConstructor()
-            ->getMock();
-        $dbi->expects($this->any())->method('getTable')
-            ->will($this->returnValue($table));
-
-        $GLOBALS['dbi'] = $dbi;
-
-        $container = Container::getDefaultContainer();
-        $container->set('db', 'db');
-        $container->set('table', 'table');
-        $container->set('dbi', $GLOBALS['dbi']);
-        $this->_response = new ResponseStub();
-        $container->set('PhpMyAdmin\Response', $this->_response);
-        $container->alias('response', 'PhpMyAdmin\Response');
-    }
-
-    /**
-     * Tests for getKeyForTablePrimary()
-     *
-     * Case one: there are no primary key in the table
-     *
-     * @return void
-     * @test
-     */
-    public function testGetKeyForTablePrimaryOne()
-    {
-        $GLOBALS['dbi']->expects($this->any())->method('fetchAssoc')
-            ->will($this->returnValue(null));
-
-        $class = new ReflectionClass('\PhpMyAdmin\Controllers\Table\StructureController');
-        $method = $class->getMethod('getKeyForTablePrimary');
-        $method->setAccessible(true);
-
-        $container = Container::getDefaultContainer();
-        $container->set('dbi', $GLOBALS['dbi']);
-        $container->factory('PhpMyAdmin\Controllers\Table\StructureController');
-        $container->alias(
-            'StructureController',
-            'PhpMyAdmin\Controllers\Table\StructureController'
+        $this->dummyDbi->addSelectDb('test_db');
+        $this->dummyDbi->addSelectDb('test_db');
+        $this->dummyDbi->addResult(
+            'SHOW COLLATION',
+            [
+                ['utf8mb4_general_ci', 'utf8mb4', '45', 'Yes', 'Yes', '1'],
+                ['armscii8_general_ci', 'armscii8', '32', 'Yes', 'Yes', '1'],
+                ['utf8_general_ci', 'utf8', '33', 'Yes', 'Yes', '1'],
+                ['utf8_bin', 'utf8', '83', '', 'Yes', '1'],
+                ['latin1_swedish_ci', 'latin1', '8', 'Yes', 'Yes', '1'],
+            ],
+            ['Collation', 'Charset', 'Id', 'Default', 'Compiled', 'Sortlen']
         );
-        $ctrl = $container->get('StructureController');
-        // No primary key in db.table2
-        $this->assertEquals(
-            '',
-            $method->invoke($ctrl)
+        // phpcs:disable Generic.Files.LineLength.TooLong
+        $this->dummyDbi->addResult(
+            'SELECT * FROM `information_schema`.`PARTITIONS` WHERE `TABLE_SCHEMA` = \'test_db\' AND `TABLE_NAME` = \'test_table\'',
+            [
+                ['def', 'test_db', 'test_table', null, null, null, null, null, null, null, null, null, '3', '5461', '16384', null, '0', '0', '2022-02-21 13:34:11', null, null, null, '', '', null],
+            ],
+            ['TABLE_CATALOG', 'TABLE_SCHEMA', 'TABLE_NAME', 'PARTITION_NAME', 'SUBPARTITION_NAME', 'PARTITION_ORDINAL_POSITION', 'SUBPARTITION_ORDINAL_POSITION', 'PARTITION_METHOD', 'SUBPARTITION_METHOD', 'PARTITION_EXPRESSION', 'SUBPARTITION_EXPRESSION', 'PARTITION_DESCRIPTION', 'TABLE_ROWS', 'AVG_ROW_LENGTH', 'DATA_LENGTH', 'MAX_DATA_LENGTH', 'INDEX_LENGTH', 'DATA_FREE', 'CREATE_TIME', 'UPDATE_TIME', 'CHECK_TIME', 'CHECKSUM', 'PARTITION_COMMENT', 'NODEGROUP', 'TABLESPACE_NAME']
         );
-    }
-
-    /**
-     * Tests for getKeyForTablePrimary()
-     *
-     * Case two: there are a primary key in the table
-     *
-     * @return void
-     * @test
-     */
-    public function testGetKeyForTablePrimaryTwo()
-    {
-        $GLOBALS['dbi']->expects($this->any())
-            ->method('fetchAssoc')
-            ->will(
-                $this->returnCallback(
-                    function () {
-                        static $callCount = 0;
-                        if ($callCount == 0) {
-                            $callCount++;
-
-                            return [
-                                'Key_name'    => 'PRIMARY',
-                                'Column_name' => 'column',
-                            ];
-                        } else {
-                            return null;
-                        }
-                    }
-                )
-            );
-
-        $class = new ReflectionClass('\PhpMyAdmin\Controllers\Table\StructureController');
-        $method = $class->getMethod('getKeyForTablePrimary');
-        $method->setAccessible(true);
-
-        $container = Container::getDefaultContainer();
-        $container->set('dbi', $GLOBALS['dbi']);
-        $container->factory('PhpMyAdmin\Controllers\Table\StructureController');
-        $container->alias(
-            'StructureController',
-            'PhpMyAdmin\Controllers\Table\StructureController'
+        $this->dummyDbi->addResult(
+            'SELECT DISTINCT `PARTITION_NAME` FROM `information_schema`.`PARTITIONS` WHERE `TABLE_SCHEMA` = \'test_db\' AND `TABLE_NAME` = \'test_table\'',
+            [[null]],
+            ['PARTITION_NAME']
         );
-        $ctrl = $container->get('StructureController');
-        // With db.table, it has a primary key `column`
-        $this->assertEquals(
-            'column, ',
-            $method->invoke($ctrl)
-        );
-    }
+        // phpcs:enable
 
-    /**
-     * Tests for adjustColumnPrivileges()
-     *
-     * @return void
-     * @test
-     */
-    public function testAdjustColumnPrivileges()
-    {
-        $class = new ReflectionClass('\PhpMyAdmin\Controllers\Table\StructureController');
-        $method = $class->getMethod('adjustColumnPrivileges');
-        $method->setAccessible(true);
+        $pageSettings = new PageSettings('TableStructure');
+        $fields = $this->dbi->getColumns($GLOBALS['db'], $GLOBALS['table'], true);
 
-        $container = Container::getDefaultContainer();
-        $container->set('dbi', $GLOBALS['dbi']);
-        $container->factory('PhpMyAdmin\Controllers\Table\StructureController');
-        $container->alias(
-            'StructureController',
-            'PhpMyAdmin\Controllers\Table\StructureController'
-        );
-        $ctrl = $container->get('StructureController');
+        $request = $this->createStub(ServerRequest::class);
+        $request->method('getRoute')->willReturn('/table/structure');
 
-        $this->assertEquals(
-            false,
-            $method->invokeArgs($ctrl, [[]])
-        );
-    }
+        $response = new ResponseRenderer();
+        $relation = new Relation($this->dbi);
+        $template = new Template();
+        (new StructureController(
+            $response,
+            $template,
+            $relation,
+            new Transformations(),
+            new CreateAddField($this->dbi),
+            new RelationCleanup($this->dbi, $relation),
+            $this->dbi,
+            new FlashMessages()
+        ))($request);
 
-    /**
-     * Tests for getMultipleFieldCommandType()
-     *
-     * @return void
-     * @test
-     */
-    public function testGetMultipleFieldCommandType()
-    {
-        $class = new ReflectionClass('\PhpMyAdmin\Controllers\Table\StructureController');
-        $method = $class->getMethod('getMultipleFieldCommandType');
-        $method->setAccessible(true);
+        $expected = $pageSettings->getHTML();
+        $expected .= $template->render('table/structure/display_structure', [
+            'collations' => [
+                'utf8mb4_general_ci' => [
+                    'name' => 'utf8mb4_general_ci',
+                    'description' => 'Unicode (UCA 4.0.0), case-insensitive',
+                ],
+            ],
+            'is_foreign_key_supported' => true,
+            'indexes' => Index::getFromTable($this->dbi, $GLOBALS['table'], $GLOBALS['db']),
+            'indexes_duplicates' => Index::findDuplicates($GLOBALS['table'], $GLOBALS['db']),
+            'relation_parameters' => $relation->getRelationParameters(),
+            'hide_structure_actions' => true,
+            'db' => 'test_db',
+            'table' => 'test_table',
+            'db_is_system_schema' => false,
+            'tbl_is_view' => false,
+            'mime_map' => [],
+            'tbl_storage_engine' => 'INNODB',
+            'primary' => Index::getPrimary($this->dbi, $GLOBALS['table'], $GLOBALS['db']),
+            'columns_with_unique_index' => [],
+            'columns_list' => ['id', 'name', 'datetimefield'],
+            'table_stats' => null,
+            'fields' => $fields,
+            'extracted_columnspecs' => [
+                1 => Util::extractColumnSpec((string) $fields['id']['Type']),
+                2 => Util::extractColumnSpec((string) $fields['name']['Type']),
+                3 => Util::extractColumnSpec((string) $fields['datetimefield']['Type']),
+            ],
+            'columns_with_index' => [],
+            'central_list' => [],
+            'comments_map' => [],
+            'browse_mime' => true,
+            'show_column_comments' => true,
+            'show_stats' => false,
+            'mysql_int_version' => $this->dbi->getVersion(),
+            'is_mariadb' => $this->dbi->isMariaDB(),
+            'text_dir' => 'ltr',
+            'is_active' => false,
+            'have_partitioning' => true,
+            'partitions' => [],
+            'partition_names' => [0 => null],
+            'default_sliders_state' => 'closed',
+            'attributes' => [1 => ' ', 2 => ' ', 3 => ' '],
+            'displayed_fields' => [
+                1 => [
+                    'text' => 'id',
+                    'icon' => '<img src="themes/dot.gif" title="Primary" alt="Primary" class="icon ic_b_primary">',
+                ],
+                2 => ['text' => 'name', 'icon' => ''],
+                3 => ['text' => 'datetimefield', 'icon' => ''],
+            ],
+            'row_comments' => [1 => '', 2 => '', 3 => ''],
+            'route' => '/table/structure',
+        ]);
 
-        $container = Container::getDefaultContainer();
-        $container->set('dbi', $GLOBALS['dbi']);
-        $container->factory('PhpMyAdmin\Controllers\Table\StructureController');
-        $container->alias(
-            'StructureController',
-            'PhpMyAdmin\Controllers\Table\StructureController'
-        );
-        $ctrl = $container->get('StructureController');
-
-        $this->assertEquals(
-            null,
-            $method->invoke($ctrl)
-        );
-
-        $_POST['submit_mult_drop_x'] = true;
-        $this->assertEquals(
-            'drop',
-            $method->invoke($ctrl)
-        );
-        unset($_POST['submit_mult_drop_x']);
-
-        $_POST['submit_mult'] = 'create';
-        $this->assertEquals(
-            'create',
-            $method->invoke($ctrl)
-        );
-        unset($_POST['submit_mult']);
-
-        $_POST['mult_btn'] = __('Yes');
-        $this->assertEquals(
-            'row_delete',
-            $method->invoke($ctrl)
-        );
-
-        $_POST['selected'] = [
-            'a',
-            'b',
-        ];
-        $method->invoke($ctrl);
-        $this->assertEquals(
-            $_POST['selected'],
-            $_POST['selected_fld']
-        );
-    }
-
-    /**
-     * Test for getDataForSubmitMult()
-     *
-     * @return void
-     * @test
-     */
-    public function testPMAGetDataForSubmitMult()
-    {
-        $dbi = $this->getMockBuilder('PhpMyAdmin\DatabaseInterface')
-            ->disableOriginalConstructor()
-            ->getMock();
-        $dbi->expects($this->any())
-            ->method('query')
-            ->will($this->returnValue(true));
-
-        $class = new ReflectionClass('PhpMyAdmin\Controllers\Table\StructureController');
-        $method = $class->getMethod('getDataForSubmitMult');
-        $method->setAccessible(true);
-
-        $container = Container::getDefaultContainer();
-        $container->set('dbi', $dbi);
-        $container->factory('PhpMyAdmin\Controllers\Table\StructureController');
-        $container->alias(
-            'StructureController',
-            'PhpMyAdmin\Controllers\Table\StructureController'
-        );
-        $ctrl = $container->get('StructureController');
-
-        $submit_mult = "index";
-        $db = "PMA_db";
-        $table = "PMA_table";
-        $selected = [
-            "table1",
-            "table2",
-        ];
-        $action = 'db_delete_row';
-
-        list($what, $query_type, $is_unset_submit_mult, $mult_btn, $centralColsError)
-            = $method->invokeArgs(
-                $ctrl,
-                [
-                    $submit_mult,
-                    $db,
-                    $table,
-                    $selected,
-                    $action,
-                ]
-            );
-
-        //validate 1: $what
-        $this->assertEquals(
-            null,
-            $what
-        );
-
-        //validate 2: $query_type
-        $this->assertEquals(
-            'index_fld',
-            $query_type
-        );
-
-        //validate 3: $is_unset_submit_mult
-        $this->assertEquals(
-            true,
-            $is_unset_submit_mult
-        );
-
-        //validate 4:
-        $this->assertEquals(
-            __('Yes'),
-            $mult_btn
-        );
-
-        //validate 5: $centralColsError
-        $this->assertEquals(
-            null,
-            $centralColsError
-        );
-
-        $submit_mult = "unique";
-
-        list($what, $query_type, $is_unset_submit_mult, $mult_btn, $centralColsError)
-            = $method->invokeArgs(
-                $ctrl,
-                [
-                    $submit_mult,
-                    $db,
-                    $table,
-                    $selected,
-                    $action,
-                ]
-            );
-
-        //validate 1: $what
-        $this->assertEquals(
-            null,
-            $what
-        );
-
-        //validate 2: $query_type
-        $this->assertEquals(
-            'unique_fld',
-            $query_type
-        );
-
-        //validate 3: $is_unset_submit_mult
-        $this->assertEquals(
-            true,
-            $is_unset_submit_mult
-        );
-
-        //validate 4: $mult_btn
-        $this->assertEquals(
-            __('Yes'),
-            $mult_btn
-        );
-
-        //validate 5: $centralColsError
-        $this->assertEquals(
-            null,
-            $centralColsError
-        );
+        $this->assertSame($expected, $response->getHTMLResult());
     }
 }

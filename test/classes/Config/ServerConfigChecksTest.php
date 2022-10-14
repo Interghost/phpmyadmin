@@ -1,40 +1,36 @@
 <?php
-/* vim: set expandtab sw=4 ts=4 sts=4: */
-/**
- * tests for FormDisplay class in config folder
- *
- * @package PhpMyAdmin-test
- */
+
 declare(strict_types=1);
 
 namespace PhpMyAdmin\Tests\Config;
 
-use PhpMyAdmin\Config;
 use PhpMyAdmin\Config\ConfigFile;
 use PhpMyAdmin\Config\ServerConfigChecks;
-use PhpMyAdmin\Tests\PmaTestCase;
+use PhpMyAdmin\Tests\AbstractTestCase;
+use ReflectionException;
 use ReflectionProperty;
 
+use function array_keys;
+use function mb_strlen;
+use function str_repeat;
+
+use const SODIUM_CRYPTO_SECRETBOX_KEYBYTES;
+
 /**
- * Tests for ServeConfigChecks class
- *
- * @package PhpMyAdmin-test
+ * @covers \PhpMyAdmin\Config\ServerConfigChecks
  */
-class ServerConfigChecksTest extends PmaTestCase
+class ServerConfigChecksTest extends AbstractTestCase
 {
-    /**
-     * @var string
-     */
+    /** @var string */
     private $sessionID;
 
     /**
-     * @throws \ReflectionException
-     *
-     * @return void
+     * @throws ReflectionException
      */
     protected function setUp(): void
     {
-        $GLOBALS['PMA_Config'] = new Config();
+        parent::setUp();
+        parent::setGlobalConfig();
         $GLOBALS['cfg']['AvailableCharsets'] = [];
         $GLOBALS['cfg']['ServerDefault'] = 0;
         $GLOBALS['server'] = 0;
@@ -42,7 +38,7 @@ class ServerConfigChecksTest extends PmaTestCase
         $cf = new ConfigFile();
         $GLOBALS['ConfigFile'] = $cf;
 
-        $reflection = new ReflectionProperty('PhpMyAdmin\Config\ConfigFile', '_id');
+        $reflection = new ReflectionProperty(ConfigFile::class, 'id');
         $reflection->setAccessible(true);
         $this->sessionID = $reflection->getValue($cf);
 
@@ -50,10 +46,7 @@ class ServerConfigChecksTest extends PmaTestCase
         unset($_SESSION[$this->sessionID]);
     }
 
-    /**
-     * @return void
-     */
-    public function testManyErrors()
+    public function testManyErrors(): void
     {
         $_SESSION[$this->sessionID]['Servers'] = [
             '1' => [
@@ -76,8 +69,8 @@ class ServerConfigChecksTest extends PmaTestCase
         $_SESSION[$this->sessionID]['BZipDump'] = true;
         $_SESSION[$this->sessionID]['ZipDump'] = true;
 
-        $configChecker = $this->getMockBuilder('PhpMyAdmin\Config\ServerConfigChecks')
-            ->setMethods(['functionExists'])
+        $configChecker = $this->getMockBuilder(ServerConfigChecks::class)
+            ->onlyMethods(['functionExists'])
             ->setConstructorArgs([$GLOBALS['ConfigFile']])
             ->getMock();
 
@@ -111,11 +104,10 @@ class ServerConfigChecksTest extends PmaTestCase
         );
     }
 
-    /**
-     * @return void
-     */
-    public function testBlowfishCreate()
+    public function testBlowfish(): void
     {
+        $_SESSION[$this->sessionID] = [];
+        $_SESSION[$this->sessionID]['blowfish_secret'] = null;
         $_SESSION[$this->sessionID]['Servers'] = [
             '1' => [
                 'host' => 'localhost',
@@ -124,7 +116,6 @@ class ServerConfigChecksTest extends PmaTestCase
                 'AllowRoot' => false,
             ],
         ];
-
         $_SESSION[$this->sessionID]['AllowArbitraryServer'] = false;
         $_SESSION[$this->sessionID]['LoginCookieValidity'] = -1;
         $_SESSION[$this->sessionID]['LoginCookieStore'] = 0;
@@ -137,37 +128,73 @@ class ServerConfigChecksTest extends PmaTestCase
         $configChecker = new ServerConfigChecks($GLOBALS['ConfigFile']);
         $configChecker->performConfigChecks();
 
-        $this->assertEquals(
-            ['blowfish_secret_created'],
-            array_keys($_SESSION['messages']['notice'])
-        );
-
-        $this->assertArrayNotHasKey(
-            'error',
-            $_SESSION['messages']
-        );
+        /**
+         * @var mixed $secret
+         * @psalm-suppress TypeDoesNotContainType
+         */
+        $secret = $_SESSION[$this->sessionID]['blowfish_secret'] ?? '';
+        $this->assertIsString($secret);
+        $this->assertSame(SODIUM_CRYPTO_SECRETBOX_KEYBYTES, mb_strlen($secret, '8bit'));
+        $messages = $_SESSION['messages'] ?? null;
+        $this->assertIsArray($messages);
+        $this->assertArrayHasKey('notice', $messages);
+        $this->assertIsArray($messages['notice']);
+        $this->assertArrayHasKey('blowfish_secret_created', $messages['notice']);
+        $this->assertArrayNotHasKey('error', $messages);
     }
 
-    /**
-     * @return void
-     */
-    public function testBlowfish()
+    public function testBlowfishWithInvalidSecret(): void
     {
-        $_SESSION[$this->sessionID]['blowfish_secret'] = 'sec';
-
+        $_SESSION[$this->sessionID] = [];
+        $_SESSION[$this->sessionID]['blowfish_secret'] = str_repeat('a', SODIUM_CRYPTO_SECRETBOX_KEYBYTES + 1);
         $_SESSION[$this->sessionID]['Servers'] = [
             '1' => [
                 'host' => 'localhost',
+                'ssl' => true,
                 'auth_type' => 'cookie',
+                'AllowRoot' => false,
             ],
         ];
 
         $configChecker = new ServerConfigChecks($GLOBALS['ConfigFile']);
         $configChecker->performConfigChecks();
 
-        $this->assertArrayHasKey(
-            'blowfish_warnings2',
-            $_SESSION['messages']['error']
-        );
+        /**
+         * @var mixed $secret
+         * @psalm-suppress TypeDoesNotContainType
+         */
+        $secret = $_SESSION[$this->sessionID]['blowfish_secret'] ?? '';
+        $this->assertIsString($secret);
+        $this->assertSame(SODIUM_CRYPTO_SECRETBOX_KEYBYTES, mb_strlen($secret, '8bit'));
+        $messages = $_SESSION['messages'] ?? null;
+        $this->assertIsArray($messages);
+        $this->assertArrayHasKey('notice', $messages);
+        $this->assertIsArray($messages['notice']);
+        $this->assertArrayHasKey('blowfish_secret_created', $messages['notice']);
+        $this->assertArrayNotHasKey('error', $messages);
+    }
+
+    public function testBlowfishWithValidSecret(): void
+    {
+        $_SESSION[$this->sessionID] = [];
+        $_SESSION[$this->sessionID]['blowfish_secret'] = str_repeat('a', SODIUM_CRYPTO_SECRETBOX_KEYBYTES);
+        $_SESSION[$this->sessionID]['Servers'] = ['1' => ['host' => 'localhost', 'auth_type' => 'cookie']];
+
+        $configChecker = new ServerConfigChecks($GLOBALS['ConfigFile']);
+        $configChecker->performConfigChecks();
+
+        /**
+         * @var mixed $secret
+         * @psalm-suppress TypeDoesNotContainType
+         */
+        $secret = $_SESSION[$this->sessionID]['blowfish_secret'] ?? '';
+        $this->assertIsString($secret);
+        $this->assertSame(SODIUM_CRYPTO_SECRETBOX_KEYBYTES, mb_strlen($secret, '8bit'));
+        $messages = $_SESSION['messages'] ?? null;
+        $this->assertIsArray($messages);
+        $this->assertArrayHasKey('notice', $messages);
+        $this->assertIsArray($messages['notice']);
+        $this->assertArrayNotHasKey('blowfish_secret_created', $messages['notice']);
+        $this->assertArrayNotHasKey('error', $messages);
     }
 }

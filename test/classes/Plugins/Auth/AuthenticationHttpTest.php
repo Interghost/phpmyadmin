@@ -1,46 +1,43 @@
 <?php
-/* vim: set expandtab sw=4 ts=4 sts=4: */
-/**
- * tests for PhpMyAdmin\Plugins\Auth\AuthenticationHttp class
- *
- * @package PhpMyAdmin-test
- */
+
 declare(strict_types=1);
 
 namespace PhpMyAdmin\Tests\Plugins\Auth;
 
-use PhpMyAdmin\Config;
+use PhpMyAdmin\DatabaseInterface;
+use PhpMyAdmin\Header;
 use PhpMyAdmin\Plugins\Auth\AuthenticationHttp;
-use PhpMyAdmin\Tests\PmaTestCase;
+use PhpMyAdmin\ResponseRenderer;
+use PhpMyAdmin\Tests\AbstractNetworkTestCase;
+
+use function base64_encode;
+use function ob_get_clean;
+use function ob_start;
 
 /**
- * tests for PhpMyAdmin\Plugins\Auth\AuthenticationHttp class
- *
- * @package PhpMyAdmin-test
+ * @covers \PhpMyAdmin\Plugins\Auth\AuthenticationHttp
  */
-class AuthenticationHttpTest extends PmaTestCase
+class AuthenticationHttpTest extends AbstractNetworkTestCase
 {
-    /**
-     * @var AuthenticationHttp
-     */
+    /** @var AuthenticationHttp */
     protected $object;
 
     /**
      * Configures global environment.
-     *
-     * @return void
      */
     protected function setUp(): void
     {
-        $GLOBALS['PMA_Config'] = new Config();
-        $GLOBALS['PMA_Config']->enableBc();
+        parent::setUp();
+        parent::setGlobalConfig();
+        parent::setTheme();
+        $GLOBALS['dbi'] = $this->createDatabaseInterface();
         $GLOBALS['cfg']['Servers'] = [];
         $GLOBALS['server'] = 0;
         $GLOBALS['db'] = 'db';
         $GLOBALS['table'] = 'table';
         $GLOBALS['PMA_PHP_SELF'] = 'index.php';
-        $GLOBALS['lang'] = "en";
-        $GLOBALS['text_dir'] = "ltr";
+        $GLOBALS['lang'] = 'en';
+        $GLOBALS['text_dir'] = 'ltr';
         $GLOBALS['token_provided'] = true;
         $GLOBALS['token_mismatch'] = false;
         $this->object = new AuthenticationHttp();
@@ -48,8 +45,6 @@ class AuthenticationHttpTest extends PmaTestCase
 
     /**
      * tearDown for test cases
-     *
-     * @return void
      */
     protected function tearDown(): void
     {
@@ -58,35 +53,17 @@ class AuthenticationHttpTest extends PmaTestCase
     }
 
     /**
-     * @param mixed   $set_minimal set minimal
-     * @param mixed   $body_id     body id
-     * @param mixed   $set_title   set title
-     * @param mixed[] ...$headers  headers
-     *
-     * @return void
+     * @param mixed[] ...$headers
      */
-    public function doMockResponse($set_minimal, $body_id, $set_title, ...$headers)
+    public function doMockResponse(int $set_minimal, int $body_id, int $set_title, ...$headers): void
     {
-        // mock footer
-        $mockFooter = $this->getMockBuilder('PhpMyAdmin\Footer')
+        $mockHeader = $this->getMockBuilder(Header::class)
             ->disableOriginalConstructor()
-            ->setMethods(['setMinimal'])
-            ->getMock();
-
-        $mockFooter->expects($this->exactly($set_minimal))
-            ->method('setMinimal')
-            ->with();
-
-        // mock header
-
-        $mockHeader = $this->getMockBuilder('PhpMyAdmin\Header')
-            ->disableOriginalConstructor()
-            ->setMethods(
+            ->onlyMethods(
                 [
                     'setBodyId',
                     'setTitle',
                     'disableMenuAndConsole',
-                    'addHTML',
                 ]
             )
             ->getMock();
@@ -106,19 +83,14 @@ class AuthenticationHttpTest extends PmaTestCase
         // set mocked headers and footers
         $mockResponse = $this->mockResponse($headers);
 
-        $mockResponse->expects($this->exactly($set_title))
-            ->method('getFooter')
-            ->with()
-            ->will($this->returnValue($mockFooter));
+        $mockResponse->expects($this->exactly($set_minimal))
+            ->method('setMinimalFooter')
+            ->with();
 
         $mockResponse->expects($this->exactly($set_title))
             ->method('getHeader')
             ->with()
             ->will($this->returnValue($mockHeader));
-
-        $mockResponse->expects($this->exactly($set_title * 7))
-            ->method('addHTML')
-            ->with();
 
         if (! empty($_REQUEST['old_usr'])) {
             $this->object->logOut();
@@ -129,14 +101,8 @@ class AuthenticationHttpTest extends PmaTestCase
         }
     }
 
-    /**
-     * Test for PhpMyAdmin\Plugins\Auth\AuthenticationHttp::showLoginForm
-     *
-     * @return void
-     */
-    public function testAuthLogoutUrl()
+    public function testAuthLogoutUrl(): void
     {
-
         $_REQUEST['old_usr'] = '1';
         $GLOBALS['cfg']['Server']['LogoutURL'] = 'https://example.com/logout';
 
@@ -148,10 +114,7 @@ class AuthenticationHttpTest extends PmaTestCase
         );
     }
 
-    /**
-     * @return void
-     */
-    public function testAuthVerbose()
+    public function testAuthVerbose(): void
     {
         $_REQUEST['old_usr'] = '';
         $GLOBALS['cfg']['Server']['verbose'] = 'verboseMessagê';
@@ -166,10 +129,7 @@ class AuthenticationHttpTest extends PmaTestCase
         );
     }
 
-    /**
-     * @return void
-     */
-    public function testAuthHost()
+    public function testAuthHost(): void
     {
         $GLOBALS['cfg']['Server']['verbose'] = '';
         $GLOBALS['cfg']['Server']['host'] = 'hòst';
@@ -184,10 +144,7 @@ class AuthenticationHttpTest extends PmaTestCase
         );
     }
 
-    /**
-     * @return void
-     */
-    public function testAuthRealm()
+    public function testAuthRealm(): void
     {
         $GLOBALS['cfg']['Server']['host'] = '';
         $GLOBALS['cfg']['Server']['auth_http_realm'] = 'rêäealmmessage';
@@ -203,30 +160,27 @@ class AuthenticationHttpTest extends PmaTestCase
     }
 
     /**
-     * Test for PhpMyAdmin\Plugins\Auth\AuthenticationHttp::readCredentials
+     * @param string      $user           test username
+     * @param string      $pass           test password
+     * @param string      $userIndex      index to test username against
+     * @param string      $passIndex      index to test username against
+     * @param string|bool $expectedReturn expected return value from test
+     * @param string      $expectedUser   expected username to be set
+     * @param string|bool $expectedPass   expected password to be set
+     * @param string|bool $old_usr        value for $_REQUEST['old_usr']
      *
-     * @param string $user           test username
-     * @param string $pass           test password
-     * @param string $userIndex      index to test username against
-     * @param string $passIndex      index to test username against
-     * @param string $expectedReturn expected return value from test
-     * @param string $expectedUser   expected username to be set
-     * @param string $expectedPass   expected password to be set
-     * @param string $old_usr        value for $_REQUEST['old_usr']
-     *
-     * @return void
      * @dataProvider readCredentialsProvider
      */
     public function testAuthCheck(
-        $user,
-        $pass,
-        $userIndex,
-        $passIndex,
+        string $user,
+        string $pass,
+        string $userIndex,
+        string $passIndex,
         $expectedReturn,
-        $expectedUser,
+        string $expectedUser,
         $expectedPass,
         $old_usr = ''
-    ) {
+    ): void {
         $_SERVER[$userIndex] = $user;
         $_SERVER[$passIndex] = $pass;
 
@@ -237,15 +191,9 @@ class AuthenticationHttpTest extends PmaTestCase
             $this->object->readCredentials()
         );
 
-        $this->assertEquals(
-            $expectedUser,
-            $this->object->user
-        );
+        $this->assertEquals($expectedUser, $this->object->user);
 
-        $this->assertEquals(
-            $expectedPass,
-            $this->object->password
-        );
+        $this->assertEquals($expectedPass, $this->object->password);
 
         $_SERVER[$userIndex] = null;
         $_SERVER[$passIndex] = null;
@@ -256,7 +204,7 @@ class AuthenticationHttpTest extends PmaTestCase
      *
      * @return array Test data
      */
-    public function readCredentialsProvider()
+    public function readCredentialsProvider(): array
     {
         return [
             [
@@ -308,12 +256,7 @@ class AuthenticationHttpTest extends PmaTestCase
         ];
     }
 
-    /**
-     * Test for PhpMyAdmin\Plugins\Auth\AuthenticationHttp::storeCredentials
-     *
-     * @return void
-     */
-    public function testAuthSetUser()
+    public function testAuthSetUser(): void
     {
         // case 1
 
@@ -326,25 +269,13 @@ class AuthenticationHttpTest extends PmaTestCase
             $this->object->storeCredentials()
         );
 
-        $this->assertEquals(
-            'testUser',
-            $GLOBALS['cfg']['Server']['user']
-        );
+        $this->assertEquals('testUser', $GLOBALS['cfg']['Server']['user']);
 
-        $this->assertEquals(
-            'testPass',
-            $GLOBALS['cfg']['Server']['password']
-        );
+        $this->assertEquals('testPass', $GLOBALS['cfg']['Server']['password']);
 
-        $this->assertArrayNotHasKey(
-            'PHP_AUTH_PW',
-            $_SERVER
-        );
+        $this->assertArrayNotHasKey('PHP_AUTH_PW', $_SERVER);
 
-        $this->assertEquals(
-            2,
-            $GLOBALS['server']
-        );
+        $this->assertEquals(2, $GLOBALS['server']);
 
         // case 2
         $this->object->user = 'testUser';
@@ -352,7 +283,7 @@ class AuthenticationHttpTest extends PmaTestCase
         $GLOBALS['cfg']['Servers'][1] = [
             'host' => 'a',
             'user' => 'testUser',
-            'foo' => 'bar'
+            'foo' => 'bar',
         ];
 
         $GLOBALS['cfg']['Server'] = [
@@ -373,10 +304,7 @@ class AuthenticationHttpTest extends PmaTestCase
             $GLOBALS['cfg']['Server']
         );
 
-        $this->assertEquals(
-            2,
-            $GLOBALS['server']
-        );
+        $this->assertEquals(2, $GLOBALS['server']);
 
         // case 3
         $GLOBALS['server'] = 3;
@@ -385,7 +313,7 @@ class AuthenticationHttpTest extends PmaTestCase
         $GLOBALS['cfg']['Servers'][1] = [
             'host' => 'a',
             'user' => 'testUsers',
-            'foo' => 'bar'
+            'foo' => 'bar',
         ];
 
         $GLOBALS['cfg']['Server'] = [
@@ -401,42 +329,29 @@ class AuthenticationHttpTest extends PmaTestCase
             [
                 'user' => 'testUser',
                 'password' => 'testPass',
-                'host' => 'a'
+                'host' => 'a',
             ],
             $GLOBALS['cfg']['Server']
         );
 
-        $this->assertEquals(
-            3,
-            $GLOBALS['server']
-        );
+        $this->assertEquals(3, $GLOBALS['server']);
     }
 
     /**
-     * Test for PhpMyAdmin\Plugins\Auth\AuthenticationHttp::authSetFails
-     *
-     * @return void
-     *
      * @group medium
      */
-    public function testAuthFails()
+    public function testAuthFails(): void
     {
+        $_REQUEST = [];
+        ResponseRenderer::getInstance()->setAjax(false);
 
-        $dbi = $this->getMockBuilder('PhpMyAdmin\DatabaseInterface')
+        $dbi = $this->getMockBuilder(DatabaseInterface::class)
             ->disableOriginalConstructor()
             ->getMock();
 
-        $dbi->expects($this->at(0))
+        $dbi->expects($this->exactly(3))
             ->method('getError')
-            ->will($this->returnValue('error 123'));
-
-        $dbi->expects($this->at(1))
-            ->method('getError')
-            ->will($this->returnValue('error 321'));
-
-        $dbi->expects($this->at(2))
-            ->method('getError')
-            ->will($this->returnValue(null));
+            ->will($this->onConsecutiveCalls('error 123', 'error 321', ''));
 
         $GLOBALS['dbi'] = $dbi;
         $GLOBALS['errno'] = 31;
@@ -445,14 +360,13 @@ class AuthenticationHttpTest extends PmaTestCase
         $this->object->showFailure('');
         $result = ob_get_clean();
 
-        $this->assertStringContainsString(
-            '<p>error 123</p>',
-            $result
-        );
+        $this->assertIsString($result);
 
-        $this->object = $this->getMockBuilder('PhpMyAdmin\Plugins\Auth\AuthenticationHttp')
+        $this->assertStringContainsString('<p>error 123</p>', $result);
+
+        $this->object = $this->getMockBuilder(AuthenticationHttp::class)
             ->disableOriginalConstructor()
-            ->setMethods(['authForm'])
+            ->onlyMethods(['authForm'])
             ->getMock();
 
         $this->object->expects($this->exactly(2))

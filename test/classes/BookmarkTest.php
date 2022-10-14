@@ -1,76 +1,72 @@
 <?php
-/* vim: set expandtab sw=4 ts=4 sts=4: */
-/**
- * Tests for Bookmark class
- *
- * @package PhpMyAdmin-test
- */
+
 declare(strict_types=1);
 
 namespace PhpMyAdmin\Tests;
 
 use PhpMyAdmin\Bookmark;
-use PHPUnit\Framework\TestCase;
+use PhpMyAdmin\ConfigStorage\Features\BookmarkFeature;
+use PhpMyAdmin\DatabaseInterface;
+use PhpMyAdmin\Dbal\DatabaseName;
+use PhpMyAdmin\Dbal\TableName;
+use PhpMyAdmin\Tests\Stubs\DbiDummy;
 
 /**
- * Tests for Bookmark class
- *
- * @package PhpMyAdmin-test
+ * @covers \PhpMyAdmin\Bookmark
  */
-class BookmarkTest extends TestCase
+class BookmarkTest extends AbstractTestCase
 {
+    /** @var DatabaseInterface */
+    protected $dbi;
+
+    /** @var DbiDummy */
+    protected $dummyDbi;
+
     /**
      * Sets up the fixture, for example, opens a network connection.
      * This method is called before a test is executed.
-     *
-     * @access protected
-     * @return void
      */
     protected function setUp(): void
     {
+        parent::setUp();
+        $this->dummyDbi = $this->createDbiDummy();
+        $this->dbi = $this->createDatabaseInterface($this->dummyDbi);
+        $GLOBALS['dbi'] = $this->dbi;
         $GLOBALS['cfg']['Server']['user'] = 'root';
         $GLOBALS['cfg']['Server']['pmadb'] = 'phpmyadmin';
         $GLOBALS['cfg']['Server']['bookmarktable'] = 'pma_bookmark';
+        $GLOBALS['cfg']['MaxCharactersInDisplayedSQL'] = 1000;
+        $GLOBALS['cfg']['ServerDefault'] = 1;
         $GLOBALS['server'] = 1;
     }
 
     /**
-     * Tests for Bookmark:getParams()
-     *
-     * @return void
-     */
-    public function testGetParams()
-    {
-        $this->assertEquals(
-            false,
-            Bookmark::getParams($GLOBALS['cfg']['Server']['user'])
-        );
-    }
-
-    /**
      * Tests for Bookmark::getList()
-     *
-     * @return void
      */
-    public function testGetList()
+    public function testGetList(): void
     {
-        $this->assertEquals(
-            [],
-            Bookmark::getList(
-                $GLOBALS['dbi'],
-                $GLOBALS['cfg']['Server']['user'],
-                'phpmyadmin'
-            )
+        $this->dummyDbi->addResult(
+            'SELECT * FROM `phpmyadmin`.`pma_bookmark` WHERE ( `user` = \'\' OR `user` = \'root\' )'
+                . ' AND dbase = \'sakila\' ORDER BY label ASC',
+            [['1', 'sakila', 'root', 'label', 'SELECT * FROM `actor` WHERE `actor_id` < 10;']],
+            ['id', 'dbase', 'user', 'label', 'query']
         );
+        $actual = Bookmark::getList(
+            new BookmarkFeature(DatabaseName::fromValue('phpmyadmin'), TableName::fromValue('pma_bookmark')),
+            $GLOBALS['dbi'],
+            $GLOBALS['cfg']['Server']['user'],
+            'sakila'
+        );
+        $this->assertContainsOnlyInstancesOf(Bookmark::class, $actual);
+        $this->dummyDbi->assertAllSelectsConsumed();
     }
 
     /**
      * Tests for Bookmark::get()
-     *
-     * @return void
      */
-    public function testGet()
+    public function testGet(): void
     {
+        $this->dummyDbi->addSelectDb('phpmyadmin');
         $this->assertNull(
             Bookmark::get(
                 $GLOBALS['dbi'],
@@ -79,14 +75,13 @@ class BookmarkTest extends TestCase
                 '1'
             )
         );
+        $this->dummyDbi->assertAllSelectsConsumed();
     }
 
     /**
      * Tests for Bookmark::save()
-     *
-     * @return void
      */
-    public function testSave()
+    public function testSave(): void
     {
         $bookmarkData = [
             'bkm_database' => 'phpmyadmin',
@@ -95,11 +90,10 @@ class BookmarkTest extends TestCase
             'bkm_label' => 'bookmark1',
         ];
 
-        $bookmark = Bookmark::createBookmark(
-            $GLOBALS['dbi'],
-            $GLOBALS['cfg']['Server']['user'],
-            $bookmarkData
-        );
+        $bookmark = Bookmark::createBookmark($GLOBALS['dbi'], $bookmarkData);
+        $this->assertNotFalse($bookmark);
+        $this->dummyDbi->addSelectDb('phpmyadmin');
         $this->assertFalse($bookmark->save());
+        $this->dummyDbi->assertAllSelectsConsumed();
     }
 }

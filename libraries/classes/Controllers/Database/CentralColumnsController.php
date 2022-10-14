@@ -1,99 +1,200 @@
 <?php
-/* vim: set expandtab sw=4 ts=4 sts=4: */
 /**
  * Central Columns view/edit
- *
- * @package PhpMyAdmin\Controllers
  */
+
 declare(strict_types=1);
 
 namespace PhpMyAdmin\Controllers\Database;
 
-use PhpMyAdmin\CentralColumns;
-use PhpMyAdmin\Core;
+use PhpMyAdmin\Controllers\AbstractController;
+use PhpMyAdmin\Database\CentralColumns;
+use PhpMyAdmin\Http\ServerRequest;
+use PhpMyAdmin\Message;
+use PhpMyAdmin\ResponseRenderer;
+use PhpMyAdmin\Template;
 
-/**
- * Class CentralColumnsController
- * @package PhpMyAdmin\Controllers\Database
- */
+use function __;
+use function is_bool;
+use function is_numeric;
+use function parse_str;
+use function sprintf;
+
 class CentralColumnsController extends AbstractController
 {
-    /**
-     * @var CentralColumns
-     */
+    /** @var CentralColumns */
     private $centralColumns;
 
-    /**
-     * CentralColumnsController constructor.
-     *
-     * @param \PhpMyAdmin\Response          $response       Response instance
-     * @param \PhpMyAdmin\DatabaseInterface $dbi            DatabaseInterface instance
-     * @param string                        $db             Database name
-     * @param CentralColumns                $centralColumns CentralColumns instance
-     */
-    public function __construct($response, $dbi, $db, $centralColumns)
-    {
-        parent::__construct($response, $dbi, $db);
+    public function __construct(
+        ResponseRenderer $response,
+        Template $template,
+        CentralColumns $centralColumns
+    ) {
+        parent::__construct($response, $template);
         $this->centralColumns = $centralColumns;
     }
 
-    /**
-     * @param array $params Request parameters
-     * @return string HTML
-     */
-    public function index(array $params): string
+    public function __invoke(ServerRequest $request): void
     {
-        global $pmaThemeImage, $text_dir;
+        $GLOBALS['message'] = $GLOBALS['message'] ?? null;
+        $GLOBALS['pos'] = $GLOBALS['pos'] ?? null;
+        $GLOBALS['num_cols'] = $GLOBALS['num_cols'] ?? null;
 
-        if (! empty($params['total_rows'])
-            && Core::isValid($params['total_rows'], 'integer')
-        ) {
-            $totalRows = (int) $params['total_rows'];
-        } else {
-            $totalRows = $this->centralColumns->getCount($this->db);
+        if (isset($_POST['edit_save'])) {
+            echo $this->editSave([
+                'col_name' => $_POST['col_name'] ?? null,
+                'orig_col_name' => $_POST['orig_col_name'] ?? null,
+                'col_default' => $_POST['col_default'] ?? null,
+                'col_default_sel' => $_POST['col_default_sel'] ?? null,
+                'col_extra' => $_POST['col_extra'] ?? null,
+                'col_isNull' => $_POST['col_isNull'] ?? null,
+                'col_length' => $_POST['col_length'] ?? null,
+                'col_attribute' => $_POST['col_attribute'] ?? null,
+                'col_type' => $_POST['col_type'] ?? null,
+                'collation' => $_POST['collation'] ?? null,
+            ]);
+
+            return;
         }
 
-        $pos = 0;
-        if (Core::isValid($params['pos'], 'integer')) {
-            $pos = (int) $params['pos'];
+        if (isset($_POST['add_new_column'])) {
+            $tmp_msg = $this->addNewColumn([
+                'col_name' => $_POST['col_name'] ?? null,
+                'col_default' => $_POST['col_default'] ?? null,
+                'col_default_sel' => $_POST['col_default_sel'] ?? null,
+                'col_extra' => $_POST['col_extra'] ?? null,
+                'col_isNull' => $_POST['col_isNull'] ?? null,
+                'col_length' => $_POST['col_length'] ?? null,
+                'col_attribute' => $_POST['col_attribute'] ?? null,
+                'col_type' => $_POST['col_type'] ?? null,
+                'collation' => $_POST['collation'] ?? null,
+            ]);
         }
 
-        return $this->centralColumns->getHtmlForMain(
-            $this->db,
-            $totalRows,
-            $pos,
-            $pmaThemeImage,
-            $text_dir
+        if (isset($_POST['getColumnList'])) {
+            $this->response->addJSON('message', $this->getColumnList([
+                'cur_table' => $_POST['cur_table'] ?? null,
+            ]));
+
+            return;
+        }
+
+        if (isset($_POST['add_column'])) {
+            $tmp_msg = $this->addColumn([
+                'table-select' => $_POST['table-select'] ?? null,
+                'column-select' => $_POST['column-select'] ?? null,
+            ]);
+        }
+
+        $this->addScriptFiles([
+            'vendor/jquery/jquery.uitablefilter.js',
+            'vendor/jquery/jquery.tablesorter.js',
+            'database/central_columns.js',
+        ]);
+
+        if (isset($_POST['edit_central_columns_page'])) {
+            $this->editPage([
+                'selected_fld' => $_POST['selected_fld'] ?? null,
+                'db' => $_POST['db'] ?? null,
+            ]);
+
+            return;
+        }
+
+        if (isset($_POST['multi_edit_central_column_save'])) {
+            $GLOBALS['message'] = $this->updateMultipleColumn([
+                'db' => $_POST['db'] ?? null,
+                'orig_col_name' => $_POST['orig_col_name'] ?? null,
+                'field_name' => $_POST['field_name'] ?? null,
+                'field_default_type' => $_POST['field_default_type'] ?? null,
+                'field_default_value' => $_POST['field_default_value'] ?? null,
+                'field_length' => $_POST['field_length'] ?? null,
+                'field_attribute' => $_POST['field_attribute'] ?? null,
+                'field_type' => $_POST['field_type'] ?? null,
+                'field_collation' => $_POST['field_collation'] ?? null,
+                'field_null' => $_POST['field_null'] ?? null,
+                'col_extra' => $_POST['col_extra'] ?? null,
+            ]);
+            if (! is_bool($GLOBALS['message'])) {
+                $this->response->setRequestStatus(false);
+                $this->response->addJSON('message', $GLOBALS['message']);
+            }
+        }
+
+        if (isset($_POST['delete_save'])) {
+            $tmp_msg = $this->deleteSave([
+                'db' => $_POST['db'] ?? null,
+                'col_name' => $_POST['col_name'] ?? null,
+            ]);
+        }
+
+        $this->main([
+            'pos' => $_POST['pos'] ?? null,
+            'total_rows' => $_POST['total_rows'] ?? null,
+        ]);
+
+        $GLOBALS['pos'] = 0;
+        if (isset($_POST['pos']) && is_numeric($_POST['pos'])) {
+            $GLOBALS['pos'] = (int) $_POST['pos'];
+        }
+
+        $GLOBALS['num_cols'] = $this->centralColumns->getColumnsCount(
+            $GLOBALS['db'],
+            $GLOBALS['pos'],
+            (int) $GLOBALS['cfg']['MaxRows']
         );
+        $GLOBALS['message'] = Message::success(
+            sprintf(__('Showing rows %1$s - %2$s.'), $GLOBALS['pos'] + 1, $GLOBALS['pos'] + $GLOBALS['num_cols'])
+        );
+        if (! isset($tmp_msg) || $tmp_msg === true) {
+            return;
+        }
+
+        $GLOBALS['message'] = $tmp_msg;
     }
 
     /**
      * @param array $params Request parameters
+     */
+    public function main(array $params): void
+    {
+        $GLOBALS['text_dir'] = $GLOBALS['text_dir'] ?? null;
+
+        if (! empty($params['total_rows']) && is_numeric($params['total_rows'])) {
+            $totalRows = (int) $params['total_rows'];
+        } else {
+            $totalRows = $this->centralColumns->getCount($GLOBALS['db']);
+        }
+
+        $pos = 0;
+        if (isset($params['pos']) && is_numeric($params['pos'])) {
+            $pos = (int) $params['pos'];
+        }
+
+        $variables = $this->centralColumns->getTemplateVariablesForMain(
+            $GLOBALS['db'],
+            $totalRows,
+            $pos,
+            $GLOBALS['text_dir']
+        );
+
+        $this->render('database/central_columns/main', $variables);
+    }
+
+    /**
+     * @param array $params Request parameters
+     *
      * @return array JSON
      */
     public function getColumnList(array $params): array
     {
-        return $this->centralColumns->getListRaw(
-            $this->db,
-            $params['cur_table'] ?? ''
-        );
+        return $this->centralColumns->getListRaw($GLOBALS['db'], $params['cur_table'] ?? '');
     }
 
     /**
      * @param array $params Request parameters
-     * @return string HTML
-     */
-    public function populateColumns(array $params): string
-    {
-        return $this->centralColumns->getHtmlForColumnDropdown(
-            $this->db,
-            $params['selectedTable']
-        );
-    }
-
-    /**
-     * @param array $params Request parameters
-     * @return true|\PhpMyAdmin\Message
+     *
+     * @return true|Message
      */
     public function editSave(array $params)
     {
@@ -101,8 +202,9 @@ class CentralColumnsController extends AbstractController
         if ($columnDefault === 'NONE' && $params['col_default_sel'] !== 'USER_DEFINED') {
             $columnDefault = '';
         }
+
         return $this->centralColumns->updateOneColumn(
-            $this->db,
+            $GLOBALS['db'],
             $params['orig_col_name'],
             $params['col_name'],
             $params['col_type'],
@@ -117,7 +219,8 @@ class CentralColumnsController extends AbstractController
 
     /**
      * @param array $params Request parameters
-     * @return true|\PhpMyAdmin\Message
+     *
+     * @return true|Message
      */
     public function addNewColumn(array $params)
     {
@@ -125,8 +228,9 @@ class CentralColumnsController extends AbstractController
         if ($columnDefault === 'NONE' && $params['col_default_sel'] !== 'USER_DEFINED') {
             $columnDefault = '';
         }
+
         return $this->centralColumns->updateOneColumn(
-            $this->db,
+            $GLOBALS['db'],
             '',
             $params['col_name'],
             $params['col_type'],
@@ -141,7 +245,8 @@ class CentralColumnsController extends AbstractController
 
     /**
      * @param array $params Request parameters
-     * @return true|\PhpMyAdmin\Message
+     *
+     * @return true|Message
      */
     public function addColumn(array $params)
     {
@@ -154,19 +259,18 @@ class CentralColumnsController extends AbstractController
 
     /**
      * @param array $params Request parameters
-     * @return string HTML
      */
-    public function editPage(array $params): string
+    public function editPage(array $params): void
     {
-        return $this->centralColumns->getHtmlForEditingPage(
-            $params['selected_fld'],
-            $params['db']
-        );
+        $rows = $this->centralColumns->getHtmlForEditingPage($params['selected_fld'], $params['db']);
+
+        $this->render('database/central_columns/edit', ['rows' => $rows]);
     }
 
     /**
      * @param array $params Request parameters
-     * @return true|\PhpMyAdmin\Message
+     *
+     * @return true|Message
      */
     public function updateMultipleColumn(array $params)
     {
@@ -175,16 +279,14 @@ class CentralColumnsController extends AbstractController
 
     /**
      * @param array $params Request parameters
-     * @return true|\PhpMyAdmin\Message
+     *
+     * @return true|Message
      */
     public function deleteSave(array $params)
     {
         $name = [];
         parse_str($params['col_name'], $name);
-        return $this->centralColumns->deleteColumnsFromList(
-            $params['db'],
-            $name['selected_fld'],
-            false
-        );
+
+        return $this->centralColumns->deleteColumnsFromList($params['db'], $name['selected_fld'], false);
     }
 }

@@ -1,66 +1,57 @@
 <?php
-/* vim: set expandtab sw=4 ts=4 sts=4: */
 /**
  * Text Plain JSON Transformations plugin for phpMyAdmin
- *
- * @package    PhpMyAdmin-Transformations
- * @subpackage SQL
  */
+
 declare(strict_types=1);
 
 namespace PhpMyAdmin\Plugins\Transformations\Output;
 
+use PhpMyAdmin\FieldMetadata;
 use PhpMyAdmin\Plugins\TransformationsPlugin;
-use PhpMyAdmin\Response;
-use stdClass;
+use PhpMyAdmin\ResponseRenderer;
+
+use function __;
+use function htmlspecialchars;
 
 /**
  * Handles the json transformation for text plain
- *
- * @package    PhpMyAdmin-Transformations
- * @subpackage JSON
  */
-// @codingStandardsIgnoreLine
 class Text_Plain_Json extends TransformationsPlugin
 {
-    /**
-     * No-arg constructor
-     */
     public function __construct()
     {
-        if (! empty($GLOBALS['cfg']['CodemirrorEnable'])) {
-            $response = Response::getInstance();
-            $scripts = $response->getHeader()
-                ->getScripts();
-            $scripts->addFile('vendor/codemirror/lib/codemirror.js');
-            $scripts->addFile('vendor/codemirror/mode/javascript/javascript.js');
-            $scripts->addFile('vendor/codemirror/addon/runmode/runmode.js');
-            $scripts->addFile('transformations/json.js');
+        if (empty($GLOBALS['cfg']['CodemirrorEnable'])) {
+            return;
         }
+
+        $response = ResponseRenderer::getInstance();
+        $scripts = $response->getHeader()
+            ->getScripts();
+        $scripts->addFile('vendor/codemirror/lib/codemirror.js');
+        $scripts->addFile('vendor/codemirror/mode/javascript/javascript.js');
+        $scripts->addFile('vendor/codemirror/addon/runmode/runmode.js');
+        $scripts->addFile('transformations/json.js');
     }
 
     /**
      * Gets the transformation description of the specific plugin
-     *
-     * @return string
      */
-    public static function getInfo()
+    public static function getInfo(): string
     {
-        return __(
-            'Formats text as JSON with syntax highlighting.'
-        );
+        return __('Formats text as JSON with syntax highlighting.');
     }
 
     /**
      * Does the actual work of each specific transformations plugin.
      *
-     * @param string        $buffer  text to be transformed
-     * @param array         $options transformation options
-     * @param stdClass|null $meta    meta information
+     * @param string             $buffer  text to be transformed
+     * @param array              $options transformation options
+     * @param FieldMetadata|null $meta    meta information
      *
      * @return string
      */
-    public function applyTransformation($buffer, array $options = [], ?stdClass $meta = null)
+    public function applyTransformation($buffer, array $options = [], ?FieldMetadata $meta = null)
     {
         return '<code class="json"><pre>' . "\n"
         . htmlspecialchars($buffer) . "\n"
@@ -71,31 +62,25 @@ class Text_Plain_Json extends TransformationsPlugin
 
     /**
      * Gets the plugin`s MIME type
-     *
-     * @return string
      */
-    public static function getMIMEType()
+    public static function getMIMEType(): string
     {
-        return "Text";
+        return 'Text';
     }
 
     /**
      * Gets the plugin`s MIME subtype
-     *
-     * @return string
      */
-    public static function getMIMESubtype()
+    public static function getMIMESubtype(): string
     {
-        return "Plain";
+        return 'Plain';
     }
 
     /**
      * Gets the transformation name of the specific plugin
-     *
-     * @return string
      */
-    public static function getName()
+    public static function getName(): string
     {
-        return "JSON";
+        return 'JSON';
     }
 }

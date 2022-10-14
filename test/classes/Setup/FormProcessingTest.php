@@ -1,31 +1,28 @@
 <?php
-/* vim: set expandtab sw=4 ts=4 sts=4: */
-/**
- * tests for methods under Formset processing library
- *
- * @package PhpMyAdmin-test
- */
+
 declare(strict_types=1);
 
 namespace PhpMyAdmin\Tests\Setup;
 
+use PhpMyAdmin\Config\FormDisplay;
 use PhpMyAdmin\Setup\FormProcessing;
-use PhpMyAdmin\Tests\PmaTestCase;
+use PhpMyAdmin\Tests\AbstractNetworkTestCase;
+
+use function ob_get_clean;
+use function ob_start;
 
 /**
- * tests for methods under Formset processing library
- *
- * @package PhpMyAdmin-test
+ * @covers \PhpMyAdmin\Setup\FormProcessing
  */
-class FormProcessingTest extends PmaTestCase
+class FormProcessingTest extends AbstractNetworkTestCase
 {
     /**
      * Prepares environment for the test.
-     *
-     * @return void
      */
     protected function setUp(): void
     {
+        parent::setUp();
+        parent::setLanguage();
         $GLOBALS['server'] = 1;
         $GLOBALS['db'] = 'db';
         $GLOBALS['table'] = 'table';
@@ -35,23 +32,21 @@ class FormProcessingTest extends PmaTestCase
 
     /**
      * Test for process_formset()
-     *
-     * @return void
      */
-    public function testProcessFormSet()
+    public function testProcessFormSet(): void
     {
         $this->mockResponse(
             [
                 ['status: 303 See Other'],
-                ['Location: index.php?lang=en'],
+                ['Location: ../setup/index.php?route=%2Fsetup&lang=en'],
                 303,
             ]
         );
 
         // case 1
-        $formDisplay = $this->getMockBuilder('PhpMyAdmin\Config\FormDisplay')
+        $formDisplay = $this->getMockBuilder(FormDisplay::class)
             ->disableOriginalConstructor()
-            ->setMethods(['process', 'getDisplay'])
+            ->onlyMethods(['process', 'getDisplay'])
             ->getMock();
 
         $formDisplay->expects($this->once())
@@ -60,15 +55,14 @@ class FormProcessingTest extends PmaTestCase
             ->will($this->returnValue(false));
 
         $formDisplay->expects($this->once())
-            ->method('getDisplay')
-            ->with(true, true);
+            ->method('getDisplay');
 
         FormProcessing::process($formDisplay);
 
         // case 2
-        $formDisplay = $this->getMockBuilder('PhpMyAdmin\Config\FormDisplay')
+        $formDisplay = $this->getMockBuilder(FormDisplay::class)
             ->disableOriginalConstructor()
-            ->setMethods(['process', 'hasErrors', 'displayErrors'])
+            ->onlyMethods(['process', 'hasErrors', 'displayErrors'])
             ->getMock();
 
         $formDisplay->expects($this->once())
@@ -85,30 +79,20 @@ class FormProcessingTest extends PmaTestCase
         FormProcessing::process($formDisplay);
         $result = ob_get_clean();
 
-        $this->assertStringContainsString(
-            '<div class="error">',
-            $result
-        );
+        $this->assertIsString($result);
 
-        $this->assertStringContainsString(
-            'mode=revert',
-            $result
-        );
+        $this->assertStringContainsString('<div class="error">', $result);
 
-        $this->assertStringContainsString(
-            '<a class="btn" href="index.php?',
-            $result
-        );
+        $this->assertStringContainsString('mode=revert', $result);
 
-        $this->assertStringContainsString(
-            'mode=edit',
-            $result
-        );
+        $this->assertStringContainsString('<a class="btn" href="../setup/index.php?route=/setup&', $result);
+
+        $this->assertStringContainsString('mode=edit', $result);
 
         // case 3
-        $formDisplay = $this->getMockBuilder('PhpMyAdmin\Config\FormDisplay')
+        $formDisplay = $this->getMockBuilder(FormDisplay::class)
             ->disableOriginalConstructor()
-            ->setMethods(['process', 'hasErrors'])
+            ->onlyMethods(['process', 'hasErrors'])
             ->getMock();
 
         $formDisplay->expects($this->once())

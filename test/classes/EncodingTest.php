@@ -1,49 +1,46 @@
 <?php
-/* vim: set expandtab sw=4 ts=4 sts=4: */
-/**
- * Tests for Charset Conversions
- *
- * @package PhpMyAdmin-test
- */
+
 declare(strict_types=1);
 
 namespace PhpMyAdmin\Tests;
 
 use PhpMyAdmin\Encoding;
-use PHPUnit\Framework\TestCase;
+
+use function _setlocale;
+use function file_get_contents;
+use function file_put_contents;
+use function function_exists;
+use function mb_convert_encoding;
+use function mb_convert_kana;
+use function setlocale;
+use function unlink;
+
+use const LC_ALL;
+use const PHP_INT_SIZE;
 
 /**
- * Tests for Charset Conversions
- *
- * @package PhpMyAdmin-test
+ * @covers \PhpMyAdmin\Encoding
  */
-class EncodingTest extends TestCase
+class EncodingTest extends AbstractTestCase
 {
-    /**
-     * @return void
-     */
     protected function setUp(): void
     {
+        parent::setUp();
         Encoding::initEngine();
     }
 
-    /**
-     * @return void
-     */
     protected function tearDown(): void
     {
+        parent::tearDown();
         Encoding::initEngine();
     }
 
     /**
      * Test for Encoding::convertString
      *
-     * @return void
-     * @test
-     *
      * @group medium
      */
-    public function testNoConversion()
+    public function testNoConversion(): void
     {
         $this->assertEquals(
             'test',
@@ -51,10 +48,7 @@ class EncodingTest extends TestCase
         );
     }
 
-    /**
-     * @return void
-     */
-    public function testInvalidConversion()
+    public function testInvalidConversion(): void
     {
         // Invalid value to use default case
         Encoding::setEngine(-1);
@@ -65,14 +59,10 @@ class EncodingTest extends TestCase
     }
 
     /**
-     * @return void
+     * @requires extension recode
      */
-    public function testRecode()
+    public function testRecode(): void
     {
-        if (! function_exists('recode_string')) {
-            $this->markTestSkipped('recode extension missing');
-        }
-
         Encoding::setEngine(Encoding::ENGINE_RECODE);
         $this->assertEquals(
             'Only That ecole & Can Be My Blame',
@@ -85,30 +75,52 @@ class EncodingTest extends TestCase
     }
 
     /**
-     * @return void
+     * This group is used on debian packaging to exclude the test
+     *
+     * @see https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=854821#27
+     *
+     * @group extension-iconv
+     * @requires extension iconv
      */
-    public function testIconv()
+    public function testIconv(): void
     {
-        if (! function_exists('iconv')) {
-            $this->markTestSkipped('iconv extension missing');
+        // Set PHP native locale
+        if (function_exists('setlocale')) {
+            if (setlocale(0, 'POSIX') === false) {
+                $this->markTestSkipped('native setlocale failed');
+            }
         }
 
-        $GLOBALS['cfg']['IconvExtraParams'] = '//TRANSLIT';
-        Encoding::setEngine(Encoding::ENGINE_ICONV);
-        $this->assertEquals(
-            "This is the Euro symbol 'EUR'.",
-            Encoding::convertString(
-                'UTF-8',
-                'ISO-8859-1',
-                "This is the Euro symbol '€'."
-            )
-        );
+        _setlocale(LC_ALL, 'POSIX');
+
+        if (PHP_INT_SIZE === 8) {
+            $GLOBALS['cfg']['IconvExtraParams'] = '//TRANSLIT';
+            Encoding::setEngine(Encoding::ENGINE_ICONV);
+            $this->assertEquals(
+                "This is the Euro symbol 'EUR'.",
+                Encoding::convertString(
+                    'UTF-8',
+                    'ISO-8859-1',
+                    "This is the Euro symbol '€'."
+                )
+            );
+        } elseif (PHP_INT_SIZE === 4) {
+            // NOTE: this does not work on 32bit systems and requires "//IGNORE"
+            // NOTE: or it will throw "iconv(): Detected an illegal character in input string"
+            $GLOBALS['cfg']['IconvExtraParams'] = '//TRANSLIT//IGNORE';
+            Encoding::setEngine(Encoding::ENGINE_ICONV);
+            $this->assertEquals(
+                "This is the Euro symbol ''.",
+                Encoding::convertString(
+                    'UTF-8',
+                    'ISO-8859-1',
+                    "This is the Euro symbol '€'."
+                )
+            );
+        }
     }
 
-    /**
-     * @return void
-     */
-    public function testMbstring()
+    public function testMbstring(): void
     {
         Encoding::setEngine(Encoding::ENGINE_MB);
         $this->assertEquals(
@@ -123,11 +135,8 @@ class EncodingTest extends TestCase
 
     /**
      * Test for kanjiChangeOrder
-     *
-     * @return void
-     * @test
      */
-    public function testChangeOrder()
+    public function testChangeOrder(): void
     {
         $this->assertEquals('ASCII,SJIS,EUC-JP,JIS', Encoding::getKanjiEncodings());
         Encoding::kanjiChangeOrder();
@@ -138,11 +147,8 @@ class EncodingTest extends TestCase
 
     /**
      * Test for Encoding::kanjiStrConv
-     *
-     * @return void
-     * @test
      */
-    public function testKanjiStrConv()
+    public function testKanjiStrConv(): void
     {
         $this->assertEquals(
             'test',
@@ -167,20 +173,14 @@ class EncodingTest extends TestCase
         );
     }
 
-
     /**
      * Test for Encoding::kanjiFileConv
-     *
-     * @return void
-     * @test
      */
-    public function testFileConv()
+    public function testFileConv(): void
     {
-        $file_str = "教育漢字常用漢字";
+        $file_str = '教育漢字常用漢字';
         $filename = 'test.kanji';
-        $file = fopen($filename, 'w');
-        fputs($file, $file_str);
-        fclose($file);
+        $this->assertNotFalse(file_put_contents($filename, $file_str));
         $GLOBALS['kanji_encoding_list'] = 'ASCII,EUC-JP,SJIS,JIS';
 
         $result = Encoding::kanjiFileConv($filename, 'JIS', 'kana');
@@ -193,42 +193,20 @@ class EncodingTest extends TestCase
         unlink($result);
     }
 
-
     /**
      * Test for Encoding::kanjiEncodingForm
-     *
-     * @return void
-     * @test
      */
-    public function testEncodingForm()
+    public function testEncodingForm(): void
     {
         $actual = Encoding::kanjiEncodingForm();
-        $this->assertStringContainsString(
-            '<input type="radio" name="knjenc"',
-            $actual
-        );
-        $this->assertStringContainsString(
-            'type="radio" name="knjenc"',
-            $actual
-        );
-        $this->assertStringContainsString(
-            '<input type="radio" name="knjenc" value="EUC-JP" id="kj-euc">',
-            $actual
-        );
-        $this->assertStringContainsString(
-            '<input type="radio" name="knjenc" value="SJIS" id="kj-sjis">',
-            $actual
-        );
-        $this->assertStringContainsString(
-            '<input type="checkbox" name="xkana" value="kana" id="kj-kana">',
-            $actual
-        );
+        $this->assertStringContainsString('<input type="radio" name="knjenc"', $actual);
+        $this->assertStringContainsString('type="radio" name="knjenc"', $actual);
+        $this->assertStringContainsString('<input type="radio" name="knjenc" value="EUC-JP" id="kj-euc">', $actual);
+        $this->assertStringContainsString('<input type="radio" name="knjenc" value="SJIS" id="kj-sjis">', $actual);
+        $this->assertStringContainsString('<input type="checkbox" name="xkana" value="kana" id="kj-kana">', $actual);
     }
 
-    /**
-     * @return void
-     */
-    public function testListEncodings()
+    public function testListEncodings(): void
     {
         $GLOBALS['cfg']['AvailableCharsets'] = ['utf-8'];
         $result = Encoding::listEncodings();

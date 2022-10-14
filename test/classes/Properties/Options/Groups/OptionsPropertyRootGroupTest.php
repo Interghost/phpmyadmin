@@ -1,52 +1,39 @@
 <?php
-/* vim: set expandtab sw=4 ts=4 sts=4: */
-/**
- * tests for PhpMyAdmin\Properties\Options\Groups\OptionsPropertyRootGroup class
- *
- * @package PhpMyAdmin-test
- */
+
 declare(strict_types=1);
 
 namespace PhpMyAdmin\Tests\Properties\Options\Groups;
 
 use PhpMyAdmin\Properties\Options\Groups\OptionsPropertyRootGroup;
-use PHPUnit\Framework\TestCase;
+use PhpMyAdmin\Tests\AbstractTestCase;
 
 /**
- * tests for PhpMyAdmin\Properties\Options\Groups\OptionsPropertyRootGroup class
- *
- * @package PhpMyAdmin-test
+ * @covers \PhpMyAdmin\Properties\Options\Groups\OptionsPropertyRootGroup
  */
-class OptionsPropertyRootGroupTest extends TestCase
+class OptionsPropertyRootGroupTest extends AbstractTestCase
 {
+    /** @var OptionsPropertyRootGroup */
     protected $object;
 
     /**
      * Configures global environment.
-     *
-     * @return void
      */
     protected function setUp(): void
     {
+        parent::setUp();
         $this->object = new OptionsPropertyRootGroup();
     }
 
     /**
      * tearDown for test cases
-     *
-     * @return void
      */
     protected function tearDown(): void
     {
+        parent::tearDown();
         unset($this->object);
     }
 
-    /**
-     * Test for PhpMyAdmin\Properties\Options\Groups\OptionsPropertyRootGroup::getItemType
-     *
-     * @return void
-     */
-    public function testGetItemType()
+    public function testGetItemType(): void
     {
         $this->assertEquals(
             'root',
@@ -56,14 +43,9 @@ class OptionsPropertyRootGroupTest extends TestCase
 
     /**
      * Test for contable interface
-     *
-     * @return void
      */
-    public function testCountable()
+    public function testCountable(): void
     {
-        $this->assertCount(
-            0,
-            $this->object
-        );
+        $this->assertCount(0, $this->object);
     }
 }

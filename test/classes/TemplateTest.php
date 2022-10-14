@@ -1,38 +1,46 @@
 <?php
-/* vim: set expandtab sw=4 ts=4 sts=4: */
-/**
- * Test for PhpMyAdmin\Template class
- *
- * @package PhpMyAdmin-test
- */
+
 declare(strict_types=1);
 
 namespace PhpMyAdmin\Tests;
 
 use PhpMyAdmin\Template;
-use PhpMyAdmin\Tests\PmaTestCase;
+use PhpMyAdmin\Twig\Extensions\Node\TransNode;
 use Twig\Error\LoaderError;
 
 /**
- * Test for PhpMyAdmin\Template class
- *
- * @package PhpMyAdmin-test
+ * @covers \PhpMyAdmin\Template
  */
-class TemplateTest extends PmaTestCase
+class TemplateTest extends AbstractTestCase
 {
-    /**
-     * @var Template
-     */
+    /** @var Template */
     protected $template;
 
     /**
      * Sets up the fixture.
-     *
-     * @return void
      */
     protected function setUp(): void
     {
+        parent::setUp();
         $this->template = new Template();
+    }
+
+    /**
+     * Test that Twig Environment can be built
+     * and that all Twig extensions are loaded
+     */
+    public function testGetTwigEnvironment(): void
+    {
+        $this->loadContainerBuilder();
+
+        $GLOBALS['cfg']['environment'] = 'production';
+        $twig = Template::getTwigEnvironment(null);
+        $this->assertFalse($twig->isDebug());
+        $this->assertFalse(TransNode::$enableAddDebugInfo);
+        $GLOBALS['cfg']['environment'] = 'development';
+        $twig = Template::getTwigEnvironment(null);
+        $this->assertTrue($twig->isDebug());
+        $this->assertTrue(TransNode::$enableAddDebugInfo);
     }
 
     /**
@@ -40,11 +48,9 @@ class TemplateTest extends PmaTestCase
      *
      * @param string $data Template name
      *
-     * @return void
-     *
      * @dataProvider providerTestSet
      */
-    public function testSet($data): void
+    public function testSet(string $data): void
     {
         $result = $this->template->render($data, [
             'variable1' => 'value1',
@@ -59,7 +65,7 @@ class TemplateTest extends PmaTestCase
      *
      * @return array
      */
-    public function providerTestSet()
+    public function providerTestSet(): array
     {
         return [
             ['test/add_data'],
@@ -73,11 +79,9 @@ class TemplateTest extends PmaTestCase
      * @param string $key          Template variable array key
      * @param string $value        Template variable array value
      *
-     * @return void
-     *
      * @dataProvider providerTestDynamicRender
      */
-    public function testDynamicRender($templateFile, $key, $value): void
+    public function testDynamicRender(string $templateFile, string $key, string $value): void
     {
         $this->assertEquals(
             $value,
@@ -90,7 +94,7 @@ class TemplateTest extends PmaTestCase
      *
      * @return array
      */
-    public function providerTestDynamicRender()
+    public function providerTestDynamicRender(): array
     {
         return [
             [
@@ -103,10 +107,8 @@ class TemplateTest extends PmaTestCase
 
     /**
      * Test for render
-     *
-     * @return void
      */
-    public function testRenderTemplateNotFound()
+    public function testRenderTemplateNotFound(): void
     {
         $this->expectException(LoaderError::class);
         $this->template->render('template not found');
@@ -118,11 +120,9 @@ class TemplateTest extends PmaTestCase
      * @param string $templateFile   Template name
      * @param string $expectedResult Expected result
      *
-     * @return void
-     *
      * @dataProvider providerTestRender
      */
-    public function testRender($templateFile, $expectedResult): void
+    public function testRender(string $templateFile, string $expectedResult): void
     {
         $this->assertEquals(
             $expectedResult,
@@ -135,7 +135,7 @@ class TemplateTest extends PmaTestCase
      *
      * @return array
      */
-    public function providerTestRender()
+    public function providerTestRender(): array
     {
         return [
             [
@@ -152,11 +152,9 @@ class TemplateTest extends PmaTestCase
      * @param array  $renderParams   Render params
      * @param string $expectedResult Expected result
      *
-     * @return void
-     *
      * @dataProvider providerTestRenderGettext
      */
-    public function testRenderGettext($templateFile, $renderParams, $expectedResult): void
+    public function testRenderGettext(string $templateFile, array $renderParams, string $expectedResult): void
     {
         $this->assertEquals(
             $expectedResult,
@@ -169,7 +167,7 @@ class TemplateTest extends PmaTestCase
      *
      * @return array
      */
-    public function providerTestRenderGettext()
+    public function providerTestRenderGettext(): array
     {
         return [
             [

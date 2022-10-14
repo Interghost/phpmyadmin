@@ -1,94 +1,82 @@
 <?php
-/* vim: set expandtab sw=4 ts=4 sts=4: */
-/**
- * Holds the PhpMyAdmin\Controllers\Database\DataDictionaryController
- *
- * @package PhpMyAdmin\Controllers
- */
+
 declare(strict_types=1);
 
 namespace PhpMyAdmin\Controllers\Database;
 
+use PhpMyAdmin\ConfigStorage\Relation;
+use PhpMyAdmin\Controllers\AbstractController;
+use PhpMyAdmin\DatabaseInterface;
+use PhpMyAdmin\Http\ServerRequest;
 use PhpMyAdmin\Index;
-use PhpMyAdmin\Relation;
+use PhpMyAdmin\ResponseRenderer;
+use PhpMyAdmin\Template;
 use PhpMyAdmin\Transformations;
 use PhpMyAdmin\Util;
 
-/**
- * Class DataDictionaryController
- * @package PhpMyAdmin\Controllers\Database
- */
+use function is_array;
+use function str_replace;
+
 class DataDictionaryController extends AbstractController
 {
-    /**
-     * @var Relation
-     */
+    /** @var Relation */
     private $relation;
 
-    /**
-     * @var Transformations
-     */
+    /** @var Transformations */
     private $transformations;
 
-    /**
-     * DataDictionaryController constructor.
-     *
-     * @param \PhpMyAdmin\Response          $response        Response instance
-     * @param \PhpMyAdmin\DatabaseInterface $dbi             DatabaseInterface instance
-     * @param string                        $db              Database name
-     * @param Relation                      $relation        Relation instance
-     * @param Transformations               $transformations Transformations instance
-     */
-    public function __construct($response, $dbi, $db, $relation, $transformations)
-    {
-        parent::__construct($response, $dbi, $db);
+    /** @var DatabaseInterface */
+    private $dbi;
+
+    public function __construct(
+        ResponseRenderer $response,
+        Template $template,
+        Relation $relation,
+        Transformations $transformations,
+        DatabaseInterface $dbi
+    ) {
+        parent::__construct($response, $template);
         $this->relation = $relation;
         $this->transformations = $transformations;
+        $this->dbi = $dbi;
     }
 
-    /**
-     * @return string HTML
-     */
-    public function index(): string
+    public function __invoke(ServerRequest $request): void
     {
-        $cfgRelation = $this->relation->getRelationsParam();
+        $this->checkParameters(['db'], true);
 
-        $comment = $this->relation->getDbComment($this->db);
+        $relationParameters = $this->relation->getRelationParameters();
 
-        $this->dbi->selectDb($this->db);
-        $tablesNames = $this->dbi->getTables($this->db);
+        $comment = $this->relation->getDbComment($GLOBALS['db']);
+
+        $this->dbi->selectDb($GLOBALS['db']);
+        $tablesNames = $this->dbi->getTables($GLOBALS['db']);
 
         $tables = [];
         foreach ($tablesNames as $tableName) {
-            $showComment = (string) $this->dbi->getTable(
-                $this->db,
-                $tableName
-            )->getStatusInfo('TABLE_COMMENT');
+            $showComment = (string) $this->dbi->getTable($GLOBALS['db'], $tableName)->getStatusInfo('TABLE_COMMENT');
 
-            list(, $primaryKeys, , ) = Util::processIndexData(
-                $this->dbi->getTableIndexes($this->db, $tableName)
+            [, $primaryKeys] = Util::processIndexData(
+                $this->dbi->getTableIndexes($GLOBALS['db'], $tableName)
             );
 
-            list($foreigners, $hasRelation) = $this->relation->getRelationsAndStatus(
-                ! empty($cfgRelation['relation']),
-                $this->db,
+            [$foreigners, $hasRelation] = $this->relation->getRelationsAndStatus(
+                $relationParameters->relationFeature !== null,
+                $GLOBALS['db'],
                 $tableName
             );
 
-            $columnsComments = $this->relation->getComments($this->db, $tableName);
+            $columnsComments = $this->relation->getComments($GLOBALS['db'], $tableName);
 
-            $columns = $this->dbi->getColumns($this->db, $tableName);
+            $columns = $this->dbi->getColumns($GLOBALS['db'], $tableName);
             $rows = [];
             foreach ($columns as $row) {
                 $extractedColumnSpec = Util::extractColumnSpec($row['Type']);
 
                 $relation = '';
                 if ($hasRelation) {
-                    $foreigner = $this->relation->searchColumnInForeigners(
-                        $foreigners,
-                        $row['Field']
-                    );
-                    if ($foreigner !== false && $foreigner !== []) {
+                    $foreigner = $this->relation->searchColumnInForeigners($foreigners, $row['Field']);
+                    if (is_array($foreigner) && isset($foreigner['foreign_table'], $foreigner['foreign_field'])) {
                         $relation = $foreigner['foreign_table'];
                         $relation .= ' -> ';
                         $relation .= $foreigner['foreign_field'];
@@ -96,18 +84,10 @@ class DataDictionaryController extends AbstractController
                 }
 
                 $mime = '';
-                if ($cfgRelation['mimework']) {
-                    $mimeMap = $this->transformations->getMime(
-                        $this->db,
-                        $tableName,
-                        true
-                    );
-                    if (isset($mimeMap[$row['Field']])) {
-                        $mime = str_replace(
-                            '_',
-                            '/',
-                            $mimeMap[$row['Field']]['mimetype']
-                        );
+                if ($relationParameters->browserTransformationFeature !== null) {
+                    $mimeMap = $this->transformations->getMime($GLOBALS['db'], $tableName, true);
+                    if (is_array($mimeMap) && isset($mimeMap[$row['Field']]['mimetype'])) {
+                        $mime = str_replace('_', '/', $mimeMap[$row['Field']]['mimetype']);
                     }
                 }
 
@@ -124,27 +104,18 @@ class DataDictionaryController extends AbstractController
                 ];
             }
 
-            $indexesTable = '';
-            if (count(Index::getFromTable($tableName, $this->db)) > 0) {
-                $indexesTable = Index::getHtmlForIndexes(
-                    $tableName,
-                    $this->db,
-                    true
-                );
-            }
-
             $tables[$tableName] = [
                 'name' => $tableName,
                 'comment' => $showComment,
                 'has_relation' => $hasRelation,
-                'has_mime' => $cfgRelation['mimework'],
+                'has_mime' => $relationParameters->browserTransformationFeature !== null,
                 'columns' => $rows,
-                'indexes_table' => $indexesTable,
+                'indexes' => Index::getFromTable($this->dbi, $tableName, $GLOBALS['db']),
             ];
         }
 
-        return $this->template->render('database/data_dictionary/index', [
-            'database' => $this->db,
+        $this->render('database/data_dictionary/index', [
+            'database' => $GLOBALS['db'],
             'comment' => $comment,
             'tables' => $tables,
         ]);

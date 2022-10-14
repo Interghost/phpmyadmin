@@ -1,32 +1,25 @@
 <?php
-/* vim: set expandtab sw=4 ts=4 sts=4: */
-/**
- * Tests for PhpMyAdmin\Navigation\Nodes\NodeDatabase class
- *
- * @package PhpMyAdmin-test
- */
+
 declare(strict_types=1);
 
 namespace PhpMyAdmin\Tests\Navigation\Nodes;
 
 use PhpMyAdmin\Navigation\NodeFactory;
-use PhpMyAdmin\Tests\PmaTestCase;
-use PhpMyAdmin\Theme;
+use PhpMyAdmin\Navigation\Nodes\NodeDatabase;
+use PhpMyAdmin\Tests\AbstractTestCase;
 
 /**
- * Tests for PhpMyAdmin\Navigation\Nodes\NodeDatabase class
- *
- * @package PhpMyAdmin-test
+ * @covers \PhpMyAdmin\Navigation\Nodes\NodeDatabase
  */
-class NodeDatabaseTest extends PmaTestCase
+class NodeDatabaseTest extends AbstractTestCase
 {
     /**
      * SetUp for test cases
-     *
-     * @return void
      */
     protected function setUp(): void
     {
+        parent::setUp();
+        $GLOBALS['dbi'] = $this->createDatabaseInterface();
         $GLOBALS['server'] = 0;
         $GLOBALS['cfg']['DefaultTabDatabase'] = 'structure';
         $GLOBALS['cfg']['MaxNavigationItems'] = 250;
@@ -36,29 +29,29 @@ class NodeDatabaseTest extends PmaTestCase
 
     /**
      * Test for __construct
-     *
-     * @return void
      */
-    public function testConstructor()
+    public function testConstructor(): void
     {
         $parent = NodeFactory::getInstance('NodeDatabase');
-        $this->assertArrayHasKey(
-            'text',
+        $this->assertIsArray($parent->links);
+        $this->assertEquals(
+            [
+                'text' => [
+                    'route' => '/database/structure',
+                    'params' => ['db' => null],
+                ],
+                'icon' => ['route' => '/database/operations', 'params' => ['db' => null]],
+                'title' => 'Structure',
+            ],
             $parent->links
-        );
-        $this->assertStringContainsString(
-            'db_structure.php',
-            $parent->links['text']
         );
         $this->assertStringContainsString('database', $parent->classes);
     }
 
     /**
      * Test for getPresence
-     *
-     * @return void
      */
-    public function testGetPresence()
+    public function testGetPresence(): void
     {
         $parent = NodeFactory::getInstance('NodeDatabase');
         $this->assertEquals(
@@ -85,31 +78,20 @@ class NodeDatabaseTest extends PmaTestCase
 
     /**
      * Test for getData
-     *
-     * @return void
      */
-    public function testGetData()
+    public function testGetData(): void
     {
         $parent = NodeFactory::getInstance('NodeDatabase');
 
         $tables = $parent->getData('tables', 0);
-        $this->assertContains(
-            'test1',
-            $tables
-        );
-        $this->assertContains(
-            'test2',
-            $tables
-        );
+        $this->assertContains('test1', $tables);
+        $this->assertContains('test2', $tables);
 
         $views = $parent->getData('views', 0);
         $this->assertEmpty($views);
 
         $functions = $parent->getData('functions', 0);
-        $this->assertContains(
-            'testFunction',
-            $functions
-        );
+        $this->assertContains('testFunction', $functions);
         $this->assertCount(1, $functions);
 
         $this->assertEmpty($parent->getData('procedures', 0));
@@ -118,11 +100,10 @@ class NodeDatabaseTest extends PmaTestCase
 
     /**
      * Test for setHiddenCount and getHiddenCount
-     *
-     * @return void
      */
-    public function testHiddenCount()
+    public function testHiddenCount(): void
     {
+        /** @var NodeDatabase $parent */
         $parent = NodeFactory::getInstance('NodeDatabase');
 
         $parent->setHiddenCount(3);

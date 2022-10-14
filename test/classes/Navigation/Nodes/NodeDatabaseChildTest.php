@@ -1,70 +1,65 @@
 <?php
-/* vim: set expandtab sw=4 ts=4 sts=4: */
-/**
- * Test for PhpMyAdmin\Navigation\Nodes\NodeDatabaseChild
- *
- * @package PhpMyAdmin-test
- */
+
 declare(strict_types=1);
 
 namespace PhpMyAdmin\Tests\Navigation\Nodes;
 
+use PhpMyAdmin\ConfigStorage\RelationParameters;
 use PhpMyAdmin\Navigation\NodeFactory;
 use PhpMyAdmin\Navigation\Nodes\NodeDatabaseChild;
-use PhpMyAdmin\Tests\PmaTestCase;
+use PhpMyAdmin\Tests\AbstractTestCase;
+use PhpMyAdmin\Url;
+use PHPUnit\Framework\MockObject\MockObject;
 
 /**
- * Tests for PhpMyAdmin\Navigation\Nodes\NodeDatabaseChild class
- *
- * @package PhpMyAdmin-test
+ * @covers \PhpMyAdmin\Navigation\Nodes\NodeDatabaseChild
  */
-class NodeDatabaseChildTest extends PmaTestCase
+class NodeDatabaseChildTest extends AbstractTestCase
 {
     /**
      * Mock of NodeDatabaseChild
-     * @var \PHPUnit\Framework\MockObject\MockObject
+     *
+     * @var NodeDatabaseChild|MockObject
      */
     protected $object;
 
     /**
      * Sets up the fixture.
-     *
-     * @access protected
-     * @return void
      */
     protected function setUp(): void
     {
-        $GLOBALS['pmaThemePath'] = $GLOBALS['PMA_Theme']->getPath();
+        parent::setUp();
+        parent::setTheme();
+        parent::setLanguage();
+        $GLOBALS['dbi'] = $this->createDatabaseInterface();
         $GLOBALS['cfg']['DefaultTabDatabase'] = 'structure';
         $GLOBALS['server'] = 1;
         $GLOBALS['cfg']['ServerDefault'] = 1;
-        $GLOBALS['pmaThemeImage'] = '';
-        $_SESSION['relation'][1]['PMA_VERSION'] = PMA_VERSION;
-        $_SESSION['relation'][1]['navwork'] = true;
+        $_SESSION['relation'] = [];
+        $_SESSION['relation'][$GLOBALS['server']] = RelationParameters::fromArray([
+            'db' => 'pmadb',
+            'navwork' => true,
+            'navigationhiding' => 'navigationhiding',
+        ])->toArray();
         $this->object = $this->getMockForAbstractClass(
-            'PhpMyAdmin\Navigation\Nodes\NodeDatabaseChild',
+            NodeDatabaseChild::class,
             ['child']
         );
     }
 
     /**
      * Tears down the fixture.
-     *
-     * @access protected
-     * @return void
      */
     protected function tearDown(): void
     {
+        parent::tearDown();
         unset($this->object);
     }
 
     /**
      * Tests getHtmlForControlButtons() method
-     *
-     * @return void
-     * @test
      */
-    public function testGetHtmlForControlButtons()
+    public function testGetHtmlForControlButtons(): void
     {
         $parent = NodeFactory::getInstance('NodeDatabase', 'parent');
         $parent->addChild($this->object);
@@ -73,18 +68,12 @@ class NodeDatabaseChildTest extends PmaTestCase
             ->will($this->returnValue('itemType'));
         $html = $this->object->getHtmlForControlButtons();
 
-        $this->assertStringStartsWith(
-            '<span class="navItemControls">',
-            $html
-        );
-        $this->assertStringEndsWith(
-            '</span>',
-            $html
-        );
+        $this->assertStringStartsWith('<span class="navItemControls">', $html);
+        $this->assertStringEndsWith('</span>', $html);
         $this->assertStringContainsString(
-            '<a href="navigation.php" data-post="'
-            . 'hideNavItem=1&amp;itemType=itemType&amp;itemName=child'
-            . '&amp;dbName=parent&amp;lang=en" class="hideNavItem ajax">',
+            '<a href="' . Url::getFromRoute('/navigation') . '" data-post="'
+            . 'hideNavItem=1&itemType=itemType&itemName=child'
+            . '&dbName=parent&lang=en" class="hideNavItem ajax">',
             $html
         );
     }

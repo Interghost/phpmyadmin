@@ -1,42 +1,25 @@
 <?php
-/* vim: set expandtab sw=4 ts=4 sts=4: */
-/**
- * Holds the PhpMyAdmin\Controllers\Setup\AbstractController
- *
- * @package PhpMyAdmin\Controllers\Setup
- */
+
 declare(strict_types=1);
 
 namespace PhpMyAdmin\Controllers\Setup;
 
 use PhpMyAdmin\Config\ConfigFile;
-use PhpMyAdmin\Config\Forms\Setup\SetupFormList;
 use PhpMyAdmin\Config\Forms\BaseForm;
+use PhpMyAdmin\Config\Forms\Setup\SetupFormList;
 use PhpMyAdmin\Template;
 
-/**
- * Class AbstractController
- * @package PhpMyAdmin\Controllers\Setup
- */
+use function in_array;
+
 abstract class AbstractController
 {
-    /**
-     * @var ConfigFile
-     */
+    /** @var ConfigFile */
     protected $config;
 
-    /**
-     * @var Template
-     */
+    /** @var Template */
     protected $template;
 
-    /**
-     * AbstractController constructor.
-     *
-     * @param ConfigFile $config   ConfigFile instance
-     * @param Template   $template Template instance
-     */
-    public function __construct($config, $template)
+    public function __construct(ConfigFile $config, Template $template)
     {
         $this->config = $config;
         $this->template = $template;
@@ -56,6 +39,7 @@ abstract class AbstractController
             if (in_array($formset, $ignored)) {
                 continue;
             }
+
             /** @var BaseForm $formClass */
             $formClass = SetupFormList::get($formset);
 

@@ -19,6 +19,8 @@ set -e
 
 KITS="all-languages english source"
 COMPRESSIONS="zip-7z txz tgz"
+# The version series this script is allowed to handle
+VERSION_SERIES="5.3"
 
 # Process parameters
 
@@ -56,7 +58,7 @@ while [ $# -gt 0 ] ; do
                 git branch ci
                 branch="ci"
             fi
-            version="ci"
+            version="${VERSION_SERIES}+ci"
             ;;
         --help)
             echo "Usages:"
@@ -73,6 +75,7 @@ while [ $# -gt 0 ] ; do
             exit 65
             ;;
         *)
+            do_test=1
             if [ -z "$version" ] ; then
                 version=`echo $1 | tr -d -c '0-9a-z.+-'`
                 if [ "x$version" != "x$1" ] ; then
@@ -80,7 +83,7 @@ while [ $# -gt 0 ] ; do
                     exit 1
                 fi
             elif [ -z "$branch" ] ; then
-                branch=`echo $1 | tr -d -c '0-9A-Za-z_-'`
+                branch=`echo $1 | tr -d -c '/0-9A-Za-z_-'`
                 if [ "x$branch" != "x$1" ] ; then
                     echo "Invalid branch: $1"
                     exit 1
@@ -117,27 +120,239 @@ mark_as_release() {
     git checkout master
 }
 
+cleanup_composer_vendors() {
+    echo "* Cleanup of composer packages"
+    rm -rf \
+        vendor/phpmyadmin/sql-parser/tests/ \
+        vendor/phpmyadmin/sql-parser/tools/ \
+        vendor/phpmyadmin/sql-parser/src/Tools/ \
+        vendor/phpmyadmin/sql-parser/locale/sqlparser.pot \
+        vendor/phpmyadmin/sql-parser/locale/*/LC_MESSAGES/sqlparser.po \
+        vendor/phpmyadmin/sql-parser/bin/ \
+        vendor/phpmyadmin/sql-parser/phpunit.xml.dist \
+        vendor/phpmyadmin/motranslator/phpunit.xml.dist \
+        vendor/phpmyadmin/motranslator/tests/ \
+        vendor/phpmyadmin/shapefile/codecov.yml \
+        vendor/phpmyadmin/shapefile/phpunit.xml.dist \
+        vendor/phpmyadmin/shapefile/tests/ \
+        vendor/phpmyadmin/shapefile/examples/ \
+        vendor/phpmyadmin/shapefile/data/ \
+        vendor/phpmyadmin/shapefile/phpstan-baseline.neon \
+        vendor/phpmyadmin/shapefile/phpstan.neon.dist \
+        vendor/phpmyadmin/twig-i18n-extension/README.rst \
+        vendor/phpmyadmin/twig-i18n-extension/phpunit.xml.dist \
+        vendor/phpmyadmin/twig-i18n-extension/test/ \
+        vendor/phpseclib/phpseclib/phpseclib/File/ \
+        vendor/phpseclib/phpseclib/phpseclib/Math/ \
+        vendor/phpseclib/phpseclib/phpseclib/Net/ \
+        vendor/phpseclib/phpseclib/phpseclib/System/ \
+        vendor/phpseclib/phpseclib/appveyor.yml \
+        vendor/phpseclib/phpseclib/.github \
+        vendor/symfony/cache/Tests/ \
+        vendor/symfony/service-contracts/Test/ \
+        vendor/symfony/expression-language/Tests/ \
+        vendor/symfony/expression-language/Resources/ \
+        vendor/symfony/dependency-injection/Loader/schema/dic/services/services-1.0.xsd \
+        vendor/tecnickcom/tcpdf/examples/ \
+        vendor/tecnickcom/tcpdf/tools/ \
+        vendor/tecnickcom/tcpdf/fonts/ae_fonts_*/ \
+        vendor/tecnickcom/tcpdf/fonts/dejavu-fonts-ttf-2.*/ \
+        vendor/tecnickcom/tcpdf/fonts/freefont-*/ \
+        vendor/tecnickcom/tcpdf/include/sRGB.icc \
+        vendor/tecnickcom/tcpdf/.git \
+        vendor/tecnickcom/tcpdf/.github/ \
+        vendor/bacon/bacon-qr-code/phpunit.xml.dist \
+        vendor/bacon/bacon-qr-code/test/ \
+        vendor/dasprid/enum/phpunit.xml.dist \
+        vendor/dasprid/enum/test/ \
+        vendor/williamdes/mariadb-mysql-kbs/phpunit.xml \
+        vendor/williamdes/mariadb-mysql-kbs/test/ \
+        vendor/williamdes/mariadb-mysql-kbs/schemas/ \
+        vendor/williamdes/mariadb-mysql-kbs/dist/merged-raw.json \
+        vendor/williamdes/mariadb-mysql-kbs/dist/merged-raw.md \
+        vendor/williamdes/mariadb-mysql-kbs/dist/merged-slim.json \
+        vendor/williamdes/mariadb-mysql-kbs/dist/merged-ultraslim.php \
+        vendor/code-lts/u2f-php-server/phpunit.xml \
+        vendor/code-lts/u2f-php-server/test/ \
+        vendor/nikic/fast-route/.travis.yml \
+        vendor/nikic/fast-route/.hhconfig \
+        vendor/nikic/fast-route/FastRoute.hhi \
+        vendor/nikic/fast-route/phpunit.xml \
+        vendor/nikic/fast-route/psalm.xml \
+        vendor/nikic/fast-route/test/ \
+        vendor/twig/twig/doc/ \
+        vendor/twig/twig/test/ \
+        vendor/twig/twig/.github/ \
+        vendor/twig/twig/README.rst \
+        vendor/twig/twig/.travis.yml \
+        vendor/twig/twig/.editorconfig \
+        vendor/twig/twig/.php_cs.dist \
+        vendor/twig/twig/drupal_test.sh \
+        vendor/twig/twig/.php-cs-fixer.dist.php \
+        vendor/webmozart/assert/.editorconfig \
+        vendor/webmozart/assert/.github/ \
+        vendor/webmozart/assert/.php_cs \
+        vendor/webmozart/assert/psalm.xml \
+        vendor/twig/twig/src/Test/ \
+        vendor/psr/log/Psr/Log/Test/ \
+        vendor/psr/http-factory/.pullapprove.yml \
+        vendor/slim/psr7/MAINTAINERS.md \
+        vendor/paragonie/constant_time_encoding/tests/ \
+        vendor/paragonie/constant_time_encoding/psalm.xml \
+        vendor/paragonie/constant_time_encoding/phpunit.xml.dist \
+        vendor/paragonie/constant_time_encoding/.travis.yml \
+        vendor/pragmarx/google2fa/phpstan.neon \
+        vendor/pragmarx/google2fa-qrcode/.scrutinizer.yml \
+        vendor/pragmarx/google2fa-qrcode/.travis.yml \
+        vendor/pragmarx/google2fa-qrcode/phpunit.xml \
+        vendor/pragmarx/google2fa-qrcode/tests \
+        vendor/google/recaptcha/src/autoload.php \
+        vendor/google/recaptcha/app.yaml \
+        vendor/google/recaptcha/.travis.yml \
+        vendor/google/recaptcha/phpunit.xml.dist \
+        vendor/google/recaptcha/.github/ \
+        vendor/google/recaptcha/examples/ \
+        vendor/google/recaptcha/tests/
+    rm -rf \
+        vendor/google/recaptcha/ARCHITECTURE.md \
+        vendor/google/recaptcha/CONTRIBUTING.md \
+        vendor/phpmyadmin/motranslator/CODE_OF_CONDUCT.md \
+        vendor/phpmyadmin/motranslator/CONTRIBUTING.md \
+        vendor/phpmyadmin/motranslator/PERFORMANCE.md \
+        vendor/phpmyadmin/shapefile/CONTRIBUTING.md \
+        vendor/phpmyadmin/shapefile/CODE_OF_CONDUCT.md \
+        vendor/phpmyadmin/sql-parser/CODE_OF_CONDUCT.md \
+        vendor/phpmyadmin/sql-parser/CONTRIBUTING.md
+    find vendor/tecnickcom/tcpdf/fonts/ -maxdepth 1 -type f \
+        -not -name 'dejavusans.*' \
+        -not -name 'dejavusansb.*' \
+        -not -name 'helvetica.php' \
+        -print0 | xargs -0 rm
+}
+
+backup_vendor_folder() {
+    TEMP_FOLDER="$(mktemp -d /tmp/phpMyAdmin.XXXXXXXXX)"
+    cp -rp ./vendor "${TEMP_FOLDER}"
+}
+
+restore_vendor_folder() {
+    if [ ! -d ${TEMP_FOLDER} ]; then
+        echo 'No backup to restore'
+        exit 1;
+    fi
+    rm -r ./vendor
+    mv "${TEMP_FOLDER}/vendor" ./vendor
+    rmdir "${TEMP_FOLDER}"
+}
+
+get_composer_package_version() {
+    awk '/require-dev/ {printline = 1; print; next } printline' composer.json | grep "$1" | awk -F [\"] '{print $4}'
+}
+
+create_phpunit_sandbox() {
+    PHPUNIT_VERSION="$(get_composer_package_version 'phpunit/phpunit')"
+    TEMP_PHPUNIT_FOLDER="$(mktemp -d /tmp/phpMyAdmin-phpunit.XXXXXXXXX)"
+    cd "${TEMP_PHPUNIT_FOLDER}"
+    composer require "phpunit/phpunit:${PHPUNIT_VERSION}"
+    cd -
+}
+
+delete_phpunit_sandbox() {
+    if [ ! -d ${TEMP_PHPUNIT_FOLDER} ]; then
+        echo 'No phpunit sandbox to delete'
+        exit 1;
+    fi
+    rm -r "${TEMP_PHPUNIT_FOLDER}"
+}
+
+security_checkup() {
+    if [ ! -f vendor/tecnickcom/tcpdf/tcpdf.php ]; then
+        echo 'TCPDF should be installed, detection failed !'
+        exit 1;
+    fi
+    if [ ! -f vendor/code-lts/u2f-php-server/src/U2FServer.php ]; then
+        echo 'U2F-server should be installed, detection failed !'
+        exit 1;
+    fi
+    if [ ! -f vendor/pragmarx/google2fa-qrcode/src/Google2FA.php ]; then
+        echo 'Google 2FA should be installed, detection failed !'
+        exit 1;
+    fi
+}
+
+autoload_checkup() {
+    php <<'CODE'
+<?php
+
+$classMapFiles = require __DIR__ . '/vendor/composer/autoload_classmap.php';
+
+$foundFiles = 0;
+$notFoundFiles = 0;
+
+foreach ($classMapFiles as $classMapFile) {
+        if (! file_exists($classMapFile)) {
+            echo 'Does not exist: ' . $classMapFile . PHP_EOL;
+            $notFoundFiles++;
+            continue;
+        }
+        $foundFiles++;
+}
+
+echo '[autoload class map checkup] Found files: ' . $foundFiles . PHP_EOL;
+echo '[autoload class map checkup] NOT found files: ' . $notFoundFiles . PHP_EOL;
+$minFilesToHave = 1100;// An arbitrary value based on how many files the autoload has on average
+
+if ($foundFiles < $minFilesToHave) {
+    echo '[autoload class map checkup] The project expects at least ' . $minFilesToHave . ' in the autoload class map' . PHP_EOL;
+    exit(1);
+}
+
+if ($notFoundFiles > 0) {
+    echo '[autoload class map checkup] There is some missing files documented in the class map' . PHP_EOL;
+    exit(1);
+}
+echo '[autoload class map checkup] The autoload class map seems okay' . PHP_EOL;
+CODE
+
+}
+
 # Ensure we have tracking branch
 ensure_local_branch $branch
 
-# Check if we're releasing older
-if git cat-file -e $branch:libraries/classes/Config.php 2> /dev/null ; then
-    CONFIG_LIB=libraries/classes/Config.php
-elif git cat-file -e $branch:libraries/Config.php 2> /dev/null ; then
-    CONFIG_LIB=libraries/Config.php
-else
-    CONFIG_LIB=libraries/Config.class.php
+VERSION_FILE=libraries/classes/Version.php
+
+# Keep in sync with update-po script
+fetchReleaseFromFile() {
+    php -r "define('VERSION_SUFFIX', ''); require_once('libraries/classes/Version.php'); echo \PhpMyAdmin\Version::VERSION;"
+}
+
+fetchVersionSeriesFromFile() {
+    php -r "define('VERSION_SUFFIX', ''); require_once('libraries/classes/Version.php'); echo \PhpMyAdmin\Version::SERIES;"
+}
+
+VERSION_SERIES_FROM_FILE="$(fetchVersionSeriesFromFile)"
+
+if [ "${VERSION_SERIES_FROM_FILE}" != "${VERSION_SERIES}" ]; then
+    echo "This script can not handle ${VERSION_SERIES_FROM_FILE} version series."
+    echo "Only ${VERSION_SERIES} version series are allowed, please use your target branch directly or another branch."
+    echo "By changing branches you will have a release script that was designed for your version series."
+    exit 1;
 fi
+
+echo "The actual configured release is: $(fetchReleaseFromFile)"
 
 if [ $do_ci -eq 0 -a -$do_daily -eq 0 ] ; then
     cat <<END
 
 Please ensure you have incremented rc count or version in the repository :
-     - in $CONFIG_LIB Config::__constructor() the line
-          " \$this->set( 'PMA_VERSION', '$version' ); "
+     - run ./scripts/console set-version $version
+     - in $VERSION_FILE Version class:
+        - check that VERSION, MAJOR, MINOR and PATCH are correct.
      - in doc/conf.py the line
           " version = '$version' "
-     - in README
+     - in README the "Version" line
+     - in package.json the line
+          " "version": "$version", "
      - set release date in ChangeLog
 
 Continue (y/n)?
@@ -148,6 +363,8 @@ END
         exit 100
     fi
 fi
+
+echo "The actual configured release is now: $(fetchReleaseFromFile)"
 
 # Create working copy
 mkdir -p release
@@ -166,12 +383,20 @@ if [ $do_pull -eq 1 ] ; then
 fi
 if [ $do_daily -eq 1 ] ; then
     git_head=`git log -n 1 --format=%H`
+    git_head_short=`git log -n 1 --format=%h`
+    today_date=`date +'%Y%m%d' -u`
+fi
+
+if [ $do_daily -eq 1 ] ; then
+    echo '* setting the version suffix for the snapshot'
+    sed -i "s/'versionSuffix' => '.*'/'versionSuffix' => '+$today_date.$git_head_short'/" libraries/vendor_config.php
+    php -l libraries/vendor_config.php
 fi
 
 # Check release version
 if [ $do_ci -eq 0 -a -$do_daily -eq 0 ] ; then
-    if ! grep -q "'PMA_VERSION', '$version'" $CONFIG_LIB ; then
-        echo "There seems to be wrong version in $CONFIG_LIB!"
+    if ! grep -q "VERSION = '$version'" $VERSION_FILE ; then
+        echo "There seems to be wrong version in $VERSION_FILE!"
         exit 2
     fi
     if ! grep -q "version = '$version'" doc/conf.py ; then
@@ -180,6 +405,10 @@ if [ $do_ci -eq 0 -a -$do_daily -eq 0 ] ; then
     fi
     if ! grep -q "Version $version\$" README ; then
         echo "There seems to be wrong version in README"
+        exit 2
+    fi
+    if ! grep -q "\"version\": \"$version\"," package.json ; then
+        echo "There seems to be wrong version in package.json"
         exit 2
     fi
 fi
@@ -210,81 +439,79 @@ fi
 echo "* Removing unneeded files"
 
 # Remove developer information
-rm -rf .github
-
-# Remove phpcs coding standard definition
-rm -rf PMAStandard
+rm -r .github CODE_OF_CONDUCT.md DCO
 
 # Testsuite setup
-rm -f .travis.yml .coveralls.yml .scrutinizer.yml .jshintrc .weblate codecov.yml
+rm .scrutinizer.yml .weblate codecov.yml
+
+# Remove Doctum config file
+rm test/doctum-config.php
 
 # Remove readme for github
-rm -f README.rst
+rm README.rst
 
-if [ ! -d libraries/tcpdf ] ; then
-    PHP_REQ=`sed -n '/"php"/ s/.*"\(\^\|>=\)\([0-9]\.[0-9]\).*/\2/p' composer.json`
+if [ -f ./scripts/console ]; then
+    # Update the vendors to have the dev vendors
+    composer update --no-interaction
+    # Warm up the routing cache for 5.1+ releases
+    ./scripts/console cache:warmup --routing
+fi
 
-    if [ -z "$PHP_REQ" ] ; then
-        echo "Failed to figure out required PHP version from composer.json"
-        exit 2
-    fi
-    # Okay, there is no way to tell composer to install
-    # suggested package. Let's require it and then revert
-    # composer.json to original state.
-    cp composer.json composer.json.backup
-    echo "* Running composer"
-    composer config platform.php "$PHP_REQ"
-    composer update --no-dev
+PHP_REQ=$(sed -n '/"php"/ s/.*"\^\([0-9]\.[0-9]\.[0-9]\).*/\1/p' composer.json)
 
-    # Parse the required versions from composer.json
-    PACKAGES_VERSIONS=''
-    if [ "$branch" = "QA_4_8" ] ; then
-        PACKAGE_LIST="tecnickcom/tcpdf pragmarx/google2fa bacon/bacon-qr-code samyoul/u2f-php-server"
-    else
-        PACKAGE_LIST="tecnickcom/tcpdf pragmarx/google2fa-qrcode samyoul/u2f-php-server"
-    fi
-    for PACKAGES in $PACKAGE_LIST
-    do
-        PACKAGES_VERSIONS="$PACKAGES_VERSIONS $PACKAGES:`awk "/require-dev/ {printline = 1; print; next } printline" composer.json | grep "$PACKAGES" | awk -F [\\"] '{print $4}'`"
-    done
-    composer require --update-no-dev $PACKAGES_VERSIONS
+if [ -z "$PHP_REQ" ] ; then
+    echo "Failed to figure out required PHP version from composer.json"
+    exit 2
+fi
 
-    mv composer.json.backup composer.json
-    echo "* Cleanup of composer packages"
-    rm -rf \
-        vendor/phpmyadmin/sql-parser/tests/ \
-        vendor/phpmyadmin/sql-parser/tools/ \
-        vendor/phpmyadmin/sql-parser/locale/*/LC_MESSAGES/sqlparser.po \
-        vendor/phpmyadmin/motranslator/tests/ \
-        vendor/phpmyadmin/shapefile/tests/ \
-        vendor/phpmyadmin/shapefile/examples/ \
-        vendor/phpmyadmin/shapefile/data/ \
-        vendor/phpseclib/phpseclib/phpseclib/File/ \
-        vendor/phpseclib/phpseclib/phpseclib/Math/ \
-        vendor/phpseclib/phpseclib/phpseclib/Net/ \
-        vendor/phpseclib/phpseclib/phpseclib/System/ \
-        vendor/symfony/cache/Tests/ \
-        vendor/symfony/expression-language/Tests/ \
-        vendor/symfony/expression-language/Resources/ \
-        vendor/tecnickcom/tcpdf/examples/ \
-        vendor/tecnickcom/tcpdf/tools/ \
-        vendor/tecnickcom/tcpdf/fonts/ae_fonts_*/ \
-        vendor/tecnickcom/tcpdf/fonts/dejavu-fonts-ttf-2.33/ \
-        vendor/tecnickcom/tcpdf/fonts/freefont-*/ \
-        vendor/tecnickcom/tcpdf/include/sRGB.icc \
-        vendor/twig/extensions/doc \
-        vendor/twig/extensions/test \
-        vendor/twig/twig/doc \
-        vendor/twig/twig/test \
-        vendor/google/recaptcha/examples/ \
-        vendor/google/recaptcha/tests/
-    find vendor/phpseclib/phpseclib/phpseclib/Crypt/ -maxdepth 1 -type f -not -name AES.php -not -name Base.php -not -name Random.php -not -name Rijndael.php -print0 | xargs -0 rm
-    find vendor/tecnickcom/tcpdf/fonts/ -maxdepth 1 -type f -not -name 'dejavusans.*' -not -name 'dejavusansb.*' -not -name 'helvetica.php' -print0 | xargs -0 rm
-    if [ $do_tag -eq 1 ] ; then
-        echo "* Commiting composer.lock"
-        git add --force composer.lock
-        git commit -s -m "Adding composer lock for $version"
-    fi
+echo "* Writing the version to composer.json (version: $version)"
+composer config version "$version"
+
+# Okay, there is no way to tell composer to install
+# suggested package. Let's require it and then revert
+# composer.json to original state.
+cp composer.json composer.json.backup
+COMPOSER_VERSION="$(composer --version)"
+echo "* Running composer (version: $COMPOSER_VERSION)"
+composer config platform.php "$PHP_REQ"
+composer update --no-interaction --no-dev
+
+# Parse the required versions from composer.json
+PACKAGES_VERSIONS=''
+PACKAGE_LIST='tecnickcom/tcpdf pragmarx/google2fa-qrcode bacon/bacon-qr-code code-lts/u2f-php-server'
+
+for PACKAGES in $PACKAGE_LIST
+do
+    PKG_VERSION="$(get_composer_package_version "$PACKAGES")"
+    PACKAGES_VERSIONS="$PACKAGES_VERSIONS $PACKAGES:$PKG_VERSION"
+done
+
+echo "* Installing composer packages '$PACKAGES_VERSIONS'"
+
+composer require --no-interaction --update-no-dev $PACKAGES_VERSIONS
+
+echo "* Running a security checkup"
+security_checkup
+
+echo "* Cleaning up vendor folders"
+mv composer.json.backup composer.json
+cleanup_composer_vendors
+
+echo "* Re-generating the autoload class map"
+# https://getcomposer.org/doc/articles/autoloader-optimization.md#what-does-it-do-
+# We removed some files, we also need that composer removes them from autoload class maps
+# If the class is in the class map (as explained in the link above) then it is assumed to exist as a file
+composer dump-autoload --no-interaction --optimize --dev
+
+echo "* Running an autoload checkup"
+autoload_checkup
+
+echo "* Running a security checkup"
+security_checkup
+if [ $do_tag -eq 1 ] ; then
+    echo "* Commiting composer.lock"
+    git add --force composer.lock
+    git commit -s -m "Adding composer lock for $version"
 fi
 
 if [ -f package.json ] ; then
@@ -294,16 +521,21 @@ fi
 
 # Remove git metadata
 rm .git
-find . -name .gitignore -print0 | xargs -0 -r rm -f
-find . -name .gitattributes -print0 | xargs -0 -r rm -f
+find . -name .gitignore -print0 | xargs -0 -r rm
+find . -name .gitattributes -print0 | xargs -0 -r rm
 
 if [ $do_test -eq 1 ] ; then
-    composer update
-    ./vendor/bin/phpunit --configuration phpunit.xml.nocoverage --exclude-group selenium
+    # Move the folder out and install dev vendors
+    create_phpunit_sandbox
+    # Backup the files because the new autoloader will change the composer vendor
+    backup_vendor_folder
+    # Generate an autoload for test class files (and include dev namespaces)
+    composer dump-autoload --dev || php -r "echo 'Requires: composer >= v2.1.2' . PHP_EOL; exit(1);"
+    "${TEMP_PHPUNIT_FOLDER}/vendor/bin/phpunit" --no-coverage --testsuite unit
     test_ret=$?
     if [ $do_ci -eq 1 ] ; then
         cd ../..
-        rm -rf $workdir
+        rm -r $workdir
         git worktree prune
         if [ "$branch" = "ci" ] ; then
             git branch -D ci
@@ -313,16 +545,23 @@ if [ $do_test -eq 1 ] ; then
     if [ $test_ret -ne 0 ] ; then
         exit $test_ret
     fi
+    # Remove PHPUnit cache file
+    rm -f .phpunit.result.cache
+    # Generate an normal autoload (this is just a security, because normally the vendor folder will be restored)
+    composer dump-autoload
     # Remove libs installed for testing
-    rm -rf build
-    composer update --no-dev
+    rm -r build
+    delete_phpunit_sandbox
+    restore_vendor_folder
 fi
 
+security_checkup
 
 cd ..
 
 # Prepare all kits
 for kit in $KITS ; do
+    echo "* Building kit: $kit"
     # Copy all files
     name=phpMyAdmin-$version-$kit
     cp -r phpMyAdmin-$version $name
@@ -335,23 +574,30 @@ for kit in $KITS ; do
     if [ $kit != source ] ; then
         echo "* Removing source files"
         # Testsuite
-        rm -rf test/
+        rm -r test/
+        # Template test files
+        rm -r templates/test/
         rm phpunit.xml.* build.xml
-        # Gettext po files
-        rm -rf po/
+        rm .editorconfig .browserslistrc .eslintignore .jshintrc .eslintrc.json .stylelintrc.json psalm.xml psalm-baseline.xml phpstan.neon.dist phpstan-baseline.neon phpcs.xml.dist jest.config.cjs infection.json.dist
+        # Gettext po files (if they where not removed by ./scripts/lang-cleanup.sh)
+        rm -rf po
         # Documentation source code
         mv doc/html htmldoc
-        rm -rf doc
+        rm -r doc
         mkdir doc
         mv htmldoc doc/html
         rm doc/html/.buildinfo doc/html/objects.inv
-        # Javascript sources
-        rm -rf js/vendor/openlayers/src/
-        rm -rf node_modules
+        rm -r node_modules
+        # Remove bin files for non source version
+        # https://github.com/phpmyadmin/phpmyadmin/issues/16033
+        rm -r vendor/bin
     fi
 
     # Remove developer scripts
-    rm -rf scripts
+    rm -r scripts
+
+    # Remove possible tmp folder
+    rm -rf tmp
 
     cd ..
 
@@ -389,11 +635,11 @@ for kit in $KITS ; do
     # Cleanup
     rm -f $name.tar
     # Remove directory with current dist set
-    rm -rf $name
+    rm -r $name
 done
 
 # Cleanup
-rm -rf phpMyAdmin-${version}
+rm -r phpMyAdmin-${version}
 git worktree prune
 
 # Signing of files with default GPG key
@@ -442,7 +688,7 @@ if [ $do_tag -eq 1 ] ; then
     git rm --force composer.lock
     git commit -s -m "Removing composer.lock"
     cd ../..
-    rm -rf $workdir
+    rm -r $workdir
     git worktree prune
 fi
 
@@ -479,11 +725,13 @@ Todo now:
     based on documentation.
 
  7. increment rc count or version in the repository :
-        - in $CONFIG_LIB Config::__constructor() the line
-              " \$this->set( 'PMA_VERSION', '2.7.1-dev' ); "
-        - in Documentation.html (if it exists) the 2 lines
-              " <title>phpMyAdmin 2.2.2-rc1 - Documentation</title> "
-              " <h1>phpMyAdmin 2.2.2-rc1 Documentation</h1> "
+        - run ./scripts/console set-version $version
+        - in $VERSION_FILE Version class:
+            - check that VERSION, MAJOR, MINOR and PATCH are correct.
+        - in README the "Version" line
+              " Version 2.7.1-dev "
+        - in package.json the line
+            " "version": " 2.7.1-dev", "
         - in doc/conf.py (if it exists) the line
               " version = '2.7.1-dev' "
 
@@ -493,6 +741,6 @@ Todo now:
 
 10. in case of a new major release ('y' in x.y.0), update the pmaweb/settings.py in website repository to include the new major releases
 
-11. update the Dockerfile in the docker repository to reflect the new version and create a new annotated tag (such as with git tag -s -a 4.7.9-1 -m "Version 4.7.9-1"). Remember to push the tag with git push origin --tags
+11. update the Dockerfile in the docker repository to reflect the new version and create a new annotated tag (such as with git tag -s -a 4.7.9-1 -m "Version 4.7.9-1"). Remember to push the tag with git push origin {tagName}
 
 END

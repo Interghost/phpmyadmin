@@ -1,10 +1,10 @@
-<form method="post" action="db_structure.php" name="tablesForm" id="tablesForm">
+<form method="post" action="{{ url('/database/structure') }}" name="tablesForm" id="tablesForm">
 {{ get_hidden_inputs(db) }}
-<div class="responsivetable">
-<table id="structureTable" class="data">
+<div class="table-responsive">
+<table class="table table-striped table-hover table-sm w-auto data">
     <thead>
         <tr>
-            <th class="print_ignore"></th>
+            <th class="d-print-none"></th>
             <th>{{ sortable_table_header('Table'|trans, 'table') }}</th>
             {% if replication %}
                 <th>{% trans 'Replication' %}</th>
@@ -18,7 +18,7 @@
             {% if num_favorite_tables > 0 %}
                 {% set action_colspan = action_colspan + 1 %}
             {% endif %}
-            <th colspan="{{ action_colspan }}" class="print_ignore">
+            <th colspan="{{ action_colspan }}" class="d-print-none">
                 {% trans 'Action' %}
             </th>
             {# larger values are more interesting so default sort order is DESC #}
@@ -63,3 +63,19 @@
         </tr>
     </thead>
     <tbody>
+    {% for structure_table_row in structure_table_rows %}
+        {% include 'database/structure/structure_table_row.twig' with structure_table_row only %}
+    {% endfor %}
+    </tbody>
+    {% if body_for_table_summary %}
+        {% include 'database/structure/body_for_table_summary.twig' with body_for_table_summary only %}
+    {% endif %}
+</table>
+</div>
+{% if check_all_tables %}
+  {% include 'database/structure/check_all_tables.twig' with check_all_tables only %}
+{% endif %}
+</form>
+{% if check_all_tables %}
+  {% include 'database/structure/bulk_action_modal.twig' with check_all_tables only %}
+{% endif %}

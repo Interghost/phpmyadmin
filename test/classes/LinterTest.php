@@ -1,30 +1,32 @@
 <?php
-/* vim: set expandtab sw=4 ts=4 sts=4: */
-/**
- * Tests for Linter.php.
- *
- * @package PhpMyAdmin-test
- */
+
 declare(strict_types=1);
 
 namespace PhpMyAdmin\Tests;
 
 use PhpMyAdmin\Linter;
-use PhpMyAdmin\Tests\PmaTestCase;
+
+use function str_repeat;
 
 /**
- * Tests for PhpMyAdmin\Linter
- *
- * @package PhpMyAdmin-test
+ * @covers \PhpMyAdmin\Linter
  */
-class LinterTest extends PmaTestCase
+class LinterTest extends AbstractTestCase
 {
     /**
-     * Test for Linter::getLines
-     *
-     * @return void
+     * Sets up the fixture, for example, opens a network connection.
+     * This method is called before a test is executed.
      */
-    public function testGetLines()
+    protected function setUp(): void
+    {
+        parent::setUp();
+        parent::setLanguage();
+    }
+
+    /**
+     * Test for Linter::getLines
+     */
+    public function testGetLines(): void
     {
         $this->assertEquals([0], Linter::getLines(''));
         $this->assertEquals([0, 2], Linter::getLines("a\nb"));
@@ -33,10 +35,8 @@ class LinterTest extends PmaTestCase
 
     /**
      * Test for Linter::findLineNumberAndColumn
-     *
-     * @return void
      */
-    public function testFindLineNumberAndColumn()
+    public function testFindLineNumberAndColumn(): void
     {
         // Let the analyzed string be:
         //      ^abc$
@@ -82,14 +82,12 @@ class LinterTest extends PmaTestCase
     /**
      * Test for Linter::lint
      *
-     * @dataProvider lintProvider
-     *
      * @param array  $expected The expected result.
      * @param string $query    The query to be analyzed.
      *
-     * @return void
+     * @dataProvider lintProvider
      */
-    public function testLint($expected, $query): void
+    public function testLint(array $expected, string $query): void
     {
         $this->assertEquals($expected, Linter::lint($query));
     }
@@ -99,7 +97,7 @@ class LinterTest extends PmaTestCase
      *
      * @return array
      */
-    public static function lintProvider()
+    public static function lintProvider(): array
     {
         return [
             [
@@ -113,8 +111,7 @@ class LinterTest extends PmaTestCase
             [
                 [
                     [
-                        'message' => 'Unrecognized data type. (near ' .
-                            '<code>IN</code>)',
+                        'message' => 'Unrecognized data type. (near <code>IN</code>)',
                         'fromLine' => 0,
                         'fromColumn' => 22,
                         'toLine' => 0,
@@ -122,8 +119,7 @@ class LinterTest extends PmaTestCase
                         'severity' => 'error',
                     ],
                     [
-                        'message' => 'A closing bracket was expected. (near ' .
-                            '<code>IN</code>)',
+                        'message' => 'A closing bracket was expected. (near <code>IN</code>)',
                         'fromLine' => 0,
                         'fromColumn' => 22,
                         'toLine' => 0,
@@ -136,8 +132,7 @@ class LinterTest extends PmaTestCase
             [
                 [
                     [
-                        'message' => 'Linting is disabled for this query because ' .
-                            'it exceeds the maximum length.',
+                        'message' => 'Linting is disabled for this query because it exceeds the maximum length.',
                         'fromLine' => 0,
                         'fromColumn' => 0,
                         'toLine' => 0,
@@ -145,7 +140,7 @@ class LinterTest extends PmaTestCase
                         'severity' => 'warning',
                     ],
                 ],
-                str_repeat(";", 10001),
+                str_repeat(';', 10001),
             ],
         ];
     }

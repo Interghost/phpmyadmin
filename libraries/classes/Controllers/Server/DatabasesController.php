@@ -1,72 +1,108 @@
 <?php
-/* vim: set expandtab sw=4 ts=4 sts=4: */
-/**
- * Holds the PhpMyAdmin\Controllers\Server\DatabasesController
- *
- * @package PhpMyAdmin\Controllers
- */
+
 declare(strict_types=1);
 
 namespace PhpMyAdmin\Controllers\Server;
 
 use PhpMyAdmin\Charsets;
+use PhpMyAdmin\CheckUserPrivileges;
+use PhpMyAdmin\ConfigStorage\RelationCleanup;
 use PhpMyAdmin\Controllers\AbstractController;
 use PhpMyAdmin\DatabaseInterface;
-use PhpMyAdmin\Message;
+use PhpMyAdmin\Http\ServerRequest;
+use PhpMyAdmin\Query\Utilities;
+use PhpMyAdmin\ReplicationInfo;
+use PhpMyAdmin\ResponseRenderer;
+use PhpMyAdmin\Template;
+use PhpMyAdmin\Transformations;
 use PhpMyAdmin\Url;
 use PhpMyAdmin\Util;
 
+use function __;
+use function array_keys;
+use function array_search;
+use function count;
+use function in_array;
+use function mb_strtolower;
+use function str_contains;
+use function strlen;
+
 /**
  * Handles viewing and creating and deleting databases
- *
- * @package PhpMyAdmin\Controllers
  */
 class DatabasesController extends AbstractController
 {
-    /**
-     * @var array array of database details
-     */
+    /** @var array array of database details */
     private $databases = [];
 
-    /**
-     * @var int number of databases
-     */
+    /** @var int number of databases */
     private $databaseCount = 0;
 
-    /**
-     * @var string sort by column
-     */
+    /** @var string sort by column */
     private $sortBy;
 
-    /**
-     * @var string sort order of databases
-     */
+    /** @var string sort order of databases */
     private $sortOrder;
 
-    /**
-     * @var boolean whether to show database statistics
-     */
+    /** @var bool whether to show database statistics */
     private $hasStatistics;
 
-    /**
-     * @var int position in list navigation
-     */
+    /** @var int position in list navigation */
     private $position;
 
-    /**
-     * Index action
-     *
-     * @param array $params Request parameters
-     *
-     * @return string HTML
-     */
-    public function indexAction(array $params): string
-    {
-        global $cfg, $server, $dblist, $is_create_db_priv;
-        global $replication_info, $db_to_create, $pmaThemeImage, $text_dir;
+    /** @var Transformations */
+    private $transformations;
 
-        include_once ROOT_PATH . 'libraries/replication.inc.php';
-        include_once ROOT_PATH . 'libraries/server_common.inc.php';
+    /** @var RelationCleanup */
+    private $relationCleanup;
+
+    /** @var DatabaseInterface */
+    private $dbi;
+
+    public function __construct(
+        ResponseRenderer $response,
+        Template $template,
+        Transformations $transformations,
+        RelationCleanup $relationCleanup,
+        DatabaseInterface $dbi
+    ) {
+        parent::__construct($response, $template);
+        $this->transformations = $transformations;
+        $this->relationCleanup = $relationCleanup;
+        $this->dbi = $dbi;
+
+        $checkUserPrivileges = new CheckUserPrivileges($dbi);
+        $checkUserPrivileges->getPrivileges();
+    }
+
+    public function __invoke(ServerRequest $request): void
+    {
+        $GLOBALS['server'] = $GLOBALS['server'] ?? null;
+        $GLOBALS['dblist'] = $GLOBALS['dblist'] ?? null;
+        $GLOBALS['is_create_db_priv'] = $GLOBALS['is_create_db_priv'] ?? null;
+        $GLOBALS['db_to_create'] = $GLOBALS['db_to_create'] ?? null;
+        $GLOBALS['text_dir'] = $GLOBALS['text_dir'] ?? null;
+        $GLOBALS['errorUrl'] = $GLOBALS['errorUrl'] ?? null;
+
+        $params = [
+            'statistics' => $_REQUEST['statistics'] ?? null,
+            'pos' => $_REQUEST['pos'] ?? null,
+            'sort_by' => $_REQUEST['sort_by'] ?? null,
+            'sort_order' => $_REQUEST['sort_order'] ?? null,
+        ];
+
+        $this->addScriptFiles(['server/databases.js']);
+        $GLOBALS['errorUrl'] = Url::getFromRoute('/');
+
+        if ($this->dbi->isSuperUser()) {
+            $this->dbi->selectDb('mysql');
+        }
+
+        $replicationInfo = new ReplicationInfo($this->dbi);
+        $replicationInfo->load($_POST['primary_connection'] ?? null);
+
+        $primaryInfo = $replicationInfo->getPrimaryInfo();
+        $replicaInfo = $replicationInfo->getReplicaInfo();
 
         $this->setSortDetails($params['sort_by'], $params['sort_order']);
         $this->hasStatistics = ! empty($params['statistics']);
@@ -75,7 +111,7 @@ class DatabasesController extends AbstractController
         /**
          * Gets the databases list
          */
-        if ($server > 0) {
+        if ($GLOBALS['server'] > 0) {
             $this->databases = $this->dbi->getDatabasesFull(
                 null,
                 $this->hasStatistics,
@@ -85,7 +121,7 @@ class DatabasesController extends AbstractController
                 $this->position,
                 true
             );
-            $this->databaseCount = count($dblist->databases);
+            $this->databaseCount = count($GLOBALS['dblist']->databases);
         }
 
         $urlParams = [
@@ -95,149 +131,51 @@ class DatabasesController extends AbstractController
             'sort_order' => $this->sortOrder,
         ];
 
-        $databases = $this->getDatabases($replication_types ?? []);
+        $databases = $this->getDatabases($primaryInfo, $replicaInfo);
 
-        $collationDropdownBox = '';
-        if ($cfg['ShowCreateDb'] && $is_create_db_priv) {
-            $collationDropdownBox = Charsets::getCollationDropdownBox(
-                $this->dbi,
-                $cfg['Server']['DisableIS'],
-                'db_collation',
-                null,
-                $this->dbi->getServerCollation(),
-                true
-            );
+        $charsetsList = [];
+        if ($GLOBALS['cfg']['ShowCreateDb'] && $GLOBALS['is_create_db_priv']) {
+            $charsets = Charsets::getCharsets($this->dbi, $GLOBALS['cfg']['Server']['DisableIS']);
+            $collations = Charsets::getCollations($this->dbi, $GLOBALS['cfg']['Server']['DisableIS']);
+            $serverCollation = $this->dbi->getServerCollation();
+            foreach ($charsets as $charset) {
+                $collationsList = [];
+                foreach ($collations[$charset->getName()] as $collation) {
+                    $collationsList[] = [
+                        'name' => $collation->getName(),
+                        'description' => $collation->getDescription(),
+                        'is_selected' => $serverCollation === $collation->getName(),
+                    ];
+                }
+
+                $charsetsList[] = [
+                    'name' => $charset->getName(),
+                    'description' => $charset->getDescription(),
+                    'collations' => $collationsList,
+                ];
+            }
         }
 
         $headerStatistics = $this->getStatisticsColumns();
 
-        return $this->template->render('server/databases/index', [
-            'is_create_database_shown' => $cfg['ShowCreateDb'],
-            'has_create_database_privileges' => $is_create_db_priv,
+        $this->render('server/databases/index', [
+            'is_create_database_shown' => $GLOBALS['cfg']['ShowCreateDb'],
+            'has_create_database_privileges' => $GLOBALS['is_create_db_priv'],
             'has_statistics' => $this->hasStatistics,
-            'database_to_create' => $db_to_create,
+            'database_to_create' => $GLOBALS['db_to_create'],
             'databases' => $databases['databases'],
             'total_statistics' => $databases['total_statistics'],
             'header_statistics' => $headerStatistics,
-            'collation_dropdown_box' => $collationDropdownBox,
+            'charsets' => $charsetsList,
             'database_count' => $this->databaseCount,
             'pos' => $this->position,
             'url_params' => $urlParams,
-            'max_db_list' => $cfg['MaxDbList'],
-            'has_master_replication' => $replication_info['master']['status'],
-            'has_slave_replication' => $replication_info['slave']['status'],
-            'is_drop_allowed' => $this->dbi->isSuperuser() || $cfg['AllowUserDropDatabase'],
-            'default_tab_database' => $cfg['DefaultTabDatabase'],
-            'pma_theme_image' => $pmaThemeImage,
-            'text_dir' => $text_dir,
+            'max_db_list' => $GLOBALS['cfg']['MaxDbList'],
+            'has_primary_replication' => $primaryInfo['status'],
+            'has_replica_replication' => $replicaInfo['status'],
+            'is_drop_allowed' => $this->dbi->isSuperUser() || $GLOBALS['cfg']['AllowUserDropDatabase'],
+            'text_dir' => $GLOBALS['text_dir'],
         ]);
-    }
-
-    /**
-     * Handles creating a new database
-     *
-     * @param array $params Request parameters
-     *
-     * @return array JSON
-     */
-    public function createDatabaseAction(array $params): array
-    {
-        global $cfg, $db;
-
-        /**
-         * Builds and executes the db creation sql query
-         */
-        $sqlQuery = 'CREATE DATABASE ' . Util::backquote($params['new_db']);
-        if (! empty($params['db_collation'])) {
-            list($databaseCharset) = explode('_', $params['db_collation']);
-            $charsets = Charsets::getMySQLCharsets(
-                $this->dbi,
-                $cfg['Server']['DisableIS']
-            );
-            $collations = Charsets::getMySQLCollations(
-                $this->dbi,
-                $cfg['Server']['DisableIS']
-            );
-            if (in_array($databaseCharset, $charsets)
-                && in_array($params['db_collation'], $collations[$databaseCharset])
-            ) {
-                $sqlQuery .= ' DEFAULT'
-                    . Util::getCharsetQueryPart($params['db_collation']);
-            }
-        }
-        $sqlQuery .= ';';
-
-        $result = $this->dbi->tryQuery($sqlQuery);
-
-        if (! $result) {
-            // avoid displaying the not-created db name in header or navi panel
-            $db = '';
-
-            $message = Message::rawError($this->dbi->getError());
-            $json = ['message' => $message];
-
-            $this->response->setRequestStatus(false);
-        } else {
-            $db = $params['new_db'];
-
-            $message = Message::success(__('Database %1$s has been created.'));
-            $message->addParam($params['new_db']);
-
-            $json = [
-                'message' => $message,
-                'sql_query' => Util::getMessage(null, $sqlQuery, 'success'),
-                'url_query' => Util::getScriptNameForOption(
-                    $cfg['DefaultTabDatabase'],
-                    'database'
-                ) . Url::getCommon(['db' => $params['new_db']]),
-            ];
-        }
-
-        return $json;
-    }
-
-    /**
-     * Handles dropping multiple databases
-     *
-     * @param array $params Request parameters
-     *
-     * @return array JSON
-     */
-    public function dropDatabasesAction(array $params): array
-    {
-        global $submit_mult, $mult_btn, $selected;
-
-        if (! isset($params['selected_dbs'])) {
-            $message = Message::error(__('No databases selected.'));
-        } else {
-            $action = 'server_databases.php';
-            $err_url = $action . Url::getCommon();
-
-            $submit_mult = 'drop_db';
-            $mult_btn = __('Yes');
-
-            include ROOT_PATH . 'libraries/mult_submits.inc.php';
-
-            if (empty($message)) { // no error message
-                $numberOfDatabases = count($selected);
-                $message = Message::success(
-                    _ngettext(
-                        '%1$d database has been dropped successfully.',
-                        '%1$d databases have been dropped successfully.',
-                        $numberOfDatabases
-                    )
-                );
-                $message->addParam($numberOfDatabases);
-            }
-        }
-
-        $json = [];
-        if ($message instanceof Message) {
-            $json = ['message' => $message];
-            $this->response->setRequestStatus($message->isSuccess());
-        }
-
-        return $json;
     }
 
     /**
@@ -245,15 +183,13 @@ class DatabasesController extends AbstractController
      *
      * @param string|null $sortBy    sort by
      * @param string|null $sortOrder sort order
-     *
-     * @return void
      */
     private function setSortDetails(?string $sortBy, ?string $sortOrder): void
     {
         if (empty($sortBy)) {
             $this->sortBy = 'SCHEMA_NAME';
         } else {
-            $sortByWhitelist = [
+            $sortByAllowList = [
                 'SCHEMA_NAME',
                 'DEFAULT_COLLATION_NAME',
                 'SCHEMA_TABLES',
@@ -264,61 +200,57 @@ class DatabasesController extends AbstractController
                 'SCHEMA_DATA_FREE',
             ];
             $this->sortBy = 'SCHEMA_NAME';
-            if (in_array($sortBy, $sortByWhitelist)) {
+            if (in_array($sortBy, $sortByAllowList)) {
                 $this->sortBy = $sortBy;
             }
         }
 
         $this->sortOrder = 'asc';
-        if (isset($sortOrder)
-            && mb_strtolower($sortOrder) === 'desc'
-        ) {
-            $this->sortOrder = 'desc';
+        if (! isset($sortOrder) || mb_strtolower($sortOrder) !== 'desc') {
+            return;
         }
+
+        $this->sortOrder = 'desc';
     }
 
     /**
-     * Returns database list
-     *
-     * @param array $replicationTypes replication types
+     * @param array $primaryInfo
+     * @param array $replicaInfo
      *
      * @return array
      */
-    private function getDatabases(array $replicationTypes): array
+    private function getDatabases($primaryInfo, $replicaInfo): array
     {
-        global $replication_info;
-
         $databases = [];
         $totalStatistics = $this->getStatisticsColumns();
         foreach ($this->databases as $database) {
             $replication = [
-                'master' => [
-                    'status' => $replication_info['master']['status'],
-                ],
-                'slave' => [
-                    'status' => $replication_info['slave']['status'],
-                ],
+                'primary' => ['status' => $primaryInfo['status']],
+                'replica' => ['status' => $replicaInfo['status']],
             ];
-            foreach ($replicationTypes as $type) {
-                if ($replication_info[$type]['status']) {
-                    $key = array_search(
-                        $database["SCHEMA_NAME"],
-                        $replication_info[$type]['Ignore_DB']
-                    );
-                    if (strlen((string) $key) > 0) {
-                        $replication[$type]['is_replicated'] = false;
-                    } else {
-                        $key = array_search(
-                            $database["SCHEMA_NAME"],
-                            $replication_info[$type]['Do_DB']
-                        );
 
-                        if (strlen((string) $key) > 0
-                            || count($replication_info[$type]['Do_DB']) == 0
-                        ) {
-                            // if ($key != null) did not work for index "0"
-                            $replication[$type]['is_replicated'] = true;
-                        }
+            if ($primaryInfo['status']) {
+                $key = array_search($database['SCHEMA_NAME'], $primaryInfo['Ignore_DB']);
+                $replication['primary']['is_replicated'] = false;
+
+                if (strlen((string) $key) === 0) {
+                    $key = array_search($database['SCHEMA_NAME'], $primaryInfo['Do_DB']);
+
+                    if (strlen((string) $key) > 0 || count($primaryInfo['Do_DB']) === 0) {
+                        $replication['primary']['is_replicated'] = true;
+                    }
+                }
+            }
+
+            if ($replicaInfo['status']) {
+                $key = array_search($database['SCHEMA_NAME'], $replicaInfo['Ignore_DB']);
+                $replication['replica']['is_replicated'] = false;
+
+                if (strlen((string) $key) === 0) {
+                    $key = array_search($database['SCHEMA_NAME'], $replicaInfo['Do_DB']);
+
+                    if (strlen((string) $key) > 0 || count($replicaInfo['Do_DB']) === 0) {
+                        $replication['replica']['is_replicated'] = true;
                     }
                 }
             }
@@ -326,25 +258,37 @@ class DatabasesController extends AbstractController
             $statistics = $this->getStatisticsColumns();
             if ($this->hasStatistics) {
                 foreach (array_keys($statistics) as $key) {
-                    $statistics[$key]['raw'] = $database[$key] ?? null;
-                    $totalStatistics[$key]['raw'] += (int) $database[$key] ?? 0;
+                    $statistics[$key]['raw'] = (int) ($database[$key] ?? 0);
+                    $totalStatistics[$key]['raw'] += (int) ($database[$key] ?? 0);
                 }
             }
 
-            $databases[] = [
+            $url = Util::getScriptNameForOption($GLOBALS['cfg']['DefaultTabDatabase'], 'database');
+            $url .= Url::getCommonRaw(
+                ['db' => $database['SCHEMA_NAME']],
+                ! str_contains($url, '?') ? '?' : '&'
+            );
+            $databases[$database['SCHEMA_NAME']] = [
                 'name' => $database['SCHEMA_NAME'],
-                'collation' => [
-                    'name' => $database['DEFAULT_COLLATION_NAME'],
-                    'description' => Charsets::getCollationDescr(
-                        $database['DEFAULT_COLLATION_NAME']
-                    ),
-                ],
+                'collation' => [],
                 'statistics' => $statistics,
                 'replication' => $replication,
-                'is_system_schema' => $this->dbi->isSystemSchema(
-                    $database['SCHEMA_NAME'],
-                    true
-                ),
+                'is_system_schema' => Utilities::isSystemSchema($database['SCHEMA_NAME'], true),
+                'is_pmadb' => $database['SCHEMA_NAME'] === ($GLOBALS['cfg']['Server']['pmadb'] ?? ''),
+                'url' => $url,
+            ];
+            $collation = Charsets::findCollationByName(
+                $this->dbi,
+                $GLOBALS['cfg']['Server']['DisableIS'],
+                $database['DEFAULT_COLLATION_NAME']
+            );
+            if ($collation === null) {
+                continue;
+            }
+
+            $databases[$database['SCHEMA_NAME']]['collation'] = [
+                'name' => $collation->getName(),
+                'description' => $collation->getDescription(),
             ];
         }
 

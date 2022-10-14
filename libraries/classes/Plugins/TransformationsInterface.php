@@ -1,10 +1,8 @@
 <?php
-/* vim: set expandtab sw=4 ts=4 sts=4: */
 /**
  * Interface for the transformations plugins
- *
- * @package PhpMyAdmin
  */
+
 declare(strict_types=1);
 
 namespace PhpMyAdmin\Plugins;
@@ -12,36 +10,26 @@ namespace PhpMyAdmin\Plugins;
 /**
  * Provides a common interface that will have to be implemented by all of the
  * transformations plugins.
- *
- * @package PhpMyAdmin
  */
 interface TransformationsInterface
 {
     /**
      * Gets the transformation description
-     *
-     * @return string
      */
-    public static function getInfo();
+    public static function getInfo(): string;
 
     /**
      * Gets the specific MIME type
-     *
-     * @return string
      */
-    public static function getMIMEType();
+    public static function getMIMEType(): string;
 
     /**
      * Gets the specific MIME subtype
-     *
-     * @return string
      */
-    public static function getMIMESubtype();
+    public static function getMIMESubtype(): string;
 
     /**
      * Gets the transformation name of the specific plugin
-     *
-     * @return string
      */
-    public static function getName();
+    public static function getName(): string;
 }

@@ -1,50 +1,44 @@
 <?php
-/* vim: set expandtab sw=4 ts=4 sts=4: */
-/**
- * Tests for PhpMyAdmin\Navigation\Nodes\NodeColumn class
- *
- * @package PhpMyAdmin-test
- */
+
 declare(strict_types=1);
 
 namespace PhpMyAdmin\Tests\Navigation\Nodes;
 
 use PhpMyAdmin\Navigation\NodeFactory;
-use PhpMyAdmin\Tests\PmaTestCase;
-use PhpMyAdmin\Theme;
+use PhpMyAdmin\Tests\AbstractTestCase;
 
 /**
- * Tests for PhpMyAdmin\Navigation\Nodes\NodeColumn class
- *
- * @package PhpMyAdmin-test
+ * @covers \PhpMyAdmin\Navigation\Nodes\NodeColumn
  */
-class NodeColumnTest extends PmaTestCase
+class NodeColumnTest extends AbstractTestCase
 {
     /**
      * SetUp for test cases
-     *
-     * @return void
      */
     protected function setUp(): void
     {
+        parent::setUp();
+        $GLOBALS['dbi'] = $this->createDatabaseInterface();
         $GLOBALS['server'] = 0;
     }
 
-    /**
-     * Test for PhpMyAdmin\Navigation\NodeFactory::getInstance
-     *
-     * @return void
-     */
-    public function testConstructor()
+    public function testConstructor(): void
     {
-        $parent = NodeFactory::getInstance('NodeColumn');
-        $this->assertArrayHasKey(
-            'text',
+        $parent = NodeFactory::getInstance('NodeColumn', ['name' => 'name', 'key' => 'key']);
+        $this->assertIsArray($parent->links);
+        $this->assertEquals(
+            [
+                'text' => [
+                    'route' => '/table/structure/change',
+                    'params' => ['change_column' => 1, 'db' => null, 'table' => null, 'field' => null],
+                ],
+                'icon' => [
+                    'route' => '/table/structure/change',
+                    'params' => ['change_column' => 1, 'db' => null, 'table' => null, 'field' => null],
+                ],
+                'title' => 'Structure',
+            ],
             $parent->links
-        );
-        $this->assertStringContainsString(
-            'tbl_structure.php',
-            $parent->links['text']
         );
     }
 }

@@ -1,20 +1,16 @@
 <?php
-/* vim: set expandtab sw=4 ts=4 sts=4: */
 /**
  * User preferences form
- *
- * @package PhpMyAdmin
  */
+
 declare(strict_types=1);
 
 namespace PhpMyAdmin\Config\Forms\Setup;
 
 use PhpMyAdmin\Config\Forms\BaseForm;
 
-/**
- * Class ServersForm
- * @package PhpMyAdmin\Config\Forms\Setup
- */
+use function __;
+
 class ServersForm extends BaseForm
 {
     /**
@@ -95,7 +91,7 @@ class ServersForm extends BaseForm
                         'central_columns' => 'pma__central_columns',
                         'designer_settings' => 'pma__designer_settings',
                         'export_templates' => 'pma__export_templates',
-                        'MaxTableUiprefs' => 100
+                        'MaxTableUiprefs' => 100,
                     ],
                 ],
             ],
@@ -111,6 +107,7 @@ class ServersForm extends BaseForm
                 ],
             ],
         ];
+
         // phpcs:enable
     }
 }

@@ -1,74 +1,75 @@
 <?php
-/* vim: set expandtab sw=4 ts=4 sts=4: */
-/**
- * tests for PhpMyAdmin\Plugins\Export\ExportJson class
- *
- * @package PhpMyAdmin-test
- */
+
 declare(strict_types=1);
 
 namespace PhpMyAdmin\Tests\Plugins\Export;
 
+use PhpMyAdmin\ConfigStorage\Relation;
+use PhpMyAdmin\Export;
 use PhpMyAdmin\Plugins\Export\ExportJson;
-use PhpMyAdmin\Tests\PmaTestCase;
+use PhpMyAdmin\Properties\Options\Groups\OptionsPropertyMainGroup;
+use PhpMyAdmin\Properties\Options\Groups\OptionsPropertyRootGroup;
+use PhpMyAdmin\Properties\Options\Items\HiddenPropertyItem;
+use PhpMyAdmin\Properties\Plugins\ExportPluginProperties;
+use PhpMyAdmin\Tests\AbstractTestCase;
+use PhpMyAdmin\Transformations;
+use PhpMyAdmin\Version;
 use ReflectionMethod;
 use ReflectionProperty;
 
+use function array_shift;
+
+use const PHP_EOL;
+
 /**
- * tests for PhpMyAdmin\Plugins\Export\ExportJson class
- *
- * @package PhpMyAdmin-test
+ * @covers \PhpMyAdmin\Plugins\Export\ExportJson
  * @group medium
  */
-class ExportJsonTest extends PmaTestCase
+class ExportJsonTest extends AbstractTestCase
 {
+    /** @var ExportJson */
     protected $object;
 
     /**
      * Configures global environment.
-     *
-     * @return void
      */
     protected function setUp(): void
     {
+        parent::setUp();
+        $GLOBALS['dbi'] = $this->createDatabaseInterface();
         $GLOBALS['server'] = 0;
         $GLOBALS['output_kanji_conversion'] = false;
         $GLOBALS['output_charset_conversion'] = false;
         $GLOBALS['buffer_needed'] = false;
         $GLOBALS['asfile'] = true;
         $GLOBALS['save_on_server'] = false;
-        $this->object = new ExportJson();
+        $this->object = new ExportJson(
+            new Relation($GLOBALS['dbi']),
+            new Export($GLOBALS['dbi']),
+            new Transformations()
+        );
     }
 
     /**
      * tearDown for test cases
-     *
-     * @return void
      */
     protected function tearDown(): void
     {
+        parent::tearDown();
         unset($this->object);
     }
 
-    /**
-     * Test for PhpMyAdmin\Plugins\Export\ExportJson::setProperties
-     *
-     * @return void
-     */
-    public function testSetProperties()
+    public function testSetProperties(): void
     {
-        $method = new ReflectionMethod('PhpMyAdmin\Plugins\Export\ExportJson', 'setProperties');
+        $method = new ReflectionMethod(ExportJson::class, 'setProperties');
         $method->setAccessible(true);
         $method->invoke($this->object, null);
 
-        $attrProperties = new ReflectionProperty('PhpMyAdmin\Plugins\Export\ExportJson', 'properties');
+        $attrProperties = new ReflectionProperty(ExportJson::class, 'properties');
         $attrProperties->setAccessible(true);
         $properties = $attrProperties->getValue($this->object);
 
-        $this->assertInstanceOf(
-            'PhpMyAdmin\Properties\Plugins\ExportPluginProperties',
-            $properties
-        );
+        $this->assertInstanceOf(ExportPluginProperties::class, $properties);
 
         $this->assertEquals(
             'JSON',
@@ -92,10 +93,7 @@ class ExportJsonTest extends PmaTestCase
 
         $options = $properties->getOptions();
 
-        $this->assertInstanceOf(
-            'PhpMyAdmin\Properties\Options\Groups\OptionsPropertyRootGroup',
-            $options
-        );
+        $this->assertInstanceOf(OptionsPropertyRootGroup::class, $options);
 
         $this->assertEquals(
             'Format Specific Options',
@@ -105,10 +103,7 @@ class ExportJsonTest extends PmaTestCase
         $generalOptionsArray = $options->getProperties();
         $generalOptions = $generalOptionsArray[0];
 
-        $this->assertInstanceOf(
-            'PhpMyAdmin\Properties\Options\Groups\OptionsPropertyMainGroup',
-            $generalOptions
-        );
+        $this->assertInstanceOf(OptionsPropertyMainGroup::class, $generalOptions);
 
         $this->assertEquals(
             'general_opts',
@@ -119,10 +114,7 @@ class ExportJsonTest extends PmaTestCase
 
         $property = array_shift($generalProperties);
 
-        $this->assertInstanceOf(
-            'PhpMyAdmin\Properties\Options\Items\HiddenPropertyItem',
-            $property
-        );
+        $this->assertInstanceOf(HiddenPropertyItem::class, $property);
 
         $this->assertEquals(
             'structure_or_data',
@@ -130,18 +122,11 @@ class ExportJsonTest extends PmaTestCase
         );
     }
 
-    /**
-     * Test for PhpMyAdmin\Plugins\Export\ExportJson::exportHeader
-     *
-     * @return void
-     */
-    public function testExportHeader()
+    public function testExportHeader(): void
     {
-        $GLOBALS['crlf'] = "\n";
-
         $this->expectOutputString(
             "[\n"
-            . '{"type":"header","version":"' . PMA_VERSION
+            . '{"type":"header","version":"' . Version::VERSION
             . '","comment":"Export to JSON plugin for PHPMyAdmin"},'
             . "\n"
         );
@@ -151,113 +136,100 @@ class ExportJsonTest extends PmaTestCase
         );
     }
 
-    /**
-     * Test for PhpMyAdmin\Plugins\Export\ExportJson::exportFooter
-     *
-     * @return void
-     */
-    public function testExportFooter()
+    public function testExportFooter(): void
     {
-        $this->expectOutputString(
-            ']'
-        );
+        $this->expectOutputString(']' . PHP_EOL);
 
         $this->assertTrue(
             $this->object->exportFooter()
         );
     }
 
-    /**
-     * Test for PhpMyAdmin\Plugins\Export\ExportJson::exportDBHeader
-     *
-     * @return void
-     */
-    public function testExportDBHeader()
+    public function testExportDBHeader(): void
     {
-        $GLOBALS['crlf'] = "\n";
-
-        $this->expectOutputString(
-            '{"type":"database","name":"testDB"},' . "\n"
-        );
+        $this->expectOutputString('{"type":"database","name":"testDB"},' . "\n");
 
         $this->assertTrue(
             $this->object->exportDBHeader('testDB')
         );
     }
 
-    /**
-     * Test for PhpMyAdmin\Plugins\Export\ExportJson::exportDBFooter
-     *
-     * @return void
-     */
-    public function testExportDBFooter()
+    public function testExportDBFooter(): void
     {
         $this->assertTrue(
             $this->object->exportDBFooter('testDB')
         );
     }
 
-    /**
-     * Test for PhpMyAdmin\Plugins\Export\ExportJson::exportDBCreate
-     *
-     * @return void
-     */
-    public function testExportDBCreate()
+    public function testExportDBCreate(): void
     {
         $this->assertTrue(
             $this->object->exportDBCreate('testDB', 'database')
         );
     }
 
-    /**
-     * Test for PhpMyAdmin\Plugins\Export\ExportJson::exportData
-     *
-     * @return void
-     */
-    public function testExportData()
+    public function testExportData(): void
     {
-        $dbi = $this->getMockBuilder('PhpMyAdmin\DatabaseInterface')
-            ->disableOriginalConstructor()
-            ->getMock();
-
-        $dbi->expects($this->once())
-            ->method('numFields')
-            ->with(null)
-            ->will($this->returnValue(1));
-
-        $dbi->expects($this->at(2))
-            ->method('fieldName')
-            ->with(null, 0)
-            ->will($this->returnValue('f1'));
-
-        $dbi->expects($this->at(3))
-            ->method('fetchRow')
-            ->with(null)
-            ->will($this->returnValue(['foo']));
-
-        $dbi->expects($this->at(4))
-            ->method('fetchRow')
-            ->with(null)
-            ->will($this->returnValue(['bar']));
-
-        $dbi->expects($this->at(5))
-            ->method('fetchRow')
-            ->with(null)
-            ->will($this->returnValue(null));
-
-        $GLOBALS['dbi'] = $dbi;
-
         $this->expectOutputString(
-            '{"type":"table","name":"tbl","database":"db","data":'
+            '{"type":"table","name":"test_table","database":"test_db","data":' . "\n"
+            . '[' . "\n"
+            . '{"id":"1","name":"abcd","datetimefield":"2011-01-20 02:00:02"},' . "\n"
+            . '{"id":"2","name":"foo","datetimefield":"2010-01-20 02:00:02"},' . "\n"
+            . '{"id":"3","name":"Abcd","datetimefield":"2012-01-20 02:00:02"}' . "\n"
+            . ']' . "\n"
+            . '}' . "\n"
+        );
+
+        $this->assertTrue($this->object->exportData(
+            'test_db',
+            'test_table',
+            'localhost',
+            'SELECT * FROM `test_db`.`test_table`;'
+        ));
+    }
+
+    public function testExportComplexData(): void
+    {
+        // normalString binaryField textField blobField
+        $this->expectOutputString(
+            '{"type":"table","name":"test_table_complex","database":"test_db","data":'
             . "\n[\n"
-            . '{"f1":"foo"},'
-            . "\n"
-            . '{"f1":"bar"}'
-            . "\n]\n}\n"
+            . '{"f1":"\"\'\"><iframe onload=alert(1)>\u0448\u0435\u043b\u043b\u044b",'
+                . '"f2":"0x3078313233343638353766656665",'
+                . '"f3":"My awesome\nText","f4":"0x307861663132333466363863353766656665"},' . "\n"
+            . '{"f1":null,"f2":null,"f3":null,"f4":null},' . "\n"
+            . '{"f1":"","f2":"0x307831","f3":"\u0448\u0435\u043b\u043b\u044b","f4":"0x307832"}' . "\n"
+            . "]\n}\n"
         );
 
         $this->assertTrue(
-            $this->object->exportData('db', 'tbl', "\n", "example.com", "SELECT")
+            $this->object->exportData(
+                'test_db',
+                'test_table_complex',
+                'example.com',
+                'SELECT * FROM `test_db`.`test_table_complex`;'
+            )
+        );
+    }
+
+    public function testExportRawComplexData(): void
+    {
+        $this->expectOutputString(
+            '{"type":"raw","data":'
+            . "\n[\n"
+            . '{"f1":"\"\'\"><iframe onload=alert(1)>\u0448\u0435\u043b\u043b\u044b",'
+                . '"f2":"0x3078313233343638353766656665",'
+                . '"f3":"My awesome\nText","f4":"0x307861663132333466363863353766656665"},' . "\n"
+            . '{"f1":null,"f2":null,"f3":null,"f4":null},' . "\n"
+            . '{"f1":"","f2":"0x307831","f3":"\u0448\u0435\u043b\u043b\u044b","f4":"0x307832"}' . "\n"
+            . "]\n}\n"
+        );
+
+        $this->assertTrue(
+            $this->object->exportRawQuery(
+                'example.com',
+                'SELECT * FROM `test_db`.`test_table_complex`;'
+            )
         );
     }
 }

@@ -1,33 +1,37 @@
 <?php
-/* vim: set expandtab sw=4 ts=4 sts=4: */
 /**
  * Abstract class for the date format transformations plugins
- *
- * @package    PhpMyAdmin-Transformations
- * @subpackage DateFormat
  */
+
 declare(strict_types=1);
 
 namespace PhpMyAdmin\Plugins\Transformations\Abs;
 
+use PhpMyAdmin\FieldMetadata;
 use PhpMyAdmin\Plugins\TransformationsPlugin;
 use PhpMyAdmin\Sanitize;
 use PhpMyAdmin\Util;
-use stdClass;
+
+use function __;
+use function checkdate;
+use function gmdate;
+use function htmlspecialchars;
+use function mb_strlen;
+use function mb_strtolower;
+use function mb_substr;
+use function mktime;
+use function preg_match;
+use function strtotime;
 
 /**
  * Provides common methods for all of the date format transformations plugins.
- *
- * @package PhpMyAdmin
  */
 abstract class DateFormatTransformationsPlugin extends TransformationsPlugin
 {
     /**
      * Gets the transformation description of the specific plugin
-     *
-     * @return string
      */
-    public static function getInfo()
+    public static function getInfo(): string
     {
         return __(
             'Displays a TIME, TIMESTAMP, DATETIME or numeric unix timestamp'
@@ -45,13 +49,13 @@ abstract class DateFormatTransformationsPlugin extends TransformationsPlugin
     /**
      * Does the actual work of each specific transformations plugin.
      *
-     * @param string        $buffer  text to be transformed
-     * @param array         $options transformation options
-     * @param stdClass|null $meta    meta information
+     * @param string             $buffer  text to be transformed
+     * @param array              $options transformation options
+     * @param FieldMetadata|null $meta    meta information
      *
      * @return string
      */
-    public function applyTransformation($buffer, array $options = [], ?stdClass $meta = null)
+    public function applyTransformation($buffer, array $options = [], ?FieldMetadata $meta = null)
     {
         $buffer = (string) $buffer;
         // possibly use a global transform and feed it with special options
@@ -62,7 +66,7 @@ abstract class DateFormatTransformationsPlugin extends TransformationsPlugin
         $options[2] = mb_strtolower($options[2]);
 
         if (empty($options[1])) {
-            if ($options[2] == 'local') {
+            if ($options[2] === 'local') {
                 $options[1] = __('%B %d, %Y at %I:%M %p');
             } else {
                 $options[1] = 'Y-m-d  H:i:s';
@@ -74,7 +78,7 @@ abstract class DateFormatTransformationsPlugin extends TransformationsPlugin
         // INT columns will be treated as UNIX timestamps
         // and need to be detected before the verification for
         // MySQL TIMESTAMP
-        if ($meta->type == 'int') {
+        if ($meta !== null && $meta->isType(FieldMetadata::TYPE_INT)) {
             $timestamp = $buffer;
 
             // Detect TIMESTAMP(6 | 8 | 10 | 12 | 14)
@@ -107,6 +111,7 @@ abstract class DateFormatTransformationsPlugin extends TransformationsPlugin
                         $aDate['year']
                     );
                 }
+
                 // If all fails, assume one of the dozens of valid strtime() syntaxes
                 // (https://www.gnu.org/manual/tar-1.12/html_chapter/tar_7.html)
             } else {
@@ -127,16 +132,14 @@ abstract class DateFormatTransformationsPlugin extends TransformationsPlugin
         if ($timestamp >= 0) {
             $timestamp -= (int) $options[0] * 60 * 60;
             $source = $buffer;
-            if ($options[2] == 'local') {
-                $text = Util::localisedDate(
-                    $timestamp,
-                    $options[1]
-                );
-            } elseif ($options[2] == 'utc') {
+            if ($options[2] === 'local') {
+                $text = Util::localisedDate($timestamp, $options[1]);
+            } elseif ($options[2] === 'utc') {
                 $text = gmdate($options[1], $timestamp);
             } else {
                 $text = 'INVALID DATE TYPE';
             }
+
             return '<dfn onclick="alert(\'' . Sanitize::jsFormat($source, false) . '\');" title="'
                 . htmlspecialchars((string) $source) . '">' . htmlspecialchars((string) $text) . '</dfn>';
         }
@@ -148,11 +151,9 @@ abstract class DateFormatTransformationsPlugin extends TransformationsPlugin
 
     /**
      * Gets the transformation name of the specific plugin
-     *
-     * @return string
      */
-    public static function getName()
+    public static function getName(): string
     {
-        return "Date Format";
+        return 'Date Format';
     }
 }

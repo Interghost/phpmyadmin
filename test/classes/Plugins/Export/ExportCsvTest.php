@@ -1,70 +1,80 @@
 <?php
-/* vim: set expandtab sw=4 ts=4 sts=4: */
-/**
- * tests for PhpMyAdmin\Plugins\Export\ExportCsv class
- *
- * @package PhpMyAdmin-test
- */
+
 declare(strict_types=1);
 
 namespace PhpMyAdmin\Tests\Plugins\Export;
 
-use PhpMyAdmin\DatabaseInterface;
+use PhpMyAdmin\ConfigStorage\Relation;
+use PhpMyAdmin\Export;
 use PhpMyAdmin\Plugins\Export\ExportCsv;
-use PhpMyAdmin\Tests\PmaTestCase;
+use PhpMyAdmin\Properties\Options\Groups\OptionsPropertyMainGroup;
+use PhpMyAdmin\Properties\Options\Groups\OptionsPropertyRootGroup;
+use PhpMyAdmin\Properties\Options\Items\BoolPropertyItem;
+use PhpMyAdmin\Properties\Options\Items\HiddenPropertyItem;
+use PhpMyAdmin\Properties\Options\Items\TextPropertyItem;
+use PhpMyAdmin\Properties\Plugins\ExportPluginProperties;
+use PhpMyAdmin\Tests\AbstractTestCase;
+use PhpMyAdmin\Transformations;
 use ReflectionMethod;
 use ReflectionProperty;
 
+use function array_shift;
+use function ob_get_clean;
+use function ob_start;
+
 /**
- * tests for PhpMyAdmin\Plugins\Export\ExportCsv class
- *
- * @package PhpMyAdmin-test
+ * @covers \PhpMyAdmin\Plugins\Export\ExportCsv
  * @group medium
  */
-class ExportCsvTest extends PmaTestCase
+class ExportCsvTest extends AbstractTestCase
 {
+    /** @var ExportCsv */
     protected $object;
 
     /**
      * Configures global environment.
-     *
-     * @return void
      */
     protected function setUp(): void
     {
+        parent::setUp();
+        $GLOBALS['dbi'] = $this->createDatabaseInterface();
         $GLOBALS['server'] = 0;
-        $this->object = new ExportCsv();
+        $GLOBALS['db'] = '';
+        $GLOBALS['table'] = '';
+        $GLOBALS['lang'] = '';
+        $GLOBALS['text_dir'] = '';
+        $GLOBALS['PMA_PHP_SELF'] = '';
+        $GLOBALS['csv_enclosed'] = null;
+        $GLOBALS['csv_separator'] = null;
+        $GLOBALS['save_filename'] = null;
+
+        $this->object = new ExportCsv(
+            new Relation($GLOBALS['dbi']),
+            new Export($GLOBALS['dbi']),
+            new Transformations()
+        );
     }
 
     /**
      * tearDown for test cases
-     *
-     * @return void
      */
     protected function tearDown(): void
     {
+        parent::tearDown();
         unset($this->object);
     }
 
-    /**
-     * Test for PhpMyAdmin\Plugins\Export\ExportCsv::setProperties
-     *
-     * @return void
-     */
-    public function testSetProperties()
+    public function testSetProperties(): void
     {
-        $method = new ReflectionMethod('PhpMyAdmin\Plugins\Export\ExportCsv', 'setProperties');
+        $method = new ReflectionMethod(ExportCsv::class, 'setProperties');
         $method->setAccessible(true);
         $method->invoke($this->object, null);
 
-        $attrProperties = new ReflectionProperty('PhpMyAdmin\Plugins\Export\ExportCsv', 'properties');
+        $attrProperties = new ReflectionProperty(ExportCsv::class, 'properties');
         $attrProperties->setAccessible(true);
         $properties = $attrProperties->getValue($this->object);
 
-        $this->assertInstanceOf(
-            'PhpMyAdmin\Properties\Plugins\ExportPluginProperties',
-            $properties
-        );
+        $this->assertInstanceOf(ExportPluginProperties::class, $properties);
 
         $this->assertEquals(
             'CSV',
@@ -88,10 +98,7 @@ class ExportCsvTest extends PmaTestCase
 
         $options = $properties->getOptions();
 
-        $this->assertInstanceOf(
-            'PhpMyAdmin\Properties\Options\Groups\OptionsPropertyRootGroup',
-            $options
-        );
+        $this->assertInstanceOf(OptionsPropertyRootGroup::class, $options);
 
         $this->assertEquals(
             'Format Specific Options',
@@ -101,10 +108,7 @@ class ExportCsvTest extends PmaTestCase
         $generalOptionsArray = $options->getProperties();
         $generalOptions = $generalOptionsArray[0];
 
-        $this->assertInstanceOf(
-            'PhpMyAdmin\Properties\Options\Groups\OptionsPropertyMainGroup',
-            $generalOptions
-        );
+        $this->assertInstanceOf(OptionsPropertyMainGroup::class, $generalOptions);
 
         $this->assertEquals(
             'general_opts',
@@ -115,10 +119,7 @@ class ExportCsvTest extends PmaTestCase
 
         $property = array_shift($generalProperties);
 
-        $this->assertInstanceOf(
-            'PhpMyAdmin\Properties\Options\Items\TextPropertyItem',
-            $property
-        );
+        $this->assertInstanceOf(TextPropertyItem::class, $property);
 
         $this->assertEquals(
             'separator',
@@ -132,10 +133,7 @@ class ExportCsvTest extends PmaTestCase
 
         $property = array_shift($generalProperties);
 
-        $this->assertInstanceOf(
-            'PhpMyAdmin\Properties\Options\Items\TextPropertyItem',
-            $property
-        );
+        $this->assertInstanceOf(TextPropertyItem::class, $property);
 
         $this->assertEquals(
             'enclosed',
@@ -149,10 +147,7 @@ class ExportCsvTest extends PmaTestCase
 
         $property = array_shift($generalProperties);
 
-        $this->assertInstanceOf(
-            'PhpMyAdmin\Properties\Options\Items\TextPropertyItem',
-            $property
-        );
+        $this->assertInstanceOf(TextPropertyItem::class, $property);
 
         $this->assertEquals(
             'escaped',
@@ -166,10 +161,7 @@ class ExportCsvTest extends PmaTestCase
 
         $property = array_shift($generalProperties);
 
-        $this->assertInstanceOf(
-            'PhpMyAdmin\Properties\Options\Items\TextPropertyItem',
-            $property
-        );
+        $this->assertInstanceOf(TextPropertyItem::class, $property);
 
         $this->assertEquals(
             'terminated',
@@ -183,10 +175,7 @@ class ExportCsvTest extends PmaTestCase
 
         $property = array_shift($generalProperties);
 
-        $this->assertInstanceOf(
-            'PhpMyAdmin\Properties\Options\Items\TextPropertyItem',
-            $property
-        );
+        $this->assertInstanceOf(TextPropertyItem::class, $property);
 
         $this->assertEquals(
             'null',
@@ -200,10 +189,7 @@ class ExportCsvTest extends PmaTestCase
 
         $property = array_shift($generalProperties);
 
-        $this->assertInstanceOf(
-            'PhpMyAdmin\Properties\Options\Items\BoolPropertyItem',
-            $property
-        );
+        $this->assertInstanceOf(BoolPropertyItem::class, $property);
 
         $this->assertEquals(
             'removeCRLF',
@@ -217,10 +203,7 @@ class ExportCsvTest extends PmaTestCase
 
         $property = array_shift($generalProperties);
 
-        $this->assertInstanceOf(
-            'PhpMyAdmin\Properties\Options\Items\BoolPropertyItem',
-            $property
-        );
+        $this->assertInstanceOf(BoolPropertyItem::class, $property);
 
         $this->assertEquals(
             'columns',
@@ -234,10 +217,7 @@ class ExportCsvTest extends PmaTestCase
 
         $property = array_shift($generalProperties);
 
-        $this->assertInstanceOf(
-            'PhpMyAdmin\Properties\Options\Items\HiddenPropertyItem',
-            $property
-        );
+        $this->assertInstanceOf(HiddenPropertyItem::class, $property);
 
         $this->assertEquals(
             'structure_or_data',
@@ -245,12 +225,7 @@ class ExportCsvTest extends PmaTestCase
         );
     }
 
-    /**
-     * Test for PhpMyAdmin\Plugins\Export\ExportCsv::exportHeader
-     *
-     * @return void
-     */
-    public function testExportHeader()
+    public function testExportHeader(): void
     {
         // case 1
 
@@ -262,30 +237,15 @@ class ExportCsvTest extends PmaTestCase
             $this->object->exportHeader()
         );
 
-        $this->assertEquals(
-            "\015\012",
-            $GLOBALS['csv_terminated']
-        );
+        $this->assertEquals("\015\012", $GLOBALS['csv_terminated']);
 
-        $this->assertEquals(
-            ";",
-            $GLOBALS['csv_separator']
-        );
+        $this->assertEquals(';', $GLOBALS['csv_separator']);
 
-        $this->assertEquals(
-            '"',
-            $GLOBALS['csv_enclosed']
-        );
+        $this->assertEquals('"', $GLOBALS['csv_enclosed']);
 
-        $this->assertEquals(
-            '"',
-            $GLOBALS['csv_escaped']
-        );
+        $this->assertEquals('"', $GLOBALS['csv_escaped']);
 
-        $this->assertEquals(
-            'yes',
-            $GLOBALS['csv_columns']
-        );
+        $this->assertEquals('yes', $GLOBALS['csv_columns']);
 
         // case 2
 
@@ -297,30 +257,15 @@ class ExportCsvTest extends PmaTestCase
             $this->object->exportHeader()
         );
 
-        $this->assertEquals(
-            "\015\012",
-            $GLOBALS['csv_terminated']
-        );
+        $this->assertEquals("\015\012", $GLOBALS['csv_terminated']);
 
-        $this->assertEquals(
-            ";",
-            $GLOBALS['csv_separator']
-        );
+        $this->assertEquals(';', $GLOBALS['csv_separator']);
 
-        $this->assertEquals(
-            '"',
-            $GLOBALS['csv_enclosed']
-        );
+        $this->assertEquals('"', $GLOBALS['csv_enclosed']);
 
-        $this->assertEquals(
-            '"',
-            $GLOBALS['csv_escaped']
-        );
+        $this->assertEquals('"', $GLOBALS['csv_escaped']);
 
-        $this->assertEquals(
-            'no',
-            $GLOBALS['csv_columns']
-        );
+        $this->assertEquals('no', $GLOBALS['csv_columns']);
 
         // case 3
 
@@ -330,30 +275,15 @@ class ExportCsvTest extends PmaTestCase
             $this->object->exportHeader()
         );
 
-        $this->assertEquals(
-            "\015\012",
-            $GLOBALS['csv_terminated']
-        );
+        $this->assertEquals("\015\012", $GLOBALS['csv_terminated']);
 
-        $this->assertEquals(
-            ",",
-            $GLOBALS['csv_separator']
-        );
+        $this->assertEquals(',', $GLOBALS['csv_separator']);
 
-        $this->assertEquals(
-            '"',
-            $GLOBALS['csv_enclosed']
-        );
+        $this->assertEquals('"', $GLOBALS['csv_enclosed']);
 
-        $this->assertEquals(
-            '"',
-            $GLOBALS['csv_escaped']
-        );
+        $this->assertEquals('"', $GLOBALS['csv_escaped']);
 
-        $this->assertEquals(
-            'no',
-            $GLOBALS['csv_columns']
-        );
+        $this->assertEquals('no', $GLOBALS['csv_columns']);
 
         // case 4
 
@@ -364,15 +294,11 @@ class ExportCsvTest extends PmaTestCase
             $this->object->exportHeader()
         );
 
-        $this->assertEquals(
-            '#',
-            $GLOBALS['csv_separator']
-        );
+        $this->assertEquals('#', $GLOBALS['csv_separator']);
 
         // case 5
 
         $GLOBALS['what'] = 'notExcel';
-        $GLOBALS['crlf'] = "\n";
         $GLOBALS['csv_terminated'] = '';
         $GLOBALS['csv_separator'] = 'a\\t';
 
@@ -380,15 +306,9 @@ class ExportCsvTest extends PmaTestCase
             $this->object->exportHeader()
         );
 
-        $this->assertEquals(
-            $GLOBALS['csv_terminated'],
-            "\n"
-        );
+        $this->assertEquals($GLOBALS['csv_terminated'], "\n");
 
-        $this->assertEquals(
-            $GLOBALS['csv_separator'],
-            "a\011"
-        );
+        $this->assertEquals($GLOBALS['csv_separator'], "a\011");
         // case 6
 
         $GLOBALS['csv_terminated'] = 'AUTO';
@@ -397,10 +317,7 @@ class ExportCsvTest extends PmaTestCase
             $this->object->exportHeader()
         );
 
-        $this->assertEquals(
-            $GLOBALS['csv_terminated'],
-            "\n"
-        );
+        $this->assertEquals($GLOBALS['csv_terminated'], "\n");
 
         // case 7
 
@@ -411,78 +328,42 @@ class ExportCsvTest extends PmaTestCase
             $this->object->exportHeader()
         );
 
-        $this->assertEquals(
-            $GLOBALS['csv_terminated'],
-            "a\015b\012c\011"
-        );
+        $this->assertEquals($GLOBALS['csv_terminated'], "a\015b\012c\011");
 
-        $this->assertEquals(
-            $GLOBALS['csv_separator'],
-            "a\011"
-        );
+        $this->assertEquals($GLOBALS['csv_separator'], "a\011");
     }
 
-    /**
-     * Test for PhpMyAdmin\Plugins\Export\ExportCsv::exportFooter
-     *
-     * @return void
-     */
-    public function testExportFooter()
+    public function testExportFooter(): void
     {
         $this->assertTrue(
             $this->object->exportFooter()
         );
     }
 
-    /**
-     * Test for PhpMyAdmin\Plugins\Export\ExportCsv::exportDBHeader
-     *
-     * @return void
-     */
-    public function testExportDBHeader()
+    public function testExportDBHeader(): void
     {
         $this->assertTrue(
             $this->object->exportDBHeader('testDB')
         );
     }
 
-    /**
-     * Test for PhpMyAdmin\Plugins\Export\ExportCsv::exportDBFooter
-     *
-     * @return void
-     */
-    public function testExportDBFooter()
+    public function testExportDBFooter(): void
     {
         $this->assertTrue(
             $this->object->exportDBFooter('testDB')
         );
     }
 
-    /**
-     * Test for PhpMyAdmin\Plugins\Export\ExportCsv::exportDBCreate
-     *
-     * @return void
-     */
-    public function testExportDBCreate()
+    public function testExportDBCreate(): void
     {
         $this->assertTrue(
             $this->object->exportDBCreate('testDB', 'database')
         );
     }
 
-    /**
-     * Test for PhpMyAdmin\Plugins\Export\ExportCsv::exportData
-     *
-     * @return void
-     */
-    public function testExportData()
+    public function testExportData(): void
     {
         // case 1
-        $dbi = $this->getMockBuilder('PhpMyAdmin\DatabaseInterface')
-            ->disableOriginalConstructor()
-            ->getMock();
-        $GLOBALS['dbi'] = $dbi;
-
         $GLOBALS['csv_columns'] = 'yes';
         $GLOBALS['csv_terminated'] = ';';
 
@@ -494,48 +375,15 @@ class ExportCsvTest extends PmaTestCase
         $GLOBALS['file_handle'] = null;
 
         ob_start();
-        $this->assertFalse(
-            $this->object->exportData(
-                'testDB',
-                'testTable',
-                "\n",
-                'example.com',
-                'test'
-            )
-        );
-        $result = ob_get_clean();
+        $this->assertFalse($this->object->exportData(
+            'test_db',
+            'test_table',
+            'localhost',
+            'SELECT * FROM `test_db`.`test_table`;'
+        ));
+        ob_get_clean();
 
         // case 2
-        $dbi = $this->getMockBuilder('PhpMyAdmin\DatabaseInterface')
-            ->disableOriginalConstructor()
-            ->getMock();
-
-        $dbi->expects($this->once())
-            ->method('query')
-            ->with('test', DatabaseInterface::CONNECT_USER, DatabaseInterface::QUERY_UNBUFFERED)
-            ->will($this->returnValue(true));
-
-        $dbi->expects($this->once())
-            ->method('numFields')
-            ->with(true)
-            ->will($this->returnValue(1));
-
-        $dbi->expects($this->once())
-            ->method('fieldName')
-            ->with(true, 0)
-            ->will($this->returnValue("foo'\\bar"));
-
-        $dbi->expects($this->at(3))
-            ->method('fetchRow')
-            ->with(true)
-            ->will($this->returnValue([null, 'b', 'c', false, 'e', 'f']));
-
-        $dbi->expects($this->at(4))
-            ->method('fetchRow')
-            ->with(true)
-            ->will($this->returnValue(null));
-        $GLOBALS['dbi'] = $dbi;
-
         $GLOBALS['what'] = 'UT';
         $GLOBALS['UT_null'] = 'customNull';
         $GLOBALS['output_kanji_conversion'] = false;
@@ -543,233 +391,100 @@ class ExportCsvTest extends PmaTestCase
         $GLOBALS['buffer_needed'] = false;
         $GLOBALS['asfile'] = true;
         $GLOBALS['save_on_server'] = false;
+        $GLOBALS['csv_enclosed'] = '';
+        $GLOBALS['csv_separator'] = '';
 
         ob_start();
-        $this->assertTrue(
-            $this->object->exportData(
-                'testDB',
-                'testTable',
-                "\n",
-                'example.com',
-                'test'
-            )
-        );
+        $this->assertTrue($this->object->exportData(
+            'test_db',
+            'test_table',
+            'localhost',
+            'SELECT * FROM `test_db`.`test_table`;'
+        ));
         $result = ob_get_clean();
 
         $this->assertEquals(
-            "foo'ba;customNull;",
+            'idnamedatetimefiel;1abcd2011-01-20 02:00:02;2foo2010-01-20 02:00:02;3Abcd2012-01-20 02:00:02;',
             $result
         );
 
         // case 3
-
-        $dbi = $this->getMockBuilder('PhpMyAdmin\DatabaseInterface')
-            ->disableOriginalConstructor()
-            ->getMock();
-
-        $dbi->expects($this->once())
-            ->method('query')
-            ->with('test', DatabaseInterface::CONNECT_USER, DatabaseInterface::QUERY_UNBUFFERED)
-            ->will($this->returnValue(true));
-
-        $dbi->expects($this->once())
-            ->method('numFields')
-            ->with(true)
-            ->will($this->returnValue(1));
-
-        $dbi->expects($this->once())
-            ->method('fieldName')
-            ->with(true, 0)
-            ->will($this->returnValue("foo\"\\bar"));
-
-        $dbi->expects($this->at(3))
-            ->method('fetchRow')
-            ->with(true)
-            ->will($this->returnValue([1 => 'a']));
-
-        $dbi->expects($this->at(4))
-            ->method('fetchRow')
-            ->with(true)
-            ->will($this->returnValue(null));
-        $GLOBALS['dbi'] = $dbi;
-
         $GLOBALS['csv_enclosed'] = '"';
+        $GLOBALS['csv_escaped'] = '';
 
         ob_start();
-        $this->assertTrue(
-            $this->object->exportData(
-                'testDB',
-                'testTable',
-                "\n",
-                'example.com',
-                'test'
-            )
-        );
+        $this->assertTrue($this->object->exportData(
+            'test_db',
+            'test_table',
+            'localhost',
+            'SELECT * FROM `test_db`.`test_table`;'
+        ));
         $result = ob_get_clean();
 
         $this->assertEquals(
-            "\"foo\"bar;customNull;",
+            '"id""name""datetimefield;"1""abcd""2011-01-20 02:00:02";'
+            . '"2""foo""2010-01-20 02:00:02";"3""Abcd""2012-01-20 02:00:02";',
             $result
         );
 
         // case 4
-
-        $dbi = $this->getMockBuilder('PhpMyAdmin\DatabaseInterface')
-            ->disableOriginalConstructor()
-            ->getMock();
-
-        $dbi->expects($this->once())
-            ->method('query')
-            ->with('test', DatabaseInterface::CONNECT_USER, DatabaseInterface::QUERY_UNBUFFERED)
-            ->will($this->returnValue(true));
-
-        $dbi->expects($this->once())
-            ->method('numFields')
-            ->with(true)
-            ->will($this->returnValue(1));
-
-        $dbi->expects($this->once())
-            ->method('fieldName')
-            ->with(true, 0)
-            ->will($this->returnValue("foo\"\\bar"));
-
-        $dbi->expects($this->at(3))
-            ->method('fetchRow')
-            ->with(true)
-            ->will($this->returnValue(["test\015\012\n"]));
-
-        $dbi->expects($this->at(4))
-            ->method('fetchRow')
-            ->with(true)
-            ->will($this->returnValue(null));
-        $GLOBALS['dbi'] = $dbi;
-
         $GLOBALS['csv_enclosed'] = '"';
         $GLOBALS['what'] = 'excel';
         $GLOBALS['excel_removeCRLF'] = true;
         $GLOBALS['csv_escaped'] = '"';
 
         ob_start();
-        $this->assertTrue(
-            $this->object->exportData(
-                'testDB',
-                'testTable',
-                "\n",
-                'example.com',
-                'test'
-            )
-        );
+        $this->assertTrue($this->object->exportData(
+            'test_db',
+            'test_table',
+            'localhost',
+            'SELECT * FROM `test_db`.`test_table`;'
+        ));
         $result = ob_get_clean();
 
         $this->assertEquals(
-            "\"foo\"\"bar;\"test\";",
+            '"id""name""datetimefield;"1""abcd""2011-01-20 02:00:02";'
+            . '"2""foo""2010-01-20 02:00:02";"3""Abcd""2012-01-20 02:00:02";',
             $result
         );
 
         // case 5
-
-        $dbi = $this->getMockBuilder('PhpMyAdmin\DatabaseInterface')
-            ->disableOriginalConstructor()
-            ->getMock();
-
-        $dbi->expects($this->once())
-            ->method('query')
-            ->with('test', DatabaseInterface::CONNECT_USER, DatabaseInterface::QUERY_UNBUFFERED)
-            ->will($this->returnValue(true));
-
-        $dbi->expects($this->once())
-            ->method('numFields')
-            ->with(true)
-            ->will($this->returnValue(1));
-
-        $dbi->expects($this->once())
-            ->method('fieldName')
-            ->with(true, 0)
-            ->will($this->returnValue("foo\"\\bar"));
-
-        $dbi->expects($this->at(3))
-            ->method('fetchRow')
-            ->with(true)
-            ->will($this->returnValue(["test\015\n"]));
-
-        $dbi->expects($this->at(4))
-            ->method('fetchRow')
-            ->with(true)
-            ->will($this->returnValue(null));
-        $GLOBALS['dbi'] = $dbi;
-
         $GLOBALS['csv_enclosed'] = '"';
         unset($GLOBALS['excel_removeCRLF']);
         $GLOBALS['csv_escaped'] = ';';
 
         ob_start();
-        $this->assertTrue(
-            $this->object->exportData(
-                'testDB',
-                'testTable',
-                "\n",
-                'example.com',
-                'test'
-            )
-        );
+        $this->assertTrue($this->object->exportData(
+            'test_db',
+            'test_table',
+            'localhost',
+            'SELECT * FROM `test_db`.`test_table`;'
+        ));
         $result = ob_get_clean();
 
         $this->assertEquals(
-            "\"foo;\"bar;\"test\n\";",
+            '"id""name""datetimefield;"1""abcd""2011-01-20 02:00:02";'
+            . '"2""foo""2010-01-20 02:00:02";"3""Abcd""2012-01-20 02:00:02";',
             $result
         );
 
         // case 6
-
-        $dbi = $this->getMockBuilder('PhpMyAdmin\DatabaseInterface')
-            ->disableOriginalConstructor()
-            ->getMock();
-
-        $dbi->expects($this->once())
-            ->method('query')
-            ->with('test', DatabaseInterface::CONNECT_USER, DatabaseInterface::QUERY_UNBUFFERED)
-            ->will($this->returnValue(true));
-
-        $dbi->expects($this->once())
-            ->method('numFields')
-            ->with(true)
-            ->will($this->returnValue(2));
-
-        $dbi->expects($this->any())
-            ->method('fieldName')
-            ->will($this->returnValue("foo\"\\bar"));
-
-        $dbi->expects($this->at(4))
-            ->method('fetchRow')
-            ->with(true)
-            ->will($this->returnValue(["test\015\n", "test\n"]));
-
-        $dbi->expects($this->at(5))
-            ->method('fetchRow')
-            ->with(true)
-            ->will($this->returnValue(null));
-        $GLOBALS['dbi'] = $dbi;
-
         $GLOBALS['csv_enclosed'] = '"';
         $GLOBALS['csv_escaped'] = ';';
         $GLOBALS['csv_escaped'] = '#';
 
         ob_start();
-        $this->assertTrue(
-            $this->object->exportData(
-                'testDB',
-                'testTable',
-                "\n",
-                'example.com',
-                'test'
-            )
-        );
+        $this->assertTrue($this->object->exportData(
+            'test_db',
+            'test_table',
+            'localhost',
+            'SELECT * FROM `test_db`.`test_table`;'
+        ));
         $result = ob_get_clean();
 
         $this->assertEquals(
-            "\"foo#\"bar\"\"foo#\"bar;\"test\n" .
-            "\"\"test\n" .
-            "\";",
+            '"id""name""datetimefield;"1""abcd""2011-01-20 02:00:02";'
+            . '"2""foo""2010-01-20 02:00:02";"3""Abcd""2012-01-20 02:00:02";',
             $result
         );
     }

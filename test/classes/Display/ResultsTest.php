@@ -1,310 +1,150 @@
 <?php
-/**
- * Tests for displaying results
- *
- * @package PhpMyAdmin-test
- */
+
 declare(strict_types=1);
 
 namespace PhpMyAdmin\Tests\Display;
 
-use PhpMyAdmin\Config;
-use PhpMyAdmin\Core;
+use PhpMyAdmin\ConfigStorage\RelationParameters;
+use PhpMyAdmin\DatabaseInterface;
+use PhpMyAdmin\Display\DisplayParts;
 use PhpMyAdmin\Display\Results as DisplayResults;
+use PhpMyAdmin\FieldMetadata;
+use PhpMyAdmin\Html\Generator;
+use PhpMyAdmin\Message;
+use PhpMyAdmin\ParseAnalyze;
+use PhpMyAdmin\Plugins\Transformations\Output\Text_Plain_External;
 use PhpMyAdmin\Plugins\Transformations\Text_Plain_Link;
-use PhpMyAdmin\SqlParser\Parser;
+use PhpMyAdmin\Plugins\TransformationsPlugin;
 use PhpMyAdmin\SqlParser\Utils\Query;
-use PhpMyAdmin\Tests\PmaTestCase;
+use PhpMyAdmin\StatementInfo;
+use PhpMyAdmin\Template;
+use PhpMyAdmin\Tests\AbstractTestCase;
+use PhpMyAdmin\Tests\Stubs\DbiDummy;
 use PhpMyAdmin\Transformations;
-use ReflectionClass;
 use stdClass;
 
+use function count;
+use function explode;
+use function hex2bin;
+use function htmlspecialchars_decode;
+use function urldecode;
+
+use const MYSQLI_NOT_NULL_FLAG;
+use const MYSQLI_NUM_FLAG;
+use const MYSQLI_PRI_KEY_FLAG;
+use const MYSQLI_TYPE_BLOB;
+use const MYSQLI_TYPE_DATE;
+use const MYSQLI_TYPE_DATETIME;
+use const MYSQLI_TYPE_DECIMAL;
+use const MYSQLI_TYPE_LONG;
+use const MYSQLI_TYPE_STRING;
+use const MYSQLI_TYPE_TIMESTAMP;
+
 /**
- * Test cases for displaying results.
- *
- * @package PhpMyAdmin-test
+ * @covers \PhpMyAdmin\Display\Results
  */
-class ResultsTest extends PmaTestCase
+class ResultsTest extends AbstractTestCase
 {
-    /**
-     * @access protected
-     */
+    /** @var DatabaseInterface */
+    protected $dbi;
+
+    /** @var DbiDummy */
+    protected $dummyDbi;
+
+    /** @var DisplayResults */
     protected $object;
 
     /**
      * Sets up the fixture, for example, opens a network connection.
      * This method is called before a test is executed.
-     *
-     * @access protected
-     * @return void
      */
     protected function setUp(): void
     {
+        parent::setUp();
+        parent::setLanguage();
+        parent::setGlobalConfig();
+        $this->dummyDbi = $this->createDbiDummy();
+        $this->dbi = $this->createDatabaseInterface($this->dummyDbi);
+        $GLOBALS['dbi'] = $this->dbi;
+        $this->setTheme();
         $GLOBALS['server'] = 0;
         $GLOBALS['db'] = 'db';
         $GLOBALS['table'] = 'table';
         $GLOBALS['PMA_PHP_SELF'] = 'index.php';
-        $this->object = new DisplayResults('as', '', '', '');
-        $GLOBALS['PMA_Config'] = new Config();
-        $GLOBALS['PMA_Config']->enableBc();
+        $this->object = new DisplayResults($this->dbi, 'as', '', 0, '', '');
         $GLOBALS['text_dir'] = 'ltr';
-
-        $dbi = $this->getMockBuilder('PhpMyAdmin\DatabaseInterface')
-            ->disableOriginalConstructor()
-            ->getMock();
-
-        $dbi->expects($this->any())->method('fieldFlags')
-            ->will($this->returnArgument(1));
-
-        $GLOBALS['dbi'] = $dbi;
+        $GLOBALS['cfg']['Server']['DisableIS'] = false;
+        $_SESSION[' HMAC_secret '] = 'test';
     }
 
     /**
      * Tears down the fixture, for example, closes a network connection.
      * This method is called after a test is executed.
-     *
-     * @access protected
-     * @return void
      */
     protected function tearDown(): void
     {
+        parent::tearDown();
         unset($this->object);
     }
 
     /**
-     * Call private functions by setting visibility to public.
-     *
-     * @param string $name   method name
-     * @param array  $params parameters for the invocation
-     *
-     * @return mixed the output from the private method.
+     * Test for isSelect function
      */
-    private function _callPrivateFunction($name, array $params)
+    public function testisSelect(): void
     {
-        $class = new ReflectionClass(DisplayResults::class);
-        $method = $class->getMethod($name);
-        $method->setAccessible(true);
-        return $method->invokeArgs($this->object, $params);
-    }
-
-    /**
-     * Test for _isSelect function
-     *
-     * @return void
-     */
-    public function testisSelect()
-    {
-        $parser = new Parser('SELECT * FROM pma');
         $this->assertTrue(
-            $this->_callPrivateFunction(
-                '_isSelect',
-                [
-                    [
-                        'statement' => $parser->statements[0],
-                        'select_from' => true,
-                    ],
-                ]
+            $this->callFunction(
+                $this->object,
+                DisplayResults::class,
+                'isSelect',
+                [StatementInfo::fromArray(Query::getAll('SELECT * FROM pma'))]
             )
         );
     }
 
-    /**
-     * Test for navigation buttons
-     *
-     * @param string  $caption        iconic caption for button
-     * @param string  $title          text for button
-     * @param integer $pos            position for next query
-     * @param string  $html_sql_query query ready for display
-     *
-     * @return void
-     *
-     * @dataProvider providerForTestGetTableNavigationButton
-     */
-    public function testGetTableNavigationButton(
-        $caption,
-        $title,
-        $pos,
-        $html_sql_query
-    ) {
-        $GLOBALS['cfg']['TableNavigationLinksMode'] = 'icons';
-        $_SESSION[' PMA_token '] = 'token';
-
-        $actual = $this->_callPrivateFunction(
-            '_getTableNavigationButton',
-            [
-                &$caption,
-                $title,
-                $pos,
-                $html_sql_query,
-                true,
-            ]
-        );
-
-        $this->assertStringContainsString(
-            '<form action="sql.php" method="post">',
-            $actual
-        );
-        $this->assertStringContainsString(
-            'name="sql_query" value="SELECT * FROM `pma_bookmark` WHERE 1"',
-            $actual
-        );
-        $this->assertStringContainsString(
-            'name="pos" value="1"',
-            $actual
-        );
-        $this->assertStringContainsString(
-            'value="btn" title="Submit"',
-            $actual
-        );
-    }
-
-    /**
-     * Provider for testGetTableNavigationButton
-     *
-     * @return array array data for testGetTableNavigationButton
-     */
-    public function providerForTestGetTableNavigationButton()
-    {
-        return [
-            [
-                'btn',
-                'Submit',
-                1,
-                'SELECT * FROM `pma_bookmark` WHERE 1',
-            ],
-        ];
-    }
-
-    /**
-     * Provider for testing table navigation
-     *
-     * @return array data for testGetTableNavigation
-     */
-    public function providerForTestGetTableNavigation()
-    {
-        return [
-            [
-                21,
-                41,
-                false,
-                '310',
-            ],
-        ];
-    }
-
-    /**
-     * Data provider for testGetClassesForColumn
-     *
-     * @return array parameters and output
-     */
-    public function dataProviderForTestGetClassesForColumn()
-    {
-        return [
-            [
-                'grid_edit',
-                'not_null',
-                '',
-                '',
-                '',
-                'data grid_edit not_null   ',
-            ],
-        ];
-    }
-
-    /**
-     * Test for _getClassesForColumn
-     *
-     * @param string $grid_edit_class  the class for all editable columns
-     * @param string $not_null_class   the class for not null columns
-     * @param string $relation_class   the class for relations in a column
-     * @param string $hide_class       the class for visibility of a column
-     * @param string $field_type_class the class related to type of the field
-     * @param string $output           output of__getResettedClassForInlineEdit
-     *
-     * @return void
-     *
-     * @dataProvider dataProviderForTestGetClassesForColumn
-     */
-    public function testGetClassesForColumn(
-        $grid_edit_class,
-        $not_null_class,
-        $relation_class,
-        $hide_class,
-        $field_type_class,
-        $output
-    ) {
-        $GLOBALS['cfg']['BrowsePointerEnable'] = true;
-        $GLOBALS['cfg']['BrowseMarkerEnable'] = true;
-
-        $this->assertEquals(
-            $output,
-            $this->_callPrivateFunction(
-                '_getClassesForColumn',
-                [
-                    $grid_edit_class,
-                    $not_null_class,
-                    $relation_class,
-                    $hide_class,
-                    $field_type_class,
-                ]
-            )
-        );
-    }
-
-    /**
-     * Test for _getClassForDateTimeRelatedFields - case 1
-     *
-     * @return void
-     */
-    public function testGetClassForDateTimeRelatedFieldsCase1()
+    public function testGetClassForDateTimeRelatedFieldsCase1(): void
     {
         $this->assertEquals(
             'datetimefield',
-            $this->_callPrivateFunction(
-                '_getClassForDateTimeRelatedFields',
-                [DisplayResults::DATETIME_FIELD]
+            $this->callFunction(
+                $this->object,
+                DisplayResults::class,
+                'getClassForDateTimeRelatedFields',
+                [new FieldMetadata(MYSQLI_TYPE_TIMESTAMP, 0, (object) [])]
             )
         );
     }
 
-    /**
-     * Test for _getClassForDateTimeRelatedFields - case 2
-     *
-     * @return void
-     */
-    public function testGetClassForDateTimeRelatedFieldsCase2()
+    public function testGetClassForDateTimeRelatedFieldsCase2(): void
     {
         $this->assertEquals(
             'datefield',
-            $this->_callPrivateFunction(
-                '_getClassForDateTimeRelatedFields',
-                [DisplayResults::DATE_FIELD]
+            $this->callFunction(
+                $this->object,
+                DisplayResults::class,
+                'getClassForDateTimeRelatedFields',
+                [new FieldMetadata(MYSQLI_TYPE_DATE, 0, (object) [])]
             )
         );
     }
 
-    /**
-     * Test for _getClassForDateTimeRelatedFields - case 3
-     *
-     * @return void
-     */
-    public function testGetClassForDateTimeRelatedFieldsCase3()
+    public function testGetClassForDateTimeRelatedFieldsCase3(): void
     {
         $this->assertEquals(
             'text',
-            $this->_callPrivateFunction(
-                '_getClassForDateTimeRelatedFields',
-                [DisplayResults::STRING_FIELD]
+            $this->callFunction(
+                $this->object,
+                DisplayResults::class,
+                'getClassForDateTimeRelatedFields',
+                [new FieldMetadata(MYSQLI_TYPE_STRING, 0, (object) [])]
             )
         );
     }
 
     /**
-     * Test for _getOffsets - case 1
-     *
-     * @return void
+     * Test for getOffsets - case 1
      */
-    public function testGetOffsetsCase1()
+    public function testGetOffsetsCase1(): void
     {
         $_SESSION['tmpval']['max_rows'] = DisplayResults::ALL_ROWS;
         $this->assertEquals(
@@ -312,16 +152,19 @@ class ResultsTest extends PmaTestCase
                 0,
                 0,
             ],
-            $this->_callPrivateFunction('_getOffsets', [])
+            $this->callFunction(
+                $this->object,
+                DisplayResults::class,
+                'getOffsets',
+                []
+            )
         );
     }
 
     /**
-     * Test for _getOffsets - case 2
-     *
-     * @return void
+     * Test for getOffsets - case 2
      */
-    public function testGetOffsetsCase2()
+    public function testGetOffsetsCase2(): void
     {
         $_SESSION['tmpval']['max_rows'] = 5;
         $_SESSION['tmpval']['pos'] = 4;
@@ -330,695 +173,21 @@ class ResultsTest extends PmaTestCase
                 9,
                 0,
             ],
-            $this->_callPrivateFunction('_getOffsets', [])
-        );
-    }
-
-    /**
-     * Data provider for testGetCheckboxForMultiRowSubmissions
-     *
-     * @return array parameters and output
-     */
-    public function dataProviderForGetCheckboxForMultiRowSubmissions()
-    {
-        return [
-            [
-                'sql.php?db=data&amp;table=new&amp;sql_query=DELETE+FROM+%60data%60'
-                . '.%60new%60+WHERE+%60new%60.%60id%60+%3D+1&amp;message_to_show='
-                . 'The+row+has+been+deleted&amp;goto=sql.php%3Fdb%3Ddata%26table%3D'
-                . 'new%26sql_query%3DSELECT%2B%252A%2BFROM%2B%2560new%2560%26message'
-                . '_to_show%3DThe%2Brow%2Bhas%2Bbeen%2Bdeleted%26goto%3Dtbl_'
-                . 'structure.php',
-                [
-                    'edit_lnk' => 'ur',
-                    'del_lnk' => 'dr',
-                    'sort_lnk' => '0',
-                    'nav_bar' => '1',
-                    'bkm_form' => '1',
-                    'text_btn' => '1',
-                    'pview_lnk' => '1',
-                ],
-                0,
-                '%60new%60.%60id%60+%3D+1',
-                ['`new`.`id`' => '= 1'],
-                '[%_PMA_CHECKBOX_DIR_%]',
-                'klass',
-                '<td class="klass" class="center print_ignore"><input type'
-                . '="checkbox" id="id_rows_to_delete0[%_PMA_CHECKBOX_DIR_%]" name='
-                . '"rows_to_delete[0]" class="multi_checkbox checkall" value="%60'
-                . 'new%60.%60id%60+%3D+1"><input type="hidden" class="condition_'
-                . 'array" value="{&quot;`new`.`id`&quot;:&quot;= 1&quot;}">    '
-                . '</td>',
-            ],
-        ];
-    }
-
-    /**
-     * Test for _getCheckboxForMultiRowSubmissions
-     *
-     * @param string $del_url           delete url
-     * @param array  $displayParts      array with explicit indexes for all
-     *                                  the display elements
-     * @param string $row_no            the row number
-     * @param string $where_clause_html url encoded where clause
-     * @param array  $condition_array   array of conditions in the where clause
-     * @param string $id_suffix         suffix for the id
-     * @param string $class             css classes for the td element
-     * @param string $output            output of _getCheckboxForMultiRowSubmissions
-     *
-     * @return void
-     *
-     * @dataProvider dataProviderForGetCheckboxForMultiRowSubmissions
-     */
-    public function testGetCheckboxForMultiRowSubmissions(
-        $del_url,
-        $displayParts,
-        $row_no,
-        $where_clause_html,
-        $condition_array,
-        $id_suffix,
-        $class,
-        $output
-    ) {
-        $this->assertEquals(
-            $output,
-            $this->_callPrivateFunction(
-                '_getCheckboxForMultiRowSubmissions',
-                [
-                    $del_url,
-                    $displayParts,
-                    $row_no,
-                    $where_clause_html,
-                    $condition_array,
-                    $id_suffix,
-                    $class,
-                ]
+            $this->callFunction(
+                $this->object,
+                DisplayResults::class,
+                'getOffsets',
+                []
             )
         );
     }
-
-    /**
-     * Data provider for testGetEditLink
-     *
-     * @return array parameters and output
-     */
-    public function dataProviderForGetEditLink()
-    {
-        return [
-            [
-                'tbl_change.php?db=Data&amp;table=customer&amp;where_clause=%60'
-                . 'customer%60.%60id%60+%3D+1&amp;clause_is_unique=1&amp;sql_query='
-                . 'SELECT+%2A+FROM+%60customer%60&amp;goto=sql.php&amp;default_'
-                . 'action=update',
-                'klass edit_row_anchor',
-                '<span class="nowrap"><img src="themes/dot.gif" title="Edit" alt='
-                . '"Edit" class="icon ic_b_edit"> Edit</span>',
-                '`customer`.`id` = 1',
-                '%60customer%60.%60id%60+%3D+1',
-                '<td class="klass edit_row_anchor center print_ignore"  >'
-                . '<span class="nowrap">'
-                . '<a href="tbl_change.php" data-post="db=Data&amp;table=customer&amp;where_'
-                . 'clause=%60customer%60.%60id%60+%3D+1&amp;clause_is_unique=1&amp;'
-                . 'sql_query=SELECT+%2A+FROM+%60customer%60&amp;goto=sql.php&amp;'
-                . 'default_action=update"'
-                . '><span class="nowrap"><img src="themes/dot.gif" title="Edit" '
-                . 'alt="Edit" class="icon ic_b_edit"> Edit</span></a>'
-                . '<input type="hidden" class="where_clause" value ="%60customer'
-                . '%60.%60id%60+%3D+1"></span></td>',
-            ],
-        ];
-    }
-
-    /**
-     * Test for _getEditLink
-     *
-     * @param string $edit_url          edit url
-     * @param string $class             css classes for td element
-     * @param string $edit_str          text for the edit link
-     * @param string $where_clause      where clause
-     * @param string $where_clause_html url encoded where clause
-     * @param string $output            output of _getEditLink
-     *
-     * @return void
-     *
-     * @dataProvider dataProviderForGetEditLink
-     */
-    public function testGetEditLink(
-        $edit_url,
-        $class,
-        $edit_str,
-        $where_clause,
-        $where_clause_html,
-        $output
-    ) {
-        $GLOBALS['cfg']['ActionLinksMode'] = 'both';
-        $GLOBALS['cfg']['LinkLengthLimit'] = 1000;
-
-        $this->assertEquals(
-            $output,
-            $this->_callPrivateFunction(
-                '_getEditLink',
-                [
-                    $edit_url,
-                    $class,
-                    $edit_str,
-                    $where_clause,
-                    $where_clause_html,
-                ]
-            )
-        );
-    }
-
-    /**
-     * Data provider for testGetCopyLink
-     *
-     * @return array parameters and output
-     */
-    public function dataProviderForGetCopyLink()
-    {
-        return [
-            [
-                'tbl_change.php?db=Data&amp;table=customer&amp;where_clause=%60cust'
-                . 'omer%60.%60id%60+%3D+1&amp;clause_is_unique=1&amp;sql_query='
-                . 'SELECT+%2A+FROM+%60customer%60&amp;goto=sql.php&amp;default_'
-                . 'action=insert',
-                '<span class="nowrap"><img src="themes/dot.gif" title="Copy" alt'
-                . '="Copy" class="icon ic_b_insrow"> Copy</span>',
-                '`customer`.`id` = 1',
-                '%60customer%60.%60id%60+%3D+1',
-                'klass',
-                '<td class="klass center print_ignore"  ><span class='
-                . '"nowrap">'
-                . '<a href="tbl_change.php" data-post="db=Data&amp;table=customer&amp;where_'
-                . 'clause=%60customer%60.%60id%60+%3D+1&amp;clause_is_unique=1&amp;'
-                . 'sql_query=SELECT+%2A+FROM+%60customer%60&amp;goto=sql.php&amp;'
-                . 'default_action=insert"'
-                . '><span class="nowrap"><img src="themes/dot.gif" title="Copy" '
-                . 'alt="Copy" class="icon ic_b_insrow"> Copy</span></a>'
-                . '<input type="hidden" class="where_clause" value="%60customer%60'
-                . '.%60id%60+%3D+1"></span></td>',
-            ],
-        ];
-    }
-
-    /**
-     * Test for _getCopyLink
-     *
-     * @param string $copy_url          copy url
-     * @param string $copy_str          text for the copy link
-     * @param string $where_clause      where clause
-     * @param string $where_clause_html url encoded where clause
-     * @param string $class             css classes for the td element
-     * @param string $output            output of _getCopyLink
-     *
-     * @return void
-     *
-     * @dataProvider dataProviderForGetCopyLink
-     */
-    public function testGetCopyLink(
-        $copy_url,
-        $copy_str,
-        $where_clause,
-        $where_clause_html,
-        $class,
-        $output
-    ) {
-        $GLOBALS['cfg']['ActionLinksMode'] = 'both';
-        $GLOBALS['cfg']['LinkLengthLimit'] = 1000;
-
-        $this->assertEquals(
-            $output,
-            $this->_callPrivateFunction(
-                '_getCopyLink',
-                [
-                    $copy_url,
-                    $copy_str,
-                    $where_clause,
-                    $where_clause_html,
-                    $class,
-                ]
-            )
-        );
-    }
-
-    /**
-     * Data provider for testGetDeleteLink
-     *
-     * @return array parameters and output
-     */
-    public function dataProviderForGetDeleteLink()
-    {
-        return [
-            [
-                'sql.php?db=Data&amp;table=customer&amp;sql_query=DELETE+FROM+%60'
-                . 'Data%60.%60customer%60+WHERE+%60customer%60.%60id%60+%3D+1&amp;'
-                . 'message_to_show=The+row+has+been+deleted&amp;goto=sql.php%3Fdb'
-                . '%3DData%26table%3Dcustomer%26sql_query%3DSELECT%2B%252A%2BFROM'
-                . '%2B%2560customer%2560%26message_to_show%3DThe%2Brow%2Bhas%2Bbeen'
-                . '%2Bdeleted%26goto%3Dtbl_structure.php',
-                '<span class="nowrap"><img src="themes/dot.gif" title="Delete" '
-                . 'alt="Delete" class="icon ic_b_drop"> Delete</span>',
-                'DELETE FROM `Data`.`customer` WHERE `customer`.`id` = 1',
-                'klass',
-                '<td class="klass center print_ignore"  >'
-                . '<a href="sql.php" data-post="db=Data&amp;table=customer&amp;sql_query=DELETE'
-                . '+FROM+%60Data%60.%60customer%60+WHERE+%60customer%60.%60id%60+%3D'
-                . '+1&amp;message_to_show=The+row+has+been+deleted&amp;goto=sql.php'
-                . '%3Fdb%3DData%26table%3Dcustomer%26sql_query%3DSELECT%2B%252A%2B'
-                . 'FROM%2B%2560customer%2560%26message_to_show%3DThe%2Brow%2Bhas%2B'
-                . 'been%2Bdeleted%26goto%3Dtbl_structure.php" '
-                . 'class="delete_row requireConfirm"><span class="nowrap"><img src="themes/dot.'
-                . 'gif" title="Delete" alt="Delete" class="icon ic_b_drop"> '
-                . 'Delete</span></a>'
-                . '<div class="hide">DELETE FROM `Data`.`customer` WHERE '
-                . '`customer`.`id` = 1</div></td>',
-            ],
-        ];
-    }
-
-    /**
-     * Test for _getDeleteLink
-     *
-     * @param string $del_url delete url
-     * @param string $del_str text for the delete link
-     * @param string $js_conf text for the JS confirmation
-     * @param string $class   css classes for the td element
-     * @param string $output  output of _getDeleteLink
-     *
-     * @return void
-     *
-     * @dataProvider dataProviderForGetDeleteLink
-     */
-    public function testGetDeleteLink(
-        $del_url,
-        $del_str,
-        $js_conf,
-        $class,
-        $output
-    ) {
-        $GLOBALS['cfg']['ActionLinksMode'] = 'both';
-        $GLOBALS['cfg']['LinkLengthLimit'] = 1000;
-
-        $this->assertEquals(
-            $output,
-            $this->_callPrivateFunction(
-                '_getDeleteLink',
-                [
-                    $del_url,
-                    $del_str,
-                    $js_conf,
-                    $class,
-                ]
-            )
-        );
-    }
-
-    /**
-     * Data provider for testGetCheckboxAndLinks
-     *
-     * @return array parameters and output
-     */
-    public function dataProviderForGetCheckboxAndLinks()
-    {
-        return [
-            [
-                DisplayResults::POSITION_LEFT,
-                'sql.php?db=data&amp;table=new&amp;sql_query=DELETE+FROM+%60data'
-                . '%60.%60new%60+WHERE+%60new%60.%60id%60+%3D+1&amp;message_to_show='
-                . 'The+row+has+been+deleted&amp;goto=sql.php%3Fdb%3Ddata%26table%3D'
-                . 'new%26sql_query%3DSELECT%2B%252A%2BFROM%2B%2560new%2560%26'
-                . 'message_to_show%3DThe%2Brow%2Bhas%2Bbeen%2Bdeleted%26goto%3D'
-                . 'tbl_structure.php',
-                [
-                    'edit_lnk' => 'ur',
-                    'del_lnk' => 'dr',
-                    'sort_lnk' => '0',
-                    'nav_bar' => '1',
-                    'bkm_form' => '1',
-                    'text_btn' => '1',
-                    'pview_lnk' => '1',
-                ],
-                0,
-                '`new`.`id` = 1',
-                '%60new%60.%60id%60+%3D+1',
-                [
-                    '`new`.`id`' => '= 1',
-                ],
-                'tbl_change.php?db=data&amp;table=new&amp;where_clause=%60new%60.'
-                . '%60id%60+%3D+1&amp;clause_is_unique=1&amp;sql_query=SELECT+%2A+'
-                . 'FROM+%60new%60&amp;goto=sql.php&amp;default_action=update',
-                'tbl_change.php?db=data&amp;table=new&amp;where_clause=%60new%60.'
-                . '%60id%60+%3D+1&amp;clause_is_unique=1&amp;sql_query=SELECT+%2A+'
-                . 'FROM+%60new%60&amp;goto=sql.php&amp;default_action=insert',
-                'edit_row_anchor',
-                '<span class="nowrap"><img src="themes/dot.gif" title="Edit" '
-                . 'alt="Edit" class="icon ic_b_edit"> Edit</span>',
-                '<span class="nowrap"><img src="themes/dot.gif" title="Copy" '
-                . 'alt="Copy" class="icon ic_b_insrow"> Copy</span>',
-                '<span class="nowrap"><img src="themes/dot.gif" title="Delete" '
-                . 'alt="Delete" class="icon ic_b_drop"> Delete</span>',
-                'DELETE FROM `data`.`new` WHERE `new`.`id` = 1',
-                '<td  class="center print_ignore"><input type="checkbox" id="id_rows_to_delete0_'
-                . 'left" name="rows_to_delete[0]" class="multi_checkbox checkall" '
-                . 'value="%60new%60.%60id%60+%3D+1"><input type="hidden" class='
-                . '"condition_array" value="{&quot;`new`.`id`&quot;:&quot;= 1&quot;'
-                . '}">    </td><td class="edit_row_anchor center print_ignore"  ><span class='
-                . '"nowrap">'
-                . '<a href="tbl_change.php" data-post="db=data&amp;table=new&amp;where_'
-                . 'clause=%60new%60.%60id%60+%3D+1&amp;clause_is_unique=1&amp;'
-                . 'sql_query=SELECT+%2A+FROM+%60new%60&amp;goto=sql.php&amp;default'
-                . '_action=update">'
-                . '<span class="nowrap"><img src="themes/dot.gif" title="Edit" '
-                . 'alt="Edit" class="icon ic_b_edit"> Edit</span></a>'
-                . '<input type="hidden" class="where_clause" value ="%60new%60.%60'
-                . 'id%60+%3D+1"></span></td><td class="center print_ignore"  ><span class'
-                . '="nowrap">'
-                . '<a href="tbl_change.php" data-post="db=data&amp;table=new&amp;where_clause'
-                . '=%60new%60.%60id%60+%3D+1&amp;clause_is_unique=1&amp;sql_query='
-                . 'SELECT+%2A+FROM+%60new%60&amp;goto=sql.php&amp;default_action='
-                . 'insert"><span class'
-                . '="nowrap"><img src="themes/dot.gif" title="Copy" alt="Copy" '
-                . 'class="icon ic_b_insrow"> Copy</span></a>'
-                . '<input type="hidden" class="where_clause" value="%60new%60.%60id'
-                . '%60+%3D+1"></span></td><td class="center print_ignore"  >'
-                . '<a href="sql.php" data-post="db=data&amp;table=new&amp;sql_query=DELETE+'
-                . 'FROM+%60data%60.%60new%60+WHERE+%60new%60.%60id%60+%3D+1&amp;'
-                . 'message_to_show=The+row+has+been+deleted&amp;goto=sql.php%3F'
-                . 'db%3Ddata%26table%3Dnew%26sql_query%3DSELECT%2B%252A%2BFROM%2B'
-                . '%2560new%2560%26message_to_show%3DThe%2Brow%2Bhas%2Bbeen%2B'
-                . 'deleted%26goto%3Dtbl_structure.php" '
-                . 'class="delete_row requireConfirm"><span class="nowrap"><img src="themes/dot.'
-                . 'gif" title="Delete" alt="Delete" class="icon ic_b_drop"> '
-                . 'Delete</span></a>'
-                . '<div class="hide">DELETE FROM `data`.`new` WHERE `new`.`id` = 1'
-                . '</div></td>',
-            ],
-            [
-                DisplayResults::POSITION_RIGHT,
-                'sql.php?db=data&amp;table=new&amp;sql_query=DELETE+FROM+%60data%60'
-                . '.%60new%60+WHERE+%60new%60.%60id%60+%3D+1&amp;message_to_show='
-                . 'The+row+has+been+deleted&amp;goto=sql.php%3Fdb%3Ddata%26table%3D'
-                . 'new%26sql_query%3DSELECT%2B%252A%2BFROM%2B%2560new%2560%26message'
-                . '_to_show%3DThe%2Brow%2Bhas%2Bbeen%2Bdeleted%26goto%3Dtbl_'
-                . 'structure.php',
-                [
-                    'edit_lnk' => 'ur',
-                    'del_lnk' => 'dr',
-                    'sort_lnk' => '0',
-                    'nav_bar' => '1',
-                    'bkm_form' => '1',
-                    'text_btn' => '1',
-                    'pview_lnk' => '1',
-                ],
-                0,
-                '`new`.`id` = 1',
-                '%60new%60.%60id%60+%3D+1',
-                [
-                    '`new`.`id`' => '= 1',
-                ],
-                'tbl_change.php?db=data&amp;table=new&amp;where_clause=%60new%60.'
-                . '%60id%60+%3D+1&amp;clause_is_unique=1&amp;sql_query=SELECT+%2A+'
-                . 'FROM+%60new%60&amp;goto=sql.php&amp;default_action=update',
-                'tbl_change.php?db=data&amp;table=new&amp;where_clause=%60new%60.'
-                . '%60id%60+%3D+1&amp;clause_is_unique=1&amp;sql_query=SELECT+%2A+'
-                . 'FROM+%60new%60&amp;goto=sql.php&amp;default_action=insert',
-                'edit_row_anchor',
-                '<span class="nowrap"><img src="themes/dot.gif" title="Edit" '
-                . 'alt="Edit" class="icon ic_b_edit"> Edit</span>',
-                '<span class="nowrap"><img src="themes/dot.gif" title="Copy" '
-                . 'alt="Copy" class="icon ic_b_insrow"> Copy</span>',
-                '<span class="nowrap"><img src="themes/dot.gif" title="Delete" '
-                . 'alt="Delete" class="icon ic_b_drop"> Delete</span>',
-                'DELETE FROM `data`.`new` WHERE `new`.`id` = 1',
-                '<td class="center print_ignore"  >'
-                . '<a href="sql.php" data-post="db=data&amp;table=new&amp;sql_query=DELETE+'
-                . 'FROM+%60data%60.%60new%60+WHERE+%60new%60.%60id%60+%3D+1&amp;'
-                . 'message_to_show=The+row+has+been+deleted&amp;goto=sql.php%3Fdb'
-                . '%3Ddata%26table%3Dnew%26sql_query%3DSELECT%2B%252A%2BFROM%2B%25'
-                . '60new%2560%26message_to_show%3DThe%2Brow%2Bhas%2Bbeen%2Bdeleted'
-                . '%26goto%3Dtbl_structure.php" class="delete'
-                . '_row requireConfirm"><span class="nowrap"><img src="themes/dot.gif" title='
-                . '"Delete" alt="Delete" class="icon ic_b_drop"> Delete</span></a>'
-                . '<div class="hide">DELETE FROM `data`.`new` WHERE `new`.'
-                . '`id` = 1</div></td><td class="center print_ignore"  ><span class="nowrap">'
-                . '<a href="tbl_change.php" data-post="db=data&amp;table=new&amp;where_'
-                . 'clause=%60new%60.%60id%60+%3D+1&amp;clause_is_unique=1&amp;sql_'
-                . 'query=SELECT+%2A+FROM+%60new%60&amp;goto=sql.php&amp;default_'
-                . 'action=insert"><span '
-                . 'class="nowrap"><img src="themes/dot.gif" title="Copy" alt="Copy" '
-                . 'class="icon ic_b_insrow"> Copy</span></a>'
-                . '<input type="hidden" class="where_clause" value="%60new%60.%60id'
-                . '%60+%3D+1"></span></td><td class="edit_row_anchor center print_ignore"  >'
-                . '<span class="nowrap">'
-                . '<a href="tbl_change.php" data-post="db=data&amp;table=new&amp;where_clause'
-                . '=%60new%60.%60id%60+%3D+1&amp;clause_is_unique=1&amp;sql_query='
-                . 'SELECT+%2A+FROM+%60new%60&amp;goto=sql.php&amp;default_action='
-                . 'update"><span class='
-                . '"nowrap"><img src="themes/dot.gif" title="Edit" alt="Edit" class'
-                . '="icon ic_b_edit"> Edit</span></a>'
-                . '<input type="hidden" class="where_clause" value ="%60new%60.%60'
-                . 'id%60+%3D+1"></span></td><td  class="center print_ignore"><input type='
-                . '"checkbox" id="id_rows_to_delete0_right" name="rows_to_delete'
-                . '[0]" class="multi_checkbox checkall" value="%60new%60.%60id%60'
-                . '+%3D+1"><input type="hidden" class="condition_array" value="'
-                . '{&quot;`new`.`id`&quot;:&quot;= 1&quot;}">    </td>',
-            ],
-            [
-                DisplayResults::POSITION_NONE,
-                'sql.php?db=data&amp;table=new&amp;sql_query=DELETE+FROM+%60data%60.'
-                . '%60new%60+WHERE+%60new%60.%60id%60+%3D+1&amp;message_to_show=The+'
-                . 'row+has+been+deleted&amp;goto=sql.php%3Fdb%3Ddata%26table%3Dnew'
-                . '%26sql_query%3DSELECT%2B%252A%2BFROM%2B%2560new%2560%26message_'
-                . 'to_show%3DThe%2Brow%2Bhas%2Bbeen%2Bdeleted%26goto%3Dtbl_structure'
-                . '.php',
-                [
-                    'edit_lnk' => 'ur',
-                    'del_lnk' => 'dr',
-                    'sort_lnk' => '0',
-                    'nav_bar' => '1',
-                    'bkm_form' => '1',
-                    'text_btn' => '1',
-                    'pview_lnk' => '1',
-                ],
-                0,
-                '`new`.`id` = 1',
-                '%60new%60.%60id%60+%3D+1',
-                [
-                    '`new`.`id`' => '= 1',
-                ],
-                'tbl_change.php?db=data&amp;table=new&amp;where_clause=%60new%60.%60'
-                . 'id%60+%3D+1&amp;clause_is_unique=1&amp;sql_query=SELECT+%2A+FROM+'
-                . '%60new%60&amp;goto=sql.php&amp;default_action=update',
-                'tbl_change.php?db=data&amp;table=new&amp;where_clause=%60new%60.%60'
-                . 'id%60+%3D+1&amp;clause_is_unique=1&amp;sql_query=SELECT+%2A+FROM+'
-                . '%60new%60&amp;goto=sql.php&amp;default_action=insert',
-                'edit_row_anchor',
-                '<span class="nowrap"><img src="themes/dot.gif" title="Edit" '
-                . 'alt="Edit" class="icon ic_b_edit"> Edit</span>',
-                '<span class="nowrap"><img src="themes/dot.gif" title="Copy" '
-                . 'alt="Copy" class="icon ic_b_insrow"> Copy</span>',
-                '<span class="nowrap"><img src="themes/dot.gif" title="Delete" '
-                . 'alt="Delete" class="icon ic_b_drop"> Delete</span>',
-                'DELETE FROM `data`.`new` WHERE `new`.`id` = 1',
-                '<td  class="center print_ignore"><input type="checkbox" id="id_rows_to_'
-                . 'delete0_left" name="rows_to_delete[0]" class="multi_checkbox '
-                . 'checkall" value="%60new%60.%60id%60+%3D+1"><input type='
-                . '"hidden" class="condition_array" value="{&quot;`new`.`id`&quot;:'
-                . '&quot;= 1&quot;}">    </td>',
-            ],
-        ];
-    }
-
-    /**
-     * Test for _getCheckboxAndLinks
-     *
-     * @param string $position          the position of the checkbox and links
-     * @param string $del_url           delete url
-     * @param array  $displayParts      array with explicit indexes for all the
-     *                                  display elements
-     * @param string $row_no            row number
-     * @param string $where_clause      where clause
-     * @param string $where_clause_html url encoded where clause
-     * @param array  $condition_array   array of conditions in the where clause
-     * @param string $edit_url          edit url
-     * @param string $copy_url          copy url
-     * @param string $class             css classes for the td elements
-     * @param string $edit_str          text for the edit link
-     * @param string $copy_str          text for the copy link
-     * @param string $del_str           text for the delete link
-     * @param string $js_conf           text for the JS confirmation
-     * @param string $output            output of _getCheckboxAndLinks
-     *
-     * @return void
-     *
-     * @dataProvider dataProviderForGetCheckboxAndLinks
-     */
-    public function testGetCheckboxAndLinks(
-        $position,
-        $del_url,
-        $displayParts,
-        $row_no,
-        $where_clause,
-        $where_clause_html,
-        $condition_array,
-        $edit_url,
-        $copy_url,
-        $class,
-        $edit_str,
-        $copy_str,
-        $del_str,
-        $js_conf,
-        $output
-    ) {
-        $this->assertEquals(
-            $output,
-            $this->_callPrivateFunction(
-                '_getCheckboxAndLinks',
-                [
-                    $position,
-                    $del_url,
-                    $displayParts,
-                    $row_no,
-                    $where_clause,
-                    $where_clause_html,
-                    $condition_array,
-                    $edit_url,
-                    $copy_url,
-                    $class,
-                    $edit_str,
-                    $copy_str,
-                    $del_str,
-                    $js_conf,
-                ]
-            )
-        );
-    }
-
-    /**
-     * Data provider for testGetPlacedLinks
-     *
-     * @return array parameters and output
-     */
-    public function dataProviderForGetPlacedLinks()
-    {
-        return [
-            [
-                DisplayResults::POSITION_NONE,
-                'sql.php?db=data&amp;table=new&amp;sql_query=DELETE+FROM+%60data%60.'
-                . '%60new%60+WHERE+%60new%60.%60id%60+%3D+1&amp;message_to_show=The+'
-                . 'row+has+been+deleted&amp;goto=sql.php%3Fdb%3Ddata%26table%3Dnew'
-                . '%26sql_query%3DSELECT%2B%252A%2BFROM%2B%2560new%2560%26message_'
-                . 'to_show%3DThe%2Brow%2Bhas%2Bbeen%2Bdeleted%26goto%3Dtbl_structure'
-                . '.php',
-                [
-                    'edit_lnk' => 'ur',
-                    'del_lnk' => 'dr',
-                    'sort_lnk' => '0',
-                    'nav_bar' => '1',
-                    'bkm_form' => '1',
-                    'text_btn' => '1',
-                    'pview_lnk' => '1',
-                ],
-                0,
-                '`new`.`id` = 1',
-                '%60new%60.%60id%60+%3D+1',
-                [
-                    '`new`.`id`' => '= 1',
-                ],
-                'tbl_change.php?db=data&amp;table=new&amp;where_clause=%60new%60.%60'
-                . 'id%60+%3D+1&amp;clause_is_unique=1&amp;sql_query=SELECT+%2A+FROM+'
-                . '%60new%60&amp;goto=sql.php&amp;default_action=update',
-                '/tbl_change.php?db=data&amp;table=new&amp;where_clause=%60new%60.%60'
-                . 'id%60+%3D+1&amp;clause_is_unique=1&amp;sql_query=SELECT+%2A+FROM+'
-                . '%60new%60&amp;goto=sql.php&amp;default_action=insert',
-                'edit_row_anchor',
-                '<span class="nowrap"><img src="themes/dot.gif" title="Edit" '
-                . 'alt="Edit" class="icon ic_b_edit"> Edit</span>',
-                '<span class="nowrap"><img src="themes/dot.gif" title="Copy" '
-                . 'alt="Copy" class="icon ic_b_insrow"> Copy</span>',
-                '<span class="nowrap"><img src="themes/dot.gif" title="Delete" '
-                . 'alt="Delete" class="icon ic_b_drop"> Delete</span>',
-                null,
-                '<td  class="center print_ignore"><input type="checkbox" id="id_rows_to_'
-                . 'delete0_left" name="rows_to_delete[0]" class="multi_checkbox '
-                . 'checkall" value="%60new%60.%60id%60+%3D+1"><input type='
-                . '"hidden" class="condition_array" value="{&quot;`new`.`id`&quot;:'
-                . '&quot;= 1&quot;}">    </td>',
-            ],
-        ];
-    }
-
-    /**
-     * Test for _getPlacedLinks
-     *
-     * @param string  $dir               the direction of links should place
-     * @param string  $del_url           the url for delete row
-     * @param array   $displayParts      which elements to display
-     * @param integer $row_no            the index of current row
-     * @param string  $where_clause      the where clause of the sql
-     * @param string  $where_clause_html the html encoded where clause
-     * @param array   $condition_array   array of keys (primary, unique, condition)
-     * @param string  $edit_url          the url for edit row
-     * @param string  $copy_url          the url for copy row
-     * @param string  $edit_anchor_class the class for html element for edit
-     * @param string  $edit_str          the label for edit row
-     * @param string  $copy_str          the label for copy row
-     * @param string  $del_str           the label for delete row
-     * @param string  $js_conf           text for the JS confirmation
-     * @param string  $output            output of _getPlacedLinks
-     *
-     * @return void
-     *
-     * @dataProvider dataProviderForGetPlacedLinks
-     */
-    public function testGetPlacedLinks(
-        $dir,
-        $del_url,
-        $displayParts,
-        $row_no,
-        $where_clause,
-        $where_clause_html,
-        $condition_array,
-        $edit_url,
-        $copy_url,
-        $edit_anchor_class,
-        $edit_str,
-        $copy_str,
-        $del_str,
-        $js_conf,
-        $output
-    ) {
-        $this->assertEquals(
-            $output,
-            $this->_callPrivateFunction(
-                '_getPlacedLinks',
-                [
-                    $dir,
-                    $del_url,
-                    $displayParts,
-                    $row_no,
-                    $where_clause,
-                    $where_clause_html,
-                    $condition_array,
-                    $edit_url,
-                    $copy_url,
-                    $edit_anchor_class,
-                    $edit_str,
-                    $copy_str,
-                    $del_str,
-                    $js_conf,
-                ]
-            )
-        );
-    }
-
 
     /**
      * Data provider for testGetSpecialLinkUrl
      *
      * @return array parameters and output
      */
-    public function dataProviderForTestGetSpecialLinkUrl()
+    public function dataProviderForTestGetSpecialLinkUrl(): array
     {
         return [
             [
@@ -1028,10 +197,10 @@ class ResultsTest extends PmaTestCase
                 [
                     'routine_name' => 'circumference',
                     'routine_schema' => 'data',
-                    'routine_type' => 'FUNCTION'
+                    'routine_type' => 'FUNCTION',
                 ],
                 'routine_name',
-                'db_routines.php?item_name=circumference&db=data'
+                'index.php?route=/database/routines&item_name=circumference&db=data'
                 . '&item_type=FUNCTION&server=0&lang=en',
             ],
             [
@@ -1041,51 +210,34 @@ class ResultsTest extends PmaTestCase
                 [
                     'routine_name' => 'area',
                     'routine_schema' => 'data',
-                    'routine_type' => 'PROCEDURE'
+                    'routine_type' => 'PROCEDURE',
                 ],
                 'routine_name',
-                'db_routines.php?item_name=area&db=data'
-                . '&item_type=PROCEDURE&server=0&lang=en',
-            ],
-            [
-                'information_schema',
-                'columns',
-                'CHARACTER_SET_NAME',
-                [
-                    'table_schema' => 'information_schema',
-                    'table_name' => 'CHARACTER_SETS'
-                ],
-                'column_name',
-                'index.php?sql_query=SELECT+%60CHARACTER_SET_NAME%60+FROM+%60info'
-                . 'rmation_schema%60.%60CHARACTER_SETS%60&db=information_schema'
-                . '&test_name=value&server=0&lang=en',
+                'index.php?route=/database/routines&item_name=area&db=data&item_type=PROCEDURE&server=0&lang=en',
             ],
         ];
     }
 
-
     /**
-     * Test _getSpecialLinkUrl
+     * Test getSpecialLinkUrl
      *
-     * @param string  $db           the database name
-     * @param string  $table        the table name
-     * @param string  $column_value column value
-     * @param array   $row_info     information about row
-     * @param string  $field_name   column name
-     * @param boolean $output       output of _getSpecialLinkUrl
-     *
-     * @return void
+     * @param string $db           the database name
+     * @param string $table        the table name
+     * @param string $column_value column value
+     * @param array  $row_info     information about row
+     * @param string $field_name   column name
+     * @param string $output       output of getSpecialLinkUrl
      *
      * @dataProvider dataProviderForTestGetSpecialLinkUrl
      */
     public function testGetSpecialLinkUrl(
-        $db,
-        $table,
-        $column_value,
-        $row_info,
-        $field_name,
-        $output
-    ) {
+        string $db,
+        string $table,
+        string $column_value,
+        array $row_info,
+        string $field_name,
+        string $output
+    ): void {
         $specialSchemaLinks = [
             'information_schema' => [
                 'routines' => [
@@ -1101,58 +253,49 @@ class ResultsTest extends PmaTestCase
                                 'column_name' => 'routine_type',
                             ],
                         ],
-                        'default_page' => 'db_routines.php'
+                        'default_page' => 'index.php?route=/database/routines',
                     ],
                 ],
                 'columns' => [
                     'column_name' => [
-                        'link_param' => [
-                            'sql_query',
-                            'table_schema',
-                            'table_name',
-                        ],
+                        'link_param' => 'table_schema',
                         'link_dependancy_params' => [
                             0 => [
                                 'param_info' => 'db',
                                 'column_name' => 'table_schema',
                             ],
                             1 => [
-                                'param_info' => [
-                                    'test_name',
-                                    'value',
-                                ],
+                                'param_info' => 'db2',
+                                'column_name' => 'table_schema',
                             ],
                         ],
-                        'default_page' => 'index.php'
+                        'default_page' => 'index.php',
                     ],
-                ]
+                ],
             ],
         ];
 
-        $this->object->__set('db', $db);
-        $this->object->__set('table', $table);
-
         $this->assertEquals(
             $output,
-            $this->_callPrivateFunction(
-                '_getSpecialLinkUrl',
+            $this->callFunction(
+                $this->object,
+                DisplayResults::class,
+                'getSpecialLinkUrl',
                 [
-                    $specialSchemaLinks,
+                    $specialSchemaLinks[$db][$table][$field_name],
                     $column_value,
                     $row_info,
-                    $field_name,
                 ]
             )
         );
     }
-
 
     /**
      * Data provider for testGetRowInfoForSpecialLinks
      *
      * @return array parameters and output
      */
-    public function dataProviderForTestGetRowInfoForSpecialLinks()
+    public function dataProviderForTestGetRowInfoForSpecialLinks(): array
     {
         $column_names = [
             'host',
@@ -1188,40 +331,39 @@ class ResultsTest extends PmaTestCase
                     'host' => 'localhost',
                     'select_privilages' => 'Y',
                     'db' => 'phpmyadmin',
-                    'user' => 'pmauser'
+                    'user' => 'pmauser',
                 ],
             ],
         ];
     }
 
-
     /**
-     * Test _getRowInfoForSpecialLinks
+     * Test getRowInfoForSpecialLinks
      *
-     * @param array   $fields_meta  meta information about fields
-     * @param integer $fields_count number of fields
-     * @param array   $row          current row data
-     * @param array   $col_order    the column order
-     * @param boolean $output       output of _getRowInfoForSpecialLinks
-     *
-     * @return void
+     * @param FieldMetadata[] $fields_meta  meta information about fields
+     * @param int             $fields_count number of fields
+     * @param array           $row          current row data
+     * @param array           $col_order    the column order
+     * @param array           $output       output of getRowInfoForSpecialLinks
      *
      * @dataProvider dataProviderForTestGetRowInfoForSpecialLinks
      */
     public function testGetRowInfoForSpecialLinks(
-        $fields_meta,
-        $fields_count,
-        $row,
-        $col_order,
-        $output
-    ) {
-        $this->object->__set('fields_meta', $fields_meta);
-        $this->object->__set('fields_cnt', $fields_count);
+        array $fields_meta,
+        int $fields_count,
+        array $row,
+        array $col_order,
+        array $output
+    ): void {
+        $this->object->properties['fields_meta'] = $fields_meta;
+        $this->object->properties['fields_cnt'] = $fields_count;
 
         $this->assertEquals(
             $output,
-            $this->_callPrivateFunction(
-                '_getRowInfoForSpecialLinks',
+            $this->callFunction(
+                $this->object,
+                DisplayResults::class,
+                'getRowInfoForSpecialLinks',
                 [
                     $row,
                     $col_order,
@@ -1230,59 +372,29 @@ class ResultsTest extends PmaTestCase
         );
     }
 
-    /**
-     * Data provider for testSetHighlightedColumnGlobalField
-     *
-     * @return array parameters and output
-     */
-    public function dataProviderForTestSetHighlightedColumnGlobalField()
+    public function testSetHighlightedColumnGlobalField(): void
     {
-        $parser = new Parser(
-            'SELECT * FROM db_name WHERE `db_name`.`tbl`.id > 0 AND `id` < 10'
+        $query = 'SELECT * FROM db_name WHERE `db_name`.`tbl`.id > 0 AND `id` < 10';
+        $this->callFunction(
+            $this->object,
+            DisplayResults::class,
+            'setHighlightedColumnGlobalField',
+            [StatementInfo::fromArray(Query::getAll($query))]
         );
-        return [
-            [
-                ['statement' => $parser->statements[0]],
-                [
-                    'db_name' => 'true',
-                    'tbl' => 'true',
-                    'id' => 'true',
-                ],
-            ],
-        ];
+
+        $this->assertEquals([
+            'db_name' => 'true',
+            'tbl' => 'true',
+            'id' => 'true',
+        ], $this->object->properties['highlight_columns']);
     }
-
-
-    /**
-     * Test _setHighlightedColumnGlobalField
-     *
-     * @param array $analyzed_sql the analyzed query
-     * @param array $output       setting value of _setHighlightedColumnGlobalField
-     *
-     * @return void
-     *
-     * @dataProvider dataProviderForTestSetHighlightedColumnGlobalField
-     */
-    public function testSetHighlightedColumnGlobalField($analyzed_sql, $output): void
-    {
-        $this->_callPrivateFunction(
-            '_setHighlightedColumnGlobalField',
-            [$analyzed_sql]
-        );
-
-        $this->assertEquals(
-            $output,
-            $this->object->__get('highlight_columns')
-        );
-    }
-
 
     /**
      * Data provider for testGetPartialText
      *
      * @return array parameters and output
      */
-    public function dataProviderForTestGetPartialText()
+    public function dataProviderForTestGetPartialText(): array
     {
         return [
             [
@@ -1328,47 +440,54 @@ class ResultsTest extends PmaTestCase
         ];
     }
 
-
     /**
-     * Test _getPartialText
+     * Test getPartialText
      *
-     * @param string  $pftext     Partial or Full text
-     * @param integer $limitChars Partial or Full text
-     * @param string  $str        the string to be tested
-     * @param boolean $output     return value of _getPartialText
-     *
-     * @return void
+     * @param string $pftext     Partial or Full text
+     * @param int    $limitChars Partial or Full text
+     * @param string $str        the string to be tested
+     * @param array  $output     return value of getPartialText
      *
      * @dataProvider dataProviderForTestGetPartialText
      */
-    public function testGetPartialText($pftext, $limitChars, $str, $output): void
+    public function testGetPartialText(string $pftext, int $limitChars, string $str, array $output): void
     {
         $_SESSION['tmpval']['pftext'] = $pftext;
         $GLOBALS['cfg']['LimitChars'] = $limitChars;
         $this->assertEquals(
             $output,
-            $this->_callPrivateFunction(
-                '_getPartialText',
+            $this->callFunction(
+                $this->object,
+                DisplayResults::class,
+                'getPartialText',
                 [$str]
             )
         );
     }
 
-
     /**
-     * Data provider for testHandleNonPrintableContents
-     *
-     * @return array parameters and output
+     * @return mixed[][]
+     * @psalm-return array{array{
+     *   bool,
+     *   bool,
+     *   string,
+     *   string|null,
+     *   TransformationsPlugin|null,
+     *   array|object,
+     *   object,
+     *   array,
+     *   bool|null,
+     *   string
+     * }}
      */
-    public function dataProviderForTestHandleNonPrintableContents()
+    public function dataProviderForTestHandleNonPrintableContents(): array
     {
         $transformation_plugin = new Text_Plain_Link();
-        $meta = new stdClass();
-        $meta->type = 'BLOB';
-        $meta->orgtable = 'bar';
+        $meta = new FieldMetadata(MYSQLI_TYPE_BLOB, 0, (object) ['orgtable' => 'bar']);
         $url_params = [
             'db' => 'foo',
             'table' => 'bar',
+            'where_clause' => 'where_clause',
         ];
 
         return [
@@ -1377,63 +496,36 @@ class ResultsTest extends PmaTestCase
                 true,
                 'BLOB',
                 '1001',
-                [
-                    Core::class,
-                    'mimeDefaultFunction',
-                ],
+                null,
                 [],
-                [
-                    Core::class,
-                    'mimeDefaultFunction',
-                ],
                 $meta,
                 $url_params,
                 null,
-                '<a href="tbl_get_field.php?db=foo&amp;table=bar&amp;server=0'
-                . '&amp;lang=en'
-                . '" class="disableAjax">1001</a>',
+                'class="disableAjax">1001</a>',
             ],
             [
                 true,
                 true,
                 'BLOB',
                 hex2bin('123456'),
-                [
-                    Core::class,
-                    'mimeDefaultFunction',
-                ],
+                null,
                 [],
-                [
-                    Core::class,
-                    'mimeDefaultFunction',
-                ],
                 $meta,
                 $url_params,
                 null,
-                '<a href="tbl_get_field.php?db=foo&amp;table=bar&amp;server=0'
-                . '&amp;lang=en'
-                . '" class="disableAjax">0x123456</a>',
+                'class="disableAjax">0x123456</a>',
             ],
             [
                 true,
                 false,
                 'BLOB',
                 '1001',
-                [
-                    Core::class,
-                    'mimeDefaultFunction',
-                ],
+                null,
                 [],
-                [
-                    Core::class,
-                    'mimeDefaultFunction',
-                ],
                 $meta,
                 $url_params,
                 null,
-                '<a href="tbl_get_field.php?db=foo&amp;table=bar&amp;server=0'
-                . '&amp;lang=en'
-                . '" class="disableAjax">[BLOB - 4 B]</a>',
+                'class="disableAjax">[BLOB - 4 B]</a>',
             ],
             [
                 false,
@@ -1442,10 +534,6 @@ class ResultsTest extends PmaTestCase
                 '1001',
                 $transformation_plugin,
                 [],
-                [
-                    Core::class,
-                    'mimeDefaultFunction',
-                ],
                 $meta,
                 $url_params,
                 null,
@@ -1456,12 +544,8 @@ class ResultsTest extends PmaTestCase
                 true,
                 'GEOMETRY',
                 null,
-                '',
+                null,
                 [],
-                [
-                    Core::class,
-                    'mimeDefaultFunction',
-                ],
                 $meta,
                 $url_params,
                 null,
@@ -1470,55 +554,45 @@ class ResultsTest extends PmaTestCase
         ];
     }
 
-
     /**
-     * Test _handleNonPrintableContents
-     *
-     * @param boolean $display_binary        show binary contents?
-     * @param boolean $display_blob          show blob contents?
-     * @param string  $category              BLOB|BINARY|GEOMETRY
-     * @param string  $content               the binary content
-     * @param string  $transformation_plugin transformation plugin.
-     *                                       Can also be the default function:
-     *                                       PhpMyAdmin\Core::mimeDefaultFunction
-     * @param array   $transform_options     transformation parameters
-     * @param string  $default_function      default transformation function
-     * @param object  $meta                  the meta-information about the field
-     * @param array   $url_params            parameters that should go to the
-     *                                       download link
-     * @param boolean $is_truncated          the result is truncated or not
-     * @param string  $output                the output of this function
-     *
-     * @return void
+     * @param bool         $display_binary    show binary contents?
+     * @param bool         $display_blob      show blob contents?
+     * @param string       $category          BLOB|BINARY|GEOMETRY
+     * @param string|null  $content           the binary content
+     * @param array|object $transform_options transformation parameters
+     * @param object       $meta              the meta-information about the field
+     * @param array        $url_params        parameters that should go to the download link
+     * @param bool|null    $is_truncated      the result is truncated or not
+     * @param string       $output            the output of this function
      *
      * @dataProvider dataProviderForTestHandleNonPrintableContents
      */
     public function testHandleNonPrintableContents(
-        $display_binary,
-        $display_blob,
-        $category,
-        $content,
-        $transformation_plugin,
-        array $transform_options,
-        $default_function,
-        $meta,
-        $url_params,
-        $is_truncated,
-        $output
-    ) {
+        bool $display_binary,
+        bool $display_blob,
+        string $category,
+        ?string $content,
+        ?TransformationsPlugin $transformation_plugin,
+        $transform_options,
+        object $meta,
+        array $url_params,
+        ?bool $is_truncated,
+        string $output
+    ): void {
         $_SESSION['tmpval']['display_binary'] = $display_binary;
         $_SESSION['tmpval']['display_blob'] = $display_blob;
         $GLOBALS['cfg']['LimitChars'] = 50;
-        $this->assertEquals(
+        $this->assertStringContainsString(
             $output,
-            $this->_callPrivateFunction(
-                '_handleNonPrintableContents',
+            $this->callFunction(
+                $this->object,
+                DisplayResults::class,
+                'handleNonPrintableContents',
                 [
                     $category,
                     $content,
                     $transformation_plugin,
                     $transform_options,
-                    $default_function,
                     $meta,
                     $url_params,
                     &$is_truncated,
@@ -1527,36 +601,55 @@ class ResultsTest extends PmaTestCase
         );
     }
 
-
     /**
-     * Data provider for testGetDataCellForNonNumericColumns
-     *
-     * @return array parameters and output
+     * @return mixed[][]
+     * @psalm-return array{array{
+     *   string,
+     *   string|null,
+     *   string,
+     *   object,
+     *   array,
+     *   array,
+     *   bool,
+     *   TransformationsPlugin|null,
+     *   array,
+     *   string
+     * }}
      */
-    public function dataProviderForTestGetDataCellForNonNumericColumns()
+    public function dataProviderForTestGetDataCellForNonNumericColumns(): array
     {
         $transformation_plugin = new Text_Plain_Link();
+        $transformation_plugin_external = new Text_Plain_External();
+
         $meta = new stdClass();
         $meta->db = 'foo';
         $meta->table = 'tbl';
         $meta->orgtable = 'tbl';
-        $meta->type = 'BLOB';
-        $meta->flags = 'blob binary';
         $meta->name = 'tblob';
         $meta->orgname = 'tblob';
+        $meta->charsetnr = 63;
+        $meta = new FieldMetadata(MYSQLI_TYPE_BLOB, 0, $meta);
 
         $meta2 = new stdClass();
         $meta2->db = 'foo';
         $meta2->table = 'tbl';
         $meta2->orgtable = 'tbl';
-        $meta2->type = 'string';
-        $meta2->flags = '';
-        $meta2->decimals = 0;
         $meta2->name = 'varchar';
         $meta2->orgname = 'varchar';
+        $meta2 = new FieldMetadata(MYSQLI_TYPE_STRING, 0, $meta2);
+
+        $meta3 = new stdClass();
+        $meta3->db = 'foo';
+        $meta3->table = 'tbl';
+        $meta3->orgtable = 'tbl';
+        $meta3->name = 'datetime';
+        $meta3->orgname = 'datetime';
+        $meta3 = new FieldMetadata(MYSQLI_TYPE_DATETIME, 0, $meta3);
+
         $url_params = [
             'db' => 'foo',
             'table' => 'tbl',
+            'where_clause' => 'where_clause',
         ];
 
         return [
@@ -1568,24 +661,9 @@ class ResultsTest extends PmaTestCase
                 [],
                 $url_params,
                 false,
-                [
-                    Core::class,
-                    'mimeDefaultFunction',
-                ],
-                [
-                    Core::class,
-                    'mimeDefaultFunction',
-                ],
+                null,
                 ['https://www.example.com/'],
-                false,
-                [],
-                0,
-                'binary',
-                '<td class="left   hex">' . "\n"
-                . '    <a href="tbl_get_field.php?'
-                . 'db=foo&amp;table=tbl&amp;server=0&amp;lang=en'
-                . '" '
-                . 'class="disableAjax">[BLOB - 4 B]</a>' . "\n"
+                'class="disableAjax">[BLOB - 4 B]</a>'
                 . '</td>' . "\n",
             ],
             [
@@ -1597,17 +675,9 @@ class ResultsTest extends PmaTestCase
                 $url_params,
                 false,
                 $transformation_plugin,
-                [
-                    Core::class,
-                    'mimeDefaultFunction',
-                ],
                 [],
-                false,
-                [],
-                0,
-                'binary',
-                '<td class="left grid_edit  transformed hex">' . "\n"
-                . '    1001' . "\n"
+                '<td class="text-start grid_edit transformed hex">'
+                . '1001'
                 . '</td>' . "\n",
             ],
             [
@@ -1619,19 +689,10 @@ class ResultsTest extends PmaTestCase
                 $url_params,
                 false,
                 $transformation_plugin,
-                [
-                    Core::class,
-                    'mimeDefaultFunction',
-                ],
                 [],
-                false,
-                [],
-                0,
-                0,
-                '<td ' . "\n"
-                . '    data-decimals="0"' . "\n"
+                '<td data-decimals="0"' . "\n"
                 . '    data-type="string"' . "\n"
-                . '        class="grid_edit  null">' . "\n"
+                . '        class="grid_edit null">' . "\n"
                 . '    <em>NULL</em>' . "\n"
                 . '</td>' . "\n",
             ],
@@ -1643,78 +704,80 @@ class ResultsTest extends PmaTestCase
                 [],
                 $url_params,
                 false,
-                [
-                    Core::class,
-                    'mimeDefaultFunction',
-                ],
-                [
-                    Core::class,
-                    'mimeDefaultFunction',
-                ],
+                null,
                 [],
-                false,
-                [],
-                0,
-                0,
                 '<td data-decimals="0" data-type="string" '
                 . 'data-originallength="11" '
-                . 'class="grid_edit ">foo bar baz</td>' . "\n",
+                . 'class="grid_edit pre_wrap">foo bar baz</td>' . "\n",
+            ],
+            [
+                'all',
+                'foo bar baz',
+                'grid_edit',
+                $meta2,
+                [],
+                $url_params,
+                false,
+                $transformation_plugin_external,
+                [],
+                '<td data-decimals="0" data-type="string" '
+                . 'data-originallength="11" '
+                . 'class="grid_edit text-nowrap transformed">foo bar baz</td>' . "\n",
+            ],
+            [
+                'all',
+                '2020-09-20 16:35:00',
+                'grid_edit',
+                $meta3,
+                [],
+                $url_params,
+                false,
+                null,
+                [],
+                '<td data-decimals="0" data-type="datetime" '
+                . 'data-originallength="19" '
+                . 'class="grid_edit text-nowrap">2020-09-20 16:35:00</td>' . "\n",
             ],
         ];
     }
 
-
     /**
-     * Test _getDataCellForNonNumericColumns
-     *
-     * @param boolean $protectBinary         all|blob|noblob|no
-     * @param string  $column                the relevant column in data row
-     * @param string  $class                 the html class for column
-     * @param object  $meta                  the meta-information about the field
-     * @param array   $map                   the list of relations
-     * @param array   $_url_params           the parameters for generate url
-     * @param boolean $condition_field       the column should highlighted
-     *                                       or not
-     * @param string  $transformation_plugin the name of transformation function
-     * @param string  $default_function      the default transformation function
-     * @param array   $transform_options     the transformation parameters
-     * @param boolean $is_field_truncated    is data truncated due to LimitChars
-     * @param array   $analyzed_sql_results  the analyzed query
-     * @param integer $dt_result             the link id associated to the query
-     *                                       which results have to be displayed
-     * @param integer $col_index             the column index
-     * @param string  $output                the output of this function
-     *
-     * @return void
+     * @param string      $protectBinary     all|blob|noblob|no
+     * @param string|null $column            the relevant column in data row
+     * @param string      $class             the html class for column
+     * @param object      $meta              the meta-information about the field
+     * @param array       $map               the list of relations
+     * @param array       $_url_params       the parameters for generate url
+     * @param bool        $condition_field   the column should highlighted or not
+     * @param array       $transform_options the transformation parameters
+     * @param string      $output            the output of this function
      *
      * @dataProvider dataProviderForTestGetDataCellForNonNumericColumns
      */
     public function testGetDataCellForNonNumericColumns(
-        $protectBinary,
-        $column,
-        $class,
-        $meta,
-        $map,
-        $_url_params,
-        $condition_field,
-        $transformation_plugin,
-        $default_function,
+        string $protectBinary,
+        ?string $column,
+        string $class,
+        object $meta,
+        array $map,
+        array $_url_params,
+        bool $condition_field,
+        ?TransformationsPlugin $transformation_plugin,
         array $transform_options,
-        $is_field_truncated,
-        $analyzed_sql_results,
-        $dt_result,
-        $col_index,
-        $output
-    ) {
+        string $output
+    ): void {
         $_SESSION['tmpval']['display_binary'] = true;
         $_SESSION['tmpval']['display_blob'] = false;
         $_SESSION['tmpval']['relational_display'] = false;
         $GLOBALS['cfg']['LimitChars'] = 50;
         $GLOBALS['cfg']['ProtectBinary'] = $protectBinary;
-        $this->assertEquals(
+        $statementInfo = $this->createStub(StatementInfo::class);
+        $this->assertStringContainsString(
             $output,
-            $this->_callPrivateFunction(
-                '_getDataCellForNonNumericColumns',
+            $this->callFunction(
+                $this->object,
+                DisplayResults::class,
+                'getDataCellForNonNumericColumns',
                 [
                     $column,
                     $class,
@@ -1723,12 +786,8 @@ class ResultsTest extends PmaTestCase
                     $_url_params,
                     $condition_field,
                     $transformation_plugin,
-                    $default_function,
                     $transform_options,
-                    $is_field_truncated,
-                    $analyzed_sql_results,
-                    &$dt_result,
-                    $col_index,
+                    $statementInfo,
                 ]
             )
         );
@@ -1739,57 +798,51 @@ class ResultsTest extends PmaTestCase
      *
      * It mocks data needed to display two transformations and asserts
      * they are rendered.
-     *
-     * @return void
      */
-    public function testOutputTransformations()
+    public function testOutputTransformations(): void
     {
         // Fake relation settings
         $_SESSION['tmpval']['relational_display'] = 'K';
-        $_SESSION['relation'][$GLOBALS['server']]['PMA_VERSION'] = PMA_VERSION;
-        $_SESSION['relation'][$GLOBALS['server']]['mimework'] = true;
-        $_SESSION['relation'][$GLOBALS['server']]['column_info'] = 'column_info';
+        $_SESSION['relation'] = [];
+        $_SESSION['relation'][$GLOBALS['server']] = RelationParameters::fromArray([
+            'db' => 'db',
+            'mimework' => true,
+            'column_info' => 'column_info',
+        ])->toArray();
         $GLOBALS['cfg']['BrowseMIME'] = true;
 
         // Basic data
-        $result = 0;
         $query = 'SELECT 1';
-        $this->object->__set('db', 'db');
-        $this->object->__set('fields_cnt', 2);
+        $this->object->properties['db'] = 'db';
+        $this->object->properties['fields_cnt'] = 2;
 
         // Field meta information
         $meta = new stdClass();
         $meta->db = 'db';
         $meta->table = 'table';
         $meta->orgtable = 'table';
-        $meta->type = 'INT';
-        $meta->flags = '';
         $meta->name = '1';
         $meta->orgname = '1';
-        $meta->not_null = true;
-        $meta->numeric = true;
-        $meta->primary_key = false;
-        $meta->unique_key = false;
+        $meta->blob = false;
         $meta2 = new stdClass();
         $meta2->db = 'db';
         $meta2->table = 'table';
         $meta2->orgtable = 'table';
-        $meta2->type = 'INT';
-        $meta2->flags = '';
         $meta2->name = '2';
         $meta2->orgname = '2';
-        $meta2->not_null = true;
-        $meta2->numeric = true;
-        $meta2->primary_key = false;
-        $meta2->unique_key = false;
+        $meta2->blob = false;
         $fields_meta = [
-            $meta,
-            $meta2,
+            new FieldMetadata(MYSQLI_TYPE_LONG, MYSQLI_NUM_FLAG | MYSQLI_NOT_NULL_FLAG, $meta),
+            new FieldMetadata(MYSQLI_TYPE_LONG, MYSQLI_NUM_FLAG | MYSQLI_NOT_NULL_FLAG, $meta2),
         ];
-        $this->object->__set('fields_meta', $fields_meta);
+        $this->object->properties['fields_meta'] = $fields_meta;
+
+        $dbi = $this->getMockBuilder(DatabaseInterface::class)
+            ->disableOriginalConstructor()
+            ->getMock();
 
         // MIME transformations
-        $GLOBALS['dbi']->expects($this->exactly(1))
+        $dbi->expects($this->exactly(1))
             ->method('fetchResult')
             ->willReturn(
                 [
@@ -1804,17 +857,17 @@ class ResultsTest extends PmaTestCase
                 ]
             );
 
+        $GLOBALS['dbi'] = $dbi;
+
         $transformations = new Transformations();
-        $this->object->__set(
-            'mime_map',
-            $transformations->getMime('db', 'table')
-        );
+        $this->object->properties['mime_map'] = $transformations->getMime('db', 'table');
 
         // Actually invoke tested method
-        $output = $this->_callPrivateFunction(
-            '_getRowValues',
+        $output = $this->callFunction(
+            $this->object,
+            DisplayResults::class,
+            'getRowValues',
             [
-                &$result,
                 [
                     3600,
                     true,
@@ -1822,24 +875,908 @@ class ResultsTest extends PmaTestCase
                 0,
                 false,
                 [],
-                '',
+                'disabled',
                 false,
                 $query,
-                Query::getAll($query),
+                StatementInfo::fromArray(Query::getAll($query)),
             ]
         );
 
         // Dateformat
-        $this->assertStringContainsString(
-            'Jan 01, 1970 at 01:00 AM',
-            $output
-        );
+        $this->assertStringContainsString('Jan 01, 1970 at 01:00 AM', $output);
         // Bool2Text
+        $this->assertStringContainsString('>T<', $output);
+    }
+
+    public function dataProviderGetSortOrderHiddenInputs(): array
+    {
+        // SQL to add the column
+        // SQL to remove the column
+        // The URL params
+        // The column name
+        return [
+            [
+                '',
+                '',
+                ['sql_query' => ''],
+                'colname',
+                '',
+            ],
+            [
+                'SELECT * FROM `gis_all` ORDER BY `gis_all`.`shape` DESC, `gis_all`.`name` ASC',
+                'SELECT * FROM `gis_all` ORDER BY `gis_all`.`name` ASC',
+                ['sql_query' => 'SELECT * FROM `gis_all` ORDER BY `gis_all`.`shape` DESC, `gis_all`.`name` ASC'],
+                'shape',
+                '',
+            ],
+            [
+                'SELECT * FROM `gis_all` ORDER BY `gis_all`.`shape` DESC, `gis_all`.`name` ASC',
+                'SELECT * FROM `gis_all` ORDER BY `gis_all`.`shape` DESC',
+                ['sql_query' => 'SELECT * FROM `gis_all` ORDER BY `gis_all`.`shape` DESC, `gis_all`.`name` ASC'],
+                'name',
+                '',
+            ],
+            [
+                'SELECT * FROM `gis_all`',
+                'SELECT * FROM `gis_all`',
+                ['sql_query' => 'SELECT * FROM `gis_all`'],
+                'name',
+                '',
+            ],
+            [
+                'SELECT * FROM `gd_cities` ORDER BY `gd_cities`.`region_slug` DESC, '
+                . '`gd_cities`.`country_slug` ASC, `gd_cities`.`city_id` ASC, `gd_cities`.`city` ASC',
+                'SELECT * FROM `gd_cities` ORDER BY `gd_cities`.`region_slug` DESC, '
+                . '`gd_cities`.`country_slug` ASC, `gd_cities`.`city_id` ASC, `gd_cities`.`city` ASC',
+                [
+                    'sql_query' => 'SELECT * FROM `gd_cities` ORDER BY `gd_cities`.`region_slug` DESC, '
+                . '`gd_cities`.`country_slug` ASC, `gd_cities`.`city_id` ASC, `gd_cities`.`city` ASC',
+                ],
+                '',
+                '',
+            ],
+            [
+                'SELECT * FROM `gd_cities` ORDER BY `gd_cities`.`region_slug` DESC, '
+                . '`gd_cities`.`country_slug` ASC, `gd_cities`.`city_id` ASC, `gd_cities`.`city` ASC',
+                'SELECT * FROM `gd_cities` ORDER BY `gd_cities`.`country_slug` ASC, `gd_cities`.`city_id`'
+                . ' ASC, `gd_cities`.`city` ASC',
+                [
+                    'sql_query' => 'SELECT * FROM `gd_cities` ORDER BY `gd_cities`.`region_slug` DESC, '
+                . '`gd_cities`.`country_slug` ASC, `gd_cities`.`city_id` ASC, `gd_cities`.`city` ASC',
+                ],
+                'region_slug',
+                '',
+            ],
+            [
+                'SELECT * FROM `gis_all` ORDER BY `gis_all`.`shape` DESC',
+                'SELECT * FROM `gis_all`',
+                ['sql_query' => 'SELECT * FROM `gis_all` ORDER BY `gis_all`.`shape` DESC'],
+                'shape',
+                '&discard_remembered_sort=1',
+            ],
+        ];
+    }
+
+    /**
+     * @dataProvider dataProviderGetSortOrderHiddenInputs
+     */
+    public function testGetSortOrderHiddenInputs(
+        string $sqlAdd,
+        string $sqlRemove,
+        array $urlParams,
+        string $colName,
+        string $urlParamsRemove
+    ): void {
+        $output = $this->callFunction(
+            $this->object,
+            DisplayResults::class,
+            'getSortOrderHiddenInputs',
+            [
+                $urlParams,
+                $colName,
+            ]
+        );
+        $out = urldecode(htmlspecialchars_decode($output));
         $this->assertStringContainsString(
-            '>T<',
+            'name="url-remove-order" value="index.php?route=/sql&sql_query=' . $sqlRemove,
+            $out,
+            'The remove query should be found'
+        );
+
+        $this->assertStringContainsString(
+            'name="url-add-order" value="index.php?route=/sql&sql_query=' . $sqlAdd,
+            $out,
+            'The add query should be found'
+        );
+
+        $firstLine = explode("\n", $out)[0] ?? '';
+        $this->assertStringContainsString(
+            'url-remove-order',
+            $firstLine,
+            'The first line should contain url-remove-order input'
+        );
+        $this->assertStringNotContainsString(
+            'url-add-order',
+            $firstLine,
+            'The first line should contain NOT url-add-order input'
+        );
+
+        $this->assertStringContainsString($urlParamsRemove, $firstLine, 'The first line should contain the URL params');
+    }
+
+    /**
+     * @see https://github.com/phpmyadmin/phpmyadmin/issues/16836
+     */
+    public function testBuildValueDisplayNoTrainlingSpaces(): void
+    {
+        $output = $this->callFunction(
+            $this->object,
+            DisplayResults::class,
+            'buildValueDisplay',
+            [
+                'my_class',
+                false,
+                '  special value  ',
+            ]
+        );
+        $this->assertSame('<td class="text-start my_class">  special value  </td>' . "\n", $output);
+        $output = $this->callFunction(
+            $this->object,
+            DisplayResults::class,
+            'buildValueDisplay',
+            [
+                'my_class',
+                false,
+                '0x11e6ac0cfb1e8bf3bf48b827ebdafb0b',
+            ]
+        );
+        $this->assertSame('<td class="text-start my_class">0x11e6ac0cfb1e8bf3bf48b827ebdafb0b</td>' . "\n", $output);
+        $output = $this->callFunction(
+            $this->object,
+            DisplayResults::class,
+            'buildValueDisplay',
+            [
+                'my_class',
+                true,// condition mode
+                '0x11e6ac0cfb1e8bf3bf48b827ebdafb0b',
+            ]
+        );
+        $this->assertSame(
+            '<td class="text-start my_class condition">0x11e6ac0cfb1e8bf3bf48b827ebdafb0b</td>' . "\n",
             $output
         );
-        unset($_SESSION['tmpval']);
-        unset($_SESSION['relation']);
+    }
+
+    /**
+     * @dataProvider providerSetConfigParamsForDisplayTable
+     */
+    public function testSetConfigParamsForDisplayTable(
+        array $session,
+        array $get,
+        array $post,
+        array $request,
+        array $expected
+    ): void {
+        $_SESSION = $session;
+        $_GET = $get;
+        $_POST = $post;
+        $_REQUEST = $request;
+
+        $db = 'test_db';
+        $table = 'test_table';
+        $query = 'SELECT * FROM `test_db`.`test_table`;';
+
+        $object = new DisplayResults($this->dbi, $db, $table, 1, '', $query);
+        $object->setConfigParamsForDisplayTable();
+
+        $this->assertArrayHasKey('tmpval', $_SESSION);
+        $this->assertIsArray($_SESSION['tmpval']);
+        $this->assertSame($expected, $_SESSION['tmpval']);
+    }
+
+    public function providerSetConfigParamsForDisplayTable(): array
+    {
+        $cfg = ['RelationalDisplay' => DisplayResults::RELATIONAL_KEY, 'MaxRows' => 25, 'RepeatCells' => 100];
+
+        return [
+            'default values' => [
+                [],
+                [],
+                [],
+                [],
+                [
+                    'query' => [
+                        '27b1330f2076ef45d236f20839a92831' => [
+                            'sql' => 'SELECT * FROM `test_db`.`test_table`;',
+                            'repeat_cells' => $cfg['RepeatCells'],
+                            'max_rows' => $cfg['MaxRows'],
+                            'pos' => 0,
+                            'pftext' => DisplayResults::DISPLAY_PARTIAL_TEXT,
+                            'relational_display' => $cfg['RelationalDisplay'],
+                            'geoOption' => DisplayResults::GEOMETRY_DISP_GEOM,
+                            'display_binary' => true,
+                        ],
+                    ],
+                    'pftext' => DisplayResults::DISPLAY_PARTIAL_TEXT,
+                    'relational_display' => $cfg['RelationalDisplay'],
+                    'geoOption' => DisplayResults::GEOMETRY_DISP_GEOM,
+                    'display_binary' => true,
+                    'display_blob' => false,
+                    'hide_transformation' => false,
+                    'pos' => 0,
+                    'max_rows' => $cfg['MaxRows'],
+                    'repeat_cells' => $cfg['RepeatCells'],
+                ],
+            ],
+            'cached values' => [
+                [
+                    'tmpval' => [
+                        'query' => [
+                            '27b1330f2076ef45d236f20839a92831' => [
+                                'sql' => 'SELECT * FROM `test_db`.`test_table`;',
+                                'repeat_cells' => 90,
+                                'max_rows' => 26,
+                                'pos' => 1,
+                                'pftext' => DisplayResults::DISPLAY_FULL_TEXT,
+                                'relational_display' => DisplayResults::RELATIONAL_DISPLAY_COLUMN,
+                                'geoOption' => DisplayResults::GEOMETRY_DISP_WKB,
+                                'display_binary' => false,
+                            ],
+                            'a' => [],
+                            'b' => [],
+                            'c' => [],
+                            'd' => [],
+                            'e' => [],
+                            'f' => [],
+                            'g' => [],
+                            'h' => [],
+                            'i' => [],
+                            'j' => [],
+                        ],
+                    ],
+                ],
+                [],
+                [],
+                [],
+                [
+                    'query' => [
+                        'b' => [],
+                        'c' => [],
+                        'd' => [],
+                        'e' => [],
+                        'f' => [],
+                        'g' => [],
+                        'h' => [],
+                        'i' => [],
+                        'j' => [],
+                        '27b1330f2076ef45d236f20839a92831' => [
+                            'sql' => 'SELECT * FROM `test_db`.`test_table`;',
+                            'repeat_cells' => 90,
+                            'max_rows' => 26,
+                            'pos' => 1,
+                            'pftext' => DisplayResults::DISPLAY_FULL_TEXT,
+                            'relational_display' => DisplayResults::RELATIONAL_DISPLAY_COLUMN,
+                            'geoOption' => DisplayResults::GEOMETRY_DISP_WKB,
+                            'display_binary' => true,
+                        ],
+                    ],
+                    'pftext' => DisplayResults::DISPLAY_FULL_TEXT,
+                    'relational_display' => DisplayResults::RELATIONAL_DISPLAY_COLUMN,
+                    'geoOption' => DisplayResults::GEOMETRY_DISP_WKB,
+                    'display_binary' => true,
+                    'display_blob' => false,
+                    'hide_transformation' => false,
+                    'pos' => 1,
+                    'max_rows' => 26,
+                    'repeat_cells' => 90,
+                ],
+            ],
+            'default and request values' => [
+                [],
+                ['session_max_rows' => '27'],
+                ['session_max_rows' => '28'],
+                [
+                    'pos' => '2',
+                    'pftext' => DisplayResults::DISPLAY_FULL_TEXT,
+                    'relational_display' => DisplayResults::RELATIONAL_DISPLAY_COLUMN,
+                    'geoOption' => DisplayResults::GEOMETRY_DISP_WKT,
+                    'display_binary' => '0',
+                    'display_blob' => '0',
+                    'hide_transformation' => '0',
+                ],
+                [
+                    'query' => [
+                        '27b1330f2076ef45d236f20839a92831' => [
+                            'sql' => 'SELECT * FROM `test_db`.`test_table`;',
+                            'repeat_cells' => $cfg['RepeatCells'],
+                            'max_rows' => 27,
+                            'pos' => 2,
+                            'pftext' => DisplayResults::DISPLAY_FULL_TEXT,
+                            'relational_display' => DisplayResults::RELATIONAL_DISPLAY_COLUMN,
+                            'geoOption' => DisplayResults::GEOMETRY_DISP_WKT,
+                            'display_binary' => true,
+                            'display_blob' => true,
+                            'hide_transformation' => true,
+                        ],
+                    ],
+                    'pftext' => DisplayResults::DISPLAY_FULL_TEXT,
+                    'relational_display' => DisplayResults::RELATIONAL_DISPLAY_COLUMN,
+                    'geoOption' => DisplayResults::GEOMETRY_DISP_WKT,
+                    'display_binary' => true,
+                    'display_blob' => true,
+                    'hide_transformation' => true,
+                    'pos' => 2,
+                    'max_rows' => 27,
+                    'repeat_cells' => $cfg['RepeatCells'],
+                ],
+            ],
+            'cached and request values' => [
+                [
+                    'tmpval' => [
+                        'query' => [
+                            '27b1330f2076ef45d236f20839a92831' => [
+                                'sql' => 'SELECT * FROM `test_db`.`test_table`;',
+                                'repeat_cells' => $cfg['RepeatCells'],
+                                'max_rows' => $cfg['MaxRows'],
+                                'pos' => 0,
+                                'pftext' => DisplayResults::DISPLAY_FULL_TEXT,
+                                'relational_display' => DisplayResults::RELATIONAL_DISPLAY_COLUMN,
+                                'geoOption' => DisplayResults::GEOMETRY_DISP_GEOM,
+                                'display_binary' => true,
+                            ],
+                            'a' => [],
+                            'b' => [],
+                            'c' => [],
+                            'd' => [],
+                            'e' => [],
+                            'f' => [],
+                            'g' => [],
+                            'h' => [],
+                            'i' => [],
+                        ],
+                    ],
+                ],
+                [],
+                ['session_max_rows' => DisplayResults::ALL_ROWS],
+                [
+                    'pos' => 'NaN',
+                    'pftext' => DisplayResults::DISPLAY_PARTIAL_TEXT,
+                    'relational_display' => DisplayResults::RELATIONAL_KEY,
+                    'geoOption' => DisplayResults::GEOMETRY_DISP_WKB,
+                    'display_options_form' => '0',
+                ],
+                [
+                    'query' => [
+                        'a' => [],
+                        'b' => [],
+                        'c' => [],
+                        'd' => [],
+                        'e' => [],
+                        'f' => [],
+                        'g' => [],
+                        'h' => [],
+                        'i' => [],
+                        '27b1330f2076ef45d236f20839a92831' => [
+                            'sql' => 'SELECT * FROM `test_db`.`test_table`;',
+                            'repeat_cells' => $cfg['RepeatCells'],
+                            'max_rows' => DisplayResults::ALL_ROWS,
+                            'pos' => 0,
+                            'pftext' => DisplayResults::DISPLAY_PARTIAL_TEXT,
+                            'relational_display' => DisplayResults::RELATIONAL_KEY,
+                            'geoOption' => DisplayResults::GEOMETRY_DISP_WKB,
+                        ],
+                    ],
+                    'pftext' => DisplayResults::DISPLAY_PARTIAL_TEXT,
+                    'relational_display' => DisplayResults::RELATIONAL_KEY,
+                    'geoOption' => DisplayResults::GEOMETRY_DISP_WKB,
+                    'display_binary' => false,
+                    'display_blob' => false,
+                    'hide_transformation' => false,
+                    'pos' => 0,
+                    'max_rows' => DisplayResults::ALL_ROWS,
+                    'repeat_cells' => $cfg['RepeatCells'],
+                ],
+            ],
+        ];
+    }
+
+    public function testGetTable(): void
+    {
+        $GLOBALS['cfg']['Server']['DisableIS'] = true;
+
+        $GLOBALS['db'] = 'test_db';
+        $GLOBALS['table'] = 'test_table';
+        $query = 'SELECT * FROM `test_db`.`test_table`;';
+
+        $object = new DisplayResults($this->dbi, $GLOBALS['db'], $GLOBALS['table'], 1, '', $query);
+        $object->properties['unique_id'] = 1234567890;
+
+        [$statementInfo] = ParseAnalyze::sqlQuery($query, $GLOBALS['db']);
+        $fieldsMeta = [
+            new FieldMetadata(
+                MYSQLI_TYPE_DECIMAL,
+                MYSQLI_PRI_KEY_FLAG | MYSQLI_NUM_FLAG | MYSQLI_NOT_NULL_FLAG,
+                (object) ['name' => 'id']
+            ),
+            new FieldMetadata(MYSQLI_TYPE_STRING, MYSQLI_NOT_NULL_FLAG, (object) ['name' => 'name']),
+            new FieldMetadata(MYSQLI_TYPE_DATETIME, MYSQLI_NOT_NULL_FLAG, (object) ['name' => 'datetimefield']),
+        ];
+
+        $object->setProperties(
+            3,
+            $fieldsMeta,
+            $statementInfo->isCount,
+            $statementInfo->isExport,
+            $statementInfo->isFunction,
+            $statementInfo->isAnalyse,
+            3,
+            count($fieldsMeta),
+            1.234,
+            'ltr',
+            $statementInfo->isMaint,
+            $statementInfo->isExplain,
+            $statementInfo->isShow,
+            null,
+            null,
+            true,
+            false
+        );
+
+        $_SESSION = ['tmpval' => [], ' PMA_token ' => 'token'];
+        $_SESSION['tmpval']['geoOption'] = '';
+        $_SESSION['tmpval']['hide_transformation'] = '';
+        $_SESSION['tmpval']['display_blob'] = '';
+        $_SESSION['tmpval']['display_binary'] = '';
+        $_SESSION['tmpval']['relational_display'] = '';
+        $_SESSION['tmpval']['possible_as_geometry'] = '';
+        $_SESSION['tmpval']['pftext'] = '';
+        $_SESSION['tmpval']['max_rows'] = 25;
+        $_SESSION['tmpval']['pos'] = 0;
+        $_SESSION['tmpval']['repeat_cells'] = 0;
+        $_SESSION['tmpval']['query']['27b1330f2076ef45d236f20839a92831']['max_rows'] = 25;
+
+        $dtResult = $this->dbi->tryQuery($query);
+
+        $displayParts = DisplayParts::fromArray([
+            'hasEditLink' => true,
+            'deleteLink' => DisplayParts::DELETE_ROW,
+            'hasSortLink' => true,
+            'hasNavigationBar' => true,
+            'hasBookmarkForm' => true,
+            'hasTextButton' => false,
+            'hasPrintLink' => true,
+        ]);
+
+        $this->assertNotFalse($dtResult);
+        $actual = $object->getTable($dtResult, $displayParts, $statementInfo);
+
+        $template = new Template();
+
+        $tableHeadersForColumns = $template->render('display/results/table_headers_for_columns', [
+            'is_sortable' => true,
+            'columns' => [
+                [
+                    'column_name' => 'id',
+                    'order_link' => '<a href="index.php?route=/sql&server=0&lang=en&db=test_db&table=test_table'
+                        . '&sql_query=SELECT+%2A+FROM+%60test_db%60.%60test_table%60++%0AORDER+BY+%60id%60+ASC'
+                        . '&sql_signature=dcfe20b407b35309f6af81f745e77a10f723d39b082d2a8f9cb8e75b17c4d3ce'
+                        . '&session_max_rows=25&is_browse_distinct=0&server=0&lang=en" class="sortlink">id'
+                        . '<input type="hidden" value="'
+                        . 'index.php?route=/sql&server=0&lang=en&db=test_db&table=test_table'
+                        . '&sql_query=SELECT+%2A+FROM+%60test_db%60.%60test_table%60++%0AORDER+BY+%60id%60+ASC'
+                        . '&sql_signature=dcfe20b407b35309f6af81f745e77a10f723d39b082d2a8f9cb8e75b17c4d3ce'
+                        . '&session_max_rows=25&is_browse_distinct=0&server=0&lang=en"></a>'
+                        . '<input type="hidden" name="url-remove-order" value="index.php?route=/sql&db=test_db'
+                        . '&table=test_table&sql_query=SELECT+%2A+FROM+%60test_db%60.%60test_table%60'
+                        . '&sql_signature=61b0c8c5657483469636496ed02311acefd66dda3892b0d5b23d23c621486dd7'
+                        . '&session_max_rows=25&is_browse_distinct=0&server=0&lang=en'
+                        . '&discard_remembered_sort=1">' . "\n"
+                        . '<input type="hidden" name="url-add-order" value="'
+                        . 'index.php?route=/sql&db=test_db&table=test_table'
+                        . '&sql_query=SELECT+%2A+FROM+%60test_db%60.%60test_table%60++%0AORDER+BY+%60id%60+ASC'
+                        . '&sql_signature=dcfe20b407b35309f6af81f745e77a10f723d39b082d2a8f9cb8e75b17c4d3ce'
+                        . '&session_max_rows=25&is_browse_distinct=0&server=0&lang=en">',
+                    'comments' => '',
+                    'is_browse_pointer_enabled' => true,
+                    'is_browse_marker_enabled' => true,
+                    'is_column_hidden' => false,
+                    'is_column_numeric' => true,
+                ],
+                [
+                    'column_name' => 'name',
+                    'order_link' => '<a href="index.php?route=/sql&server=0&lang=en&db=test_db&table=test_table'
+                        . '&sql_query=SELECT+%2A+FROM+%60test_db%60.%60test_table%60++%0AORDER+BY+%60name%60+ASC'
+                        . '&sql_signature=0d06fa8d6795b1c69892cca27d6213c08401bd434145d16cb35c365ab3e03039'
+                        . '&session_max_rows=25&is_browse_distinct=0&server=0&lang=en" class="sortlink">name'
+                        . '<input type="hidden" value="'
+                        . 'index.php?route=/sql&server=0&lang=en&db=test_db&table=test_table'
+                        . '&sql_query=SELECT+%2A+FROM+%60test_db%60.%60test_table%60++%0AORDER+BY+%60name%60+ASC'
+                        . '&sql_signature=0d06fa8d6795b1c69892cca27d6213c08401bd434145d16cb35c365ab3e03039'
+                        . '&session_max_rows=25&is_browse_distinct=0&server=0&lang=en"></a>'
+                        . '<input type="hidden" name="url-remove-order" value="index.php?route=/sql&db=test_db'
+                        . '&table=test_table&sql_query=SELECT+%2A+FROM+%60test_db%60.%60test_table%60'
+                        . '&sql_signature=61b0c8c5657483469636496ed02311acefd66dda3892b0d5b23d23c621486dd7'
+                        . '&session_max_rows=25&is_browse_distinct=0&server=0&lang=en'
+                        . '&discard_remembered_sort=1">' . "\n"
+                        . '<input type="hidden" name="url-add-order" value="'
+                        . 'index.php?route=/sql&db=test_db&table=test_table'
+                        . '&sql_query=SELECT+%2A+FROM+%60test_db%60.%60test_table%60++%0AORDER+BY+%60name%60+ASC'
+                        . '&sql_signature=0d06fa8d6795b1c69892cca27d6213c08401bd434145d16cb35c365ab3e03039'
+                        . '&session_max_rows=25&is_browse_distinct=0&server=0&lang=en">',
+                    'comments' => '',
+                    'is_browse_pointer_enabled' => true,
+                    'is_browse_marker_enabled' => true,
+                    'is_column_hidden' => false,
+                    'is_column_numeric' => false,
+                ],
+                [
+                    'column_name' => 'datetimefield',
+                    'order_link' => '<a href="index.php?route=/sql&server=0&lang=en&db=test_db&table=test_table'
+                        . '&sql_query=SELECT+%2A+FROM+%60test_db%60.%60test_table%60++%0A'
+                        . 'ORDER+BY+%60datetimefield%60+DESC'
+                        . '&sql_signature=1c46f7e3c625f9e0846fb2de844ca1732319e5fb7fb93e96c89a4b6218579358'
+                        . '&session_max_rows=25&is_browse_distinct=0&server=0&lang=en" class="sortlink">datetimefield'
+                        . '<input type="hidden" value="'
+                        . 'index.php?route=/sql&server=0&lang=en&db=test_db&table=test_table'
+                        . '&sql_query=SELECT+%2A+FROM+%60test_db%60.%60test_table%60++%0A'
+                        . 'ORDER+BY+%60datetimefield%60+DESC'
+                        . '&sql_signature=1c46f7e3c625f9e0846fb2de844ca1732319e5fb7fb93e96c89a4b6218579358'
+                        . '&session_max_rows=25&is_browse_distinct=0&server=0&lang=en"></a>'
+                        . '<input type="hidden" name="url-remove-order" value="index.php?route=/sql&db=test_db'
+                        . '&table=test_table&sql_query=SELECT+%2A+FROM+%60test_db%60.%60test_table%60'
+                        . '&sql_signature=61b0c8c5657483469636496ed02311acefd66dda3892b0d5b23d23c621486dd7'
+                        . '&session_max_rows=25&is_browse_distinct=0&server=0&lang=en'
+                        . '&discard_remembered_sort=1">' . "\n"
+                        . '<input type="hidden" name="url-add-order" value="'
+                        . 'index.php?route=/sql&db=test_db&table=test_table'
+                        . '&sql_query=SELECT+%2A+FROM+%60test_db%60.%60test_table%60++%0A'
+                        . 'ORDER+BY+%60datetimefield%60+DESC'
+                        . '&sql_signature=1c46f7e3c625f9e0846fb2de844ca1732319e5fb7fb93e96c89a4b6218579358'
+                        . '&session_max_rows=25&is_browse_distinct=0&server=0&lang=en">',
+                    'comments' => '',
+                    'is_browse_pointer_enabled' => true,
+                    'is_browse_marker_enabled' => true,
+                    'is_column_hidden' => false,
+                    'is_column_numeric' => false,
+                ],
+            ],
+        ]);
+
+        $tableTemplate = $template->render('display/results/table', [
+            'sql_query_message' => Generator::getMessage(
+                Message::success('Showing rows 0 -  2 (3 total, Query took 1.2340 seconds.)'),
+                $query,
+                'success'
+            ),
+            'navigation' => [
+                'page_selector' => '',
+                'number_total_page' => 1,
+                'has_show_all' => true,
+                'hidden_fields' => [
+                    'db' => $GLOBALS['db'],
+                    'table' => $GLOBALS['table'],
+                    'server' => 1,
+                    'sql_query' => $query,
+                    'is_browse_distinct' => false,
+                    'goto' => '',
+                ],
+                'session_max_rows' => 'all',
+                'is_showing_all' => false,
+                'max_rows' => 25,
+                'pos' => 0,
+                'sort_by_key' => [
+                    'hidden_fields' => [
+                        'db' => $GLOBALS['db'],
+                        'table' => $GLOBALS['table'],
+                        'server' => 1,
+                        'sort_by_key' => '1',
+                        'session_max_rows' => 25,
+                    ],
+                    'options' => [
+                        [
+                            'value' => 'SELECT * FROM `test_db`.`test_table`   ORDER BY `id` ASC',
+                            'content' => 'PRIMARY (ASC)',
+                            'is_selected' => false,
+                        ],
+                        [
+                            'value' => 'SELECT * FROM `test_db`.`test_table`   ORDER BY `id` DESC',
+                            'content' => 'PRIMARY (DESC)',
+                            'is_selected' => false,
+                        ],
+                        [
+                            'value' => 'SELECT * FROM `test_db`.`test_table`  ',
+                            'content' => 'None',
+                            'is_selected' => true,
+                        ],
+                    ],
+                ],
+                'is_last_page' => true,
+            ],
+            'headers' => [
+                'column_order' => [
+                    'order' => false,
+                    'visibility' => false,
+                    'is_view' => false,
+                    'table_create_time' => '',
+                ],
+                'options' => '$optionsBlock',
+                'has_bulk_actions_form' => false,
+                'button' => '<thead><tr>' . "\n",
+                'table_headers_for_columns' => $tableHeadersForColumns,
+                'column_at_right_side' => "\n" . '<td class="d-print-none"></td>',
+            ],
+            'body' => '<tr><td data-decimals="0" data-type="real" class="'
+                . 'text-end data not_null text-nowrap">1</td>' . "\n"
+                . '<td data-decimals="0" data-type="string" data-originallength="4" class="'
+                . 'data not_null text pre_wrap">abcd</td>' . "\n"
+                . '<td data-decimals="0" data-type="datetime" data-originallength="19" class="'
+                . 'data not_null datetimefield text-nowrap">2011-01-20 02:00:02</td>' . "\n"
+                . '</tr>' . "\n"
+                . '<tr><td data-decimals="0" data-type="real" class="'
+                . 'text-end data not_null text-nowrap">2</td>' . "\n"
+                . '<td data-decimals="0" data-type="string" data-originallength="3" class="'
+                . 'data not_null text pre_wrap">foo</td>' . "\n"
+                . '<td data-decimals="0" data-type="datetime" data-originallength="19" class="'
+                . 'data not_null datetimefield text-nowrap">2010-01-20 02:00:02</td>' . "\n"
+                . '</tr>' . "\n"
+                . '<tr><td data-decimals="0" data-type="real" class="'
+                . 'text-end data not_null text-nowrap">3</td>' . "\n"
+                . '<td data-decimals="0" data-type="string" data-originallength="4" class="'
+                . 'data not_null text pre_wrap">Abcd</td>' . "\n"
+                . '<td data-decimals="0" data-type="datetime" data-originallength="19" class="'
+                . 'data not_null datetimefield text-nowrap">2012-01-20 02:00:02</td>' . "\n"
+                . '</tr>' . "\n",
+            'bulk_links' => [],
+            'operations' => [
+                'has_procedure' => false,
+                'has_geometry' => false,
+                'has_print_link' => true,
+                'has_export_link' => true,
+                'url_params' => [
+                    'db' => $GLOBALS['db'],
+                    'table' => $GLOBALS['table'],
+                    'printview' => '1',
+                    'sql_query' => $query,
+                    'single_table' => 'true',
+                    'unlim_num_rows' => 3,
+                ],
+            ],
+            'db' => $GLOBALS['db'],
+            'table' => $GLOBALS['table'],
+            'unique_id' => 1234567890,
+            'sql_query' => $query,
+            'goto' => '',
+            'unlim_num_rows' => 3,
+            'displaywork' => false,
+            'relwork' => false,
+            'save_cells_at_once' => false,
+            'default_sliders_state' => 'closed',
+            'text_dir' => 'ltr',
+        ]);
+
+        $this->assertEquals($tableTemplate, $actual);
+    }
+
+    public function testGetTable2(): void
+    {
+        $GLOBALS['cfg']['Server']['DisableIS'] = true;
+
+        $GLOBALS['db'] = 'test_db';
+        $GLOBALS['table'] = 'test_table';
+        $query = 'SELECT COUNT(*) AS `Rows`, `name` FROM `test_table` GROUP BY `name` ORDER BY `name`';
+
+        $dummyDbi = $this->createDbiDummy();
+        $dbi = $this->createDatabaseInterface($dummyDbi);
+
+        $object = new DisplayResults($dbi, $GLOBALS['db'], $GLOBALS['table'], 1, '', $query);
+        $object->properties['unique_id'] = 1234567890;
+
+        [$statementInfo] = ParseAnalyze::sqlQuery($query, $GLOBALS['db']);
+        $fieldsMeta = [
+            new FieldMetadata(
+                MYSQLI_TYPE_LONG,
+                MYSQLI_NUM_FLAG | MYSQLI_NOT_NULL_FLAG,
+                (object) ['name' => 'Rows']
+            ),
+            new FieldMetadata(MYSQLI_TYPE_STRING, MYSQLI_NOT_NULL_FLAG, (object) ['name' => 'name']),
+        ];
+
+        $dummyDbi->addResult($query, [['2', 'abcd'], ['1', 'foo']], ['Rows', 'name'], $fieldsMeta);
+
+        $object->setProperties(
+            2,
+            $fieldsMeta,
+            $statementInfo->isCount,
+            $statementInfo->isExport,
+            $statementInfo->isFunction,
+            $statementInfo->isAnalyse,
+            2,
+            count($fieldsMeta),
+            1.234,
+            'ltr',
+            $statementInfo->isMaint,
+            $statementInfo->isExplain,
+            $statementInfo->isShow,
+            null,
+            null,
+            true,
+            true
+        );
+
+        $_SESSION = ['tmpval' => [], ' PMA_token ' => 'token'];
+        $_SESSION['tmpval']['geoOption'] = '';
+        $_SESSION['tmpval']['hide_transformation'] = false;
+        $_SESSION['tmpval']['display_blob'] = '';
+        $_SESSION['tmpval']['display_binary'] = '';
+        $_SESSION['tmpval']['relational_display'] = '';
+        $_SESSION['tmpval']['possible_as_geometry'] = '';
+        $_SESSION['tmpval']['pftext'] = '';
+        $_SESSION['tmpval']['max_rows'] = 25;
+        $_SESSION['tmpval']['pos'] = 0;
+        $_SESSION['tmpval']['repeat_cells'] = 0;
+        $_SESSION['tmpval']['query']['f2a8e80312ca180031ad773b573adbe1']['max_rows'] = 25;
+
+        $dtResult = $dbi->tryQuery($query);
+
+        $displayParts = DisplayParts::fromArray([
+            'hasEditLink' => false,
+            'deleteLink' => DisplayParts::NO_DELETE,
+            'hasSortLink' => true,
+            'hasNavigationBar' => true,
+            'hasBookmarkForm' => true,
+            'hasTextButton' => false,
+            'hasPrintLink' => true,
+        ]);
+
+        $this->assertNotFalse($dtResult);
+        $actual = $object->getTable($dtResult, $displayParts, $statementInfo);
+
+        $template = new Template();
+
+        $tableHeadersForColumns = $template->render('display/results/table_headers_for_columns', [
+            'is_sortable' => true,
+            'columns' => [
+                [
+                    'column_name' => 'Rows',
+                    'order_link' => '<a href="index.php?route=/sql&server=0&lang=en&db=test_db&table=test_table'
+                        . '&sql_query=SELECT+COUNT%28%2A%29+AS+%60Rows%60%2C+%60name%60+FROM+%60test_table'
+                        . '%60+GROUP+BY+%60name%60++%0AORDER+BY+%60Rows%60+ASC&sql_signature='
+                        . '8412b2f6bb4473905c68b2612d95d0020dda32282b3f5bf7a63fbaa98163016e&session_max_rows=25'
+                        . '&is_browse_distinct=1&server=0&lang=en" class="sortlink">Rows<input type="hidden" value="'
+                        . 'index.php?route=/sql&server=0&lang=en&db=test_db&table=test_table&sql_query='
+                        . 'SELECT+COUNT%28%2A%29+AS+%60Rows%60%2C+%60name%60+FROM+%60test_table%60+GROUP+BY+'
+                        . '%60name%60++%0AORDER+BY+%60name%60+ASC%2C+%60Rows%60+ASC&sql_signature='
+                        . '6077a1df2401b3fa1ca67a940e3bb3cf6ff126ee5245137b07d68b1e7fe4075a&session_max_rows=25'
+                        . '&is_browse_distinct=1&server=0&lang=en"></a><input type="hidden" name="url-remove-order"'
+                        . ' value="index.php?route=/sql&db=test_db&table=test_table&sql_query='
+                        . 'SELECT+COUNT%28%2A%29+AS+%60Rows%60%2C+%60name%60+FROM+%60test_table%60+GROUP+BY+%60name'
+                        . '%60+ORDER+BY+%60name%60+ASC&sql_signature='
+                        . 'a6daf20f5593bc5d7c62fdb7dc564994f9e4a928f4488ab41b653c264bed70e7&session_max_rows=25'
+                        . '&is_browse_distinct=1&server=0&lang=en">' . "\n"
+                        . '<input type="hidden" name="url-add-order" value="'
+                        . 'index.php?route=/sql&db=test_db&table=test_table&sql_query='
+                        . 'SELECT+COUNT%28%2A%29+AS+%60Rows%60%2C+%60name%60+FROM+%60test_table%60+GROUP+BY+'
+                        . '%60name%60++%0AORDER+BY+%60name%60+ASC%2C+%60Rows%60+ASC&sql_signature='
+                        . '6077a1df2401b3fa1ca67a940e3bb3cf6ff126ee5245137b07d68b1e7fe4075a&session_max_rows=25'
+                        . '&is_browse_distinct=1&server=0&lang=en">',
+                    'comments' => '',
+                    'is_browse_pointer_enabled' => true,
+                    'is_browse_marker_enabled' => true,
+                    'is_column_hidden' => false,
+                    'is_column_numeric' => true,
+                ],
+                [
+                    'column_name' => 'name',
+                    'order_link' => '<a href="index.php?route=/sql&server=0&lang=en&db=test_db&table=test_table'
+                        . '&sql_query=SELECT+COUNT%28%2A%29+AS+%60Rows%60%2C+%60name%60+FROM+%60test_table'
+                        . '%60+GROUP+BY+%60name%60++%0AORDER+BY+%60name%60+DESC&sql_signature='
+                        . 'de2cda64ffdeae7d1181feb386c1c47acea4de444235f1cdc29cf4556d4bae4c&session_max_rows=25'
+                        . '&is_browse_distinct=1&server=0&lang=en" class="sortlink">name <img src="themes/dot.gif"'
+                        . ' title="" alt="Ascending" class="icon ic_s_asc soimg"> <img src="themes/dot.gif" title=""'
+                        . ' alt="Descending" class="icon ic_s_desc soimg hide"> <small>1</small><input type="hidden"'
+                        . ' value="index.php?route=/sql&server=0&lang=en&db=test_db&table=test_table&sql_query='
+                        . 'SELECT+COUNT%28%2A%29+AS+%60Rows%60%2C+%60name%60+FROM+%60test_table%60+GROUP+BY+'
+                        . '%60name%60++%0AORDER+BY+%60name%60+DESC&sql_signature='
+                        . 'de2cda64ffdeae7d1181feb386c1c47acea4de444235f1cdc29cf4556d4bae4c&session_max_rows=25'
+                        . '&is_browse_distinct=1&server=0&lang=en"></a><input type="hidden" name="url-remove-order"'
+                        . ' value="index.php?route=/sql&db=test_db&table=test_table&sql_query='
+                        . 'SELECT+COUNT%28%2A%29+AS+%60Rows%60%2C+%60name%60+FROM+%60test_table%60+GROUP+BY+'
+                        . '%60name%60&sql_signature=1e391c9073b55f6d88696ff3b6991df45636bd24c32e7c235c8ff7ef640161ce'
+                        . '&session_max_rows=25&is_browse_distinct=1&server=0&lang=en'
+                        . '&discard_remembered_sort=1">' . "\n" . '<input type="hidden" name="url-add-order" value="'
+                        . 'index.php?route=/sql&db=test_db&table=test_table&sql_query='
+                        . 'SELECT+COUNT%28%2A%29+AS+%60Rows%60%2C+%60name%60+FROM+%60test_table%60+GROUP+BY+'
+                        . '%60name%60++%0AORDER+BY+%60name%60+DESC&sql_signature='
+                        . 'de2cda64ffdeae7d1181feb386c1c47acea4de444235f1cdc29cf4556d4bae4c&session_max_rows=25'
+                        . '&is_browse_distinct=1&server=0&lang=en">',
+                    'comments' => '',
+                    'is_browse_pointer_enabled' => true,
+                    'is_browse_marker_enabled' => true,
+                    'is_column_hidden' => false,
+                    'is_column_numeric' => false,
+                ],
+            ],
+        ]);
+
+        $tableTemplate = $template->render('display/results/table', [
+            'sql_query_message' => Generator::getMessage(
+                Message::success('Showing rows 0 -  1 (2 total, Query took 1.2340 seconds.)'),
+                $query,
+                'success'
+            ),
+            'navigation' => [
+                'page_selector' => '',
+                'number_total_page' => 1,
+                'has_show_all' => true,
+                'hidden_fields' => [
+                    'db' => $GLOBALS['db'],
+                    'table' => $GLOBALS['table'],
+                    'server' => 1,
+                    'sql_query' => $query,
+                    'is_browse_distinct' => true,
+                    'goto' => '',
+                ],
+                'session_max_rows' => 'all',
+                'is_showing_all' => false,
+                'max_rows' => 25,
+                'pos' => 0,
+                'sort_by_key' => [],
+                'is_last_page' => true,
+            ],
+            'headers' => [
+                'column_order' => [],
+                'options' => '$optionsBlock',
+                'has_bulk_actions_form' => false,
+                'button' => '<thead><tr>' . "\n",
+                'table_headers_for_columns' => $tableHeadersForColumns,
+                'column_at_right_side' => "\n" . '<td class="d-print-none"></td>',
+            ],
+            'body' => '<tr><td data-decimals="0" data-type="int" class="'
+                . 'text-end data not_null text-nowrap">2</td>' . "\n"
+                . '<td data-decimals="0" data-type="string" data-originallength="4" class="'
+                . 'data not_null relation text pre_wrap"><a href="index.php?route=/sql&server=0&lang=en'
+                . '&db=test_db&table=test_table&pos=0&sql_signature='
+                . '435bef10ad40031af7da88ea735cdc55ee91ac589b93adf10a10101b00e4d7ac&sql_query='
+                . 'SELECT+%2A+FROM+%60test_db%60.%60test_table%60+WHERE+%60name%60+%3D+%27abcd%27&server=0&lang=en'
+                . '" title="abcd">abcd</a></td>' . "\n"
+                . '</tr>' . "\n"
+                . '<tr><td data-decimals="0" data-type="int" class="'
+                . 'text-end data not_null text-nowrap">1</td>' . "\n"
+                . '<td data-decimals="0" data-type="string" data-originallength="3" class="'
+                . 'data not_null relation text pre_wrap"><a href="index.php?route=/sql&server=0&lang=en&db=test_db'
+                . '&table=test_table&pos=0&sql_signature='
+                . '8b25f948acdbde1631297c34c6fe773c1751dfed5e59a30e3ee909773512e297&sql_query='
+                . 'SELECT+%2A+FROM+%60test_db%60.%60test_table%60+WHERE+%60name%60+%3D+%27foo%27&server=0&lang=en"'
+                . ' title="foo">foo</a></td>' . "\n"
+                . '</tr>' . "\n",
+            'bulk_links' => [],
+            'operations' => [
+                'has_procedure' => false,
+                'has_geometry' => false,
+                'has_print_link' => true,
+                'has_export_link' => true,
+                'url_params' => [
+                    'db' => $GLOBALS['db'],
+                    'table' => $GLOBALS['table'],
+                    'printview' => '1',
+                    'sql_query' => $query,
+                    'single_table' => 'true',
+                    'unlim_num_rows' => 2,
+                ],
+            ],
+            'db' => $GLOBALS['db'],
+            'table' => $GLOBALS['table'],
+            'unique_id' => 1234567890,
+            'sql_query' => $query,
+            'goto' => '',
+            'unlim_num_rows' => 2,
+            'displaywork' => false,
+            'relwork' => false,
+            'save_cells_at_once' => false,
+            'default_sliders_state' => 'closed',
+            'text_dir' => 'ltr',
+        ]);
+
+        $this->assertEquals($tableTemplate, $actual);
     }
 }

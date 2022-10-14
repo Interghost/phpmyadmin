@@ -1,50 +1,42 @@
 <?php
-/* vim: set expandtab sw=4 ts=4 sts=4: */
 /**
  * Abstract class for the text file upload input transformations plugins
- *
- * @package    PhpMyAdmin-Transformations
- * @subpackage TextFileUpload
  */
+
 declare(strict_types=1);
 
 namespace PhpMyAdmin\Plugins\Transformations\Abs;
 
+use PhpMyAdmin\FieldMetadata;
 use PhpMyAdmin\Plugins\IOTransformationsPlugin;
-use stdClass;
+
+use function __;
+use function htmlspecialchars;
 
 /**
  * Provides common methods for all of the text file upload
  * input transformations plugins.
- *
- * @package    PhpMyAdmin-Transformations
- * @subpackage TextFileUpload
  */
 abstract class TextFileUploadTransformationsPlugin extends IOTransformationsPlugin
 {
     /**
      * Gets the transformation description of the specific plugin
-     *
-     * @return string
      */
-    public static function getInfo()
+    public static function getInfo(): string
     {
-        return __(
-            'File upload functionality for TEXT columns. '
-            . 'It does not have a textarea for input.'
-        );
+        return __('File upload functionality for TEXT columns. It does not have a textarea for input.');
     }
 
     /**
      * Does the actual work of each specific transformations plugin.
      *
-     * @param string        $buffer  text to be transformed
-     * @param array         $options transformation options
-     * @param stdClass|null $meta    meta information
+     * @param string             $buffer  text to be transformed
+     * @param array              $options transformation options
+     * @param FieldMetadata|null $meta    meta information
      *
      * @return string
      */
-    public function applyTransformation($buffer, array $options = [], ?stdClass $meta = null)
+    public function applyTransformation($buffer, array $options = [], ?FieldMetadata $meta = null)
     {
         return $buffer;
     }
@@ -83,6 +75,7 @@ abstract class TextFileUploadTransformationsPlugin extends IOTransformationsPlug
             $html .= '<input type="hidden" name="fields' . $column_name_appendix
                 . '" value="' . htmlspecialchars($value) . '">';
         }
+
         $html .= '<input type="file" name="fields_upload'
             . $column_name_appendix . '">';
 
@@ -93,11 +86,9 @@ abstract class TextFileUploadTransformationsPlugin extends IOTransformationsPlug
 
     /**
      * Gets the transformation name of the specific plugin
-     *
-     * @return string
      */
-    public static function getName()
+    public static function getName(): string
     {
-        return "Text file upload";
+        return 'Text file upload';
     }
 }

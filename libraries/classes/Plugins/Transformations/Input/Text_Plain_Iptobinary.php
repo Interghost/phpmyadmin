@@ -1,58 +1,49 @@
 <?php
-/* vim: set expandtab sw=4 ts=4 sts=4: */
 /**
  * Handles the IPv4/IPv6 to binary transformation for text plain
- *
- * @package    PhpMyAdmin-Transformations
- * @subpackage IPToBinary
  */
+
 declare(strict_types=1);
 
 namespace PhpMyAdmin\Plugins\Transformations\Input;
 
+use PhpMyAdmin\FieldMetadata;
 use PhpMyAdmin\Plugins\IOTransformationsPlugin;
-use stdClass;
+use PhpMyAdmin\Utils\FormatConverter;
+
+use function __;
+use function htmlspecialchars;
+use function inet_ntop;
+use function pack;
+use function strlen;
 
 /**
  * Handles the IPv4/IPv6 to binary transformation for text plain
- *
- * @package    PhpMyAdmin-Transformations
- * @subpackage IPToBinary
  */
-// @codingStandardsIgnoreLine
 class Text_Plain_Iptobinary extends IOTransformationsPlugin
 {
     /**
      * Gets the transformation description of the plugin
-     *
-     * @return string
      */
-    public static function getInfo()
+    public static function getInfo(): string
     {
-        return __(
-            'Converts an Internet network address in (IPv4/IPv6) format to binary'
-        );
+        return __('Converts an Internet network address in (IPv4/IPv6) format to binary');
     }
 
     /**
      * Does the actual work of each specific transformations plugin.
      *
-     * @param string        $buffer  text to be transformed. a binary string containing
-     *                               an IP address, as returned from MySQL's INET6_ATON
-     *                               function
-     * @param array         $options transformation options
-     * @param stdClass|null $meta    meta information
+     * @param string             $buffer  text to be transformed. a binary string containing
+     *                                    an IP address, as returned from MySQL's INET6_ATON
+     *                                    function
+     * @param array              $options transformation options
+     * @param FieldMetadata|null $meta    meta information
      *
      * @return string IP address
      */
-    public function applyTransformation($buffer, array $options = [], ?stdClass $meta = null)
+    public function applyTransformation($buffer, array $options = [], ?FieldMetadata $meta = null)
     {
-        $val = @inet_pton($buffer);
-        if ($val !== false) {
-            return '0x' . bin2hex($val);
-        }
-
-        return $buffer;
+        return FormatConverter::ipToBinary($buffer);
     }
 
     /**
@@ -92,50 +83,45 @@ class Text_Plain_Iptobinary extends IOTransformationsPlugin
                     $val = $ip;
                 }
             }
+
             $html = '<input type="hidden" name="fields_prev' . $column_name_appendix
                 . '" value="' . htmlspecialchars($val) . '">';
         }
+
         $class = 'transform_IPToBin';
-        $html .= '<input type="text" name="fields' . $column_name_appendix . '"'
+
+        return $html . '<input type="text" name="fields' . $column_name_appendix . '"'
             . ' value="' . htmlspecialchars($val) . '"'
             . ' size="40"'
             . ' dir="' . $text_dir . '"'
             . ' class="' . $class . '"'
             . ' id="field_' . $idindex . '_3"'
             . ' tabindex="' . ($tabindex + $tabindex_for_value) . '">';
-
-        return $html;
     }
 
     /* ~~~~~~~~~~~~~~~~~~~~ Getters and Setters ~~~~~~~~~~~~~~~~~~~~ */
 
     /**
      * Gets the transformation name of the plugin
-     *
-     * @return string
      */
-    public static function getName()
+    public static function getName(): string
     {
-        return "IPv4/IPv6 To Binary";
+        return 'IPv4/IPv6 To Binary';
     }
 
     /**
      * Gets the plugin`s MIME type
-     *
-     * @return string
      */
-    public static function getMIMEType()
+    public static function getMIMEType(): string
     {
-        return "Text";
+        return 'Text';
     }
 
     /**
      * Gets the plugin`s MIME subtype
-     *
-     * @return string
      */
-    public static function getMIMESubtype()
+    public static function getMIMESubtype(): string
     {
-        return "Plain";
+        return 'Plain';
     }
 }

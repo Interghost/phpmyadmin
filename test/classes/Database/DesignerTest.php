@@ -1,37 +1,34 @@
 <?php
-/**
- * Tests for PhpMyAdmin\Database\Designer
- *
- * @package PhpMyAdmin-test
- */
+
 declare(strict_types=1);
 
 namespace PhpMyAdmin\Tests\Database;
 
+use PhpMyAdmin\ConfigStorage\Relation;
 use PhpMyAdmin\Database\Designer;
 use PhpMyAdmin\DatabaseInterface;
-use PHPUnit\Framework\TestCase;
+use PhpMyAdmin\Template;
+use PhpMyAdmin\Tests\AbstractTestCase;
+use PhpMyAdmin\Tests\Stubs\DummyResult;
+use PhpMyAdmin\Version;
 use ReflectionMethod;
 
 /**
- * Tests for PhpMyAdmin\Database\Designer
- *
- * @package PhpMyAdmin-test
+ * @covers \PhpMyAdmin\Database\Designer
  */
-class DesignerTest extends TestCase
+class DesignerTest extends AbstractTestCase
 {
-    /**
-     * @var Designer
-     */
+    /** @var Designer */
     private $designer;
 
     /**
      * Setup for test cases
-     *
-     * @return void
      */
     protected function setUp(): void
     {
+        parent::setUp();
+        $GLOBALS['dbi'] = $this->createDatabaseInterface();
+
         $GLOBALS['server'] = 1;
         $GLOBALS['cfg']['ServerDefault'] = 1;
         $GLOBALS['cfg']['PDFPageSizes'] = [
@@ -44,11 +41,12 @@ class DesignerTest extends TestCase
 
         $_SESSION = [
             'relation' => [
-                '1' => [
-                    'PMA_VERSION' => PMA_VERSION,
+                1 => [
+                    'version' => Version::VERSION,
                     'db' => 'pmadb',
                     'pdf_pages' => 'pdf_pages',
-                    'pdfwork' => true
+                    'table_coords' => 'table_coords',
+                    'pdfwork' => true,
                 ],
             ],
             ' PMA_token ' => 'token',
@@ -59,27 +57,24 @@ class DesignerTest extends TestCase
      * Mocks database interaction for tests.
      *
      * @param string $db database name
-     *
-     * @return void
      */
-    private function _mockDatabaseInteraction($db)
+    private function mockDatabaseInteraction(string $db): void
     {
-        $dbi = $this->getMockBuilder('PhpMyAdmin\DatabaseInterface')
+        $resultStub = $this->createMock(DummyResult::class);
+
+        $dbi = $this->getMockBuilder(DatabaseInterface::class)
             ->disableOriginalConstructor()
             ->getMock();
 
         $dbi->expects($this->once())
-            ->method('tryQuery')
+            ->method('tryQueryAsControlUser')
             ->with(
-                "SELECT `page_nr`, `page_descr` FROM `pmadb`.`pdf_pages`"
-                . " WHERE db_name = '" . $db . "' ORDER BY `page_descr`",
-                DatabaseInterface::CONNECT_CONTROL,
-                DatabaseInterface::QUERY_STORE,
-                false
+                'SELECT `page_nr`, `page_descr` FROM `pmadb`.`pdf_pages`'
+                . " WHERE db_name = '" . $db . "' ORDER BY `page_descr`"
             )
-            ->will($this->returnValue('dummyRS'));
+            ->will($this->returnValue($resultStub));
 
-        $dbi->expects($this->exactly(3))
+        $resultStub->expects($this->exactly(3))
             ->method('fetchAssoc')
             ->willReturnOnConsecutiveCalls(
                 [
@@ -90,7 +85,7 @@ class DesignerTest extends TestCase
                     'page_nr' => '2',
                     'page_descr' => 'page2',
                 ],
-                false
+                []
             );
 
         $dbi->expects($this->any())
@@ -102,15 +97,13 @@ class DesignerTest extends TestCase
 
     /**
      * Test for getPageIdsAndNames()
-     *
-     * @return void
      */
-    public function testGetPageIdsAndNames()
+    public function testGetPageIdsAndNames(): void
     {
         $db = 'db';
-        $this->_mockDatabaseInteraction($db);
+        $this->mockDatabaseInteraction($db);
 
-        $this->designer = new Designer($GLOBALS['dbi']);
+        $this->designer = new Designer($GLOBALS['dbi'], new Relation($GLOBALS['dbi']), new Template());
 
         $method = new ReflectionMethod(Designer::class, 'getPageIdsAndNames');
         $method->setAccessible(true);
@@ -127,26 +120,18 @@ class DesignerTest extends TestCase
 
     /**
      * Test for getHtmlForEditOrDeletePages()
-     *
-     * @return void
      */
-    public function testGetHtmlForEditOrDeletePages()
+    public function testGetHtmlForEditOrDeletePages(): void
     {
         $db = 'db';
         $operation = 'edit';
-        $this->_mockDatabaseInteraction($db);
+        $this->mockDatabaseInteraction($db);
 
-        $this->designer = new Designer($GLOBALS['dbi']);
+        $this->designer = new Designer($GLOBALS['dbi'], new Relation($GLOBALS['dbi']), new Template());
 
         $result = $this->designer->getHtmlForEditOrDeletePages($db, $operation);
-        $this->assertStringContainsString(
-            '<input type="hidden" name="operation" value="' . $operation . '">',
-            $result
-        );
-        $this->assertStringContainsString(
-            '<select name="selected_page" id="selected_page">',
-            $result
-        );
+        $this->assertStringContainsString('<input type="hidden" name="operation" value="' . $operation . '">', $result);
+        $this->assertStringContainsString('<select name="selected_page" id="selected_page">', $result);
         $this->assertStringContainsString('<option value="0">', $result);
         $this->assertStringContainsString('<option value="1">', $result);
         $this->assertStringContainsString('page1', $result);
@@ -156,25 +141,17 @@ class DesignerTest extends TestCase
 
     /**
      * Test for getHtmlForPageSaveAs()
-     *
-     * @return void
      */
-    public function testGetHtmlForPageSaveAs()
+    public function testGetHtmlForPageSaveAs(): void
     {
         $db = 'db';
-        $this->_mockDatabaseInteraction($db);
+        $this->mockDatabaseInteraction($db);
 
-        $this->designer = new Designer($GLOBALS['dbi']);
+        $this->designer = new Designer($GLOBALS['dbi'], new Relation($GLOBALS['dbi']), new Template());
 
         $result = $this->designer->getHtmlForPageSaveAs($db);
-        $this->assertStringContainsString(
-            '<input type="hidden" name="operation" value="savePage">',
-            $result
-        );
-        $this->assertStringContainsString(
-            '<select name="selected_page" id="selected_page">',
-            $result
-        );
+        $this->assertStringContainsString('<input type="hidden" name="operation" value="savePage">', $result);
+        $this->assertStringContainsString('<select name="selected_page" id="selected_page">', $result);
         $this->assertStringContainsString('<option value="0">', $result);
         $this->assertStringContainsString('<option value="1">', $result);
         $this->assertStringContainsString('page1', $result);
@@ -182,65 +159,47 @@ class DesignerTest extends TestCase
         $this->assertStringContainsString('page2', $result);
 
         $this->assertStringContainsString(
-            '<input type="radio" name="save_page" id="save_page_same" value="same"'
-            . ' checked="checked">',
+            '<input type="radio" name="save_page" id="savePageSameRadio" value="same" checked>',
             $result
         );
         $this->assertStringContainsString(
-            '<input type="radio" name="save_page" id="save_page_new" value="new">',
+            '<input type="radio" name="save_page" id="savePageNewRadio" value="new">',
             $result
         );
-        $this->assertStringContainsString(
-            '<input type="text" name="selected_value" id="selected_value">',
-            $result
-        );
+        $this->assertStringContainsString('<input type="text" name="selected_value" id="selected_value">', $result);
     }
 
     /**
      * Test for getHtmlForSchemaExport()
-     *
-     * @return void
      */
-    public function testGetHtmlForSchemaExport()
+    public function testGetHtmlForSchemaExport(): void
     {
         $db = 'db';
         $page = 2;
 
-        $this->designer = new Designer($GLOBALS['dbi']);
+        $this->designer = new Designer($GLOBALS['dbi'], new Relation($GLOBALS['dbi']), new Template());
 
         $result = $this->designer->getHtmlForSchemaExport($db, $page);
         // export type
-        $this->assertStringContainsString(
-            '<select id="plugins" name="export_type">',
-            $result
-        );
+        $this->assertStringContainsString('<select id="plugins" name="export_type">', $result);
 
         // hidden field
-        $this->assertStringContainsString(
-            '<input type="hidden" name="page_number" value="' . $page . '">',
-            $result
-        );
+        $this->assertStringContainsString('<input type="hidden" name="page_number" value="' . $page . '">', $result);
 
         // orientation
         $this->assertStringContainsString(
-            '<select name="pdf_orientation" id="select_pdf_orientation">',
+            '<select class="form-select" name="pdf_orientation" id="select_pdf_orientation">',
             $result
         );
-        $this->assertStringContainsString(
-            '<option value="L" selected="selected">Landscape</option>',
-            $result
-        );
+        $this->assertStringContainsString('<option value="L" selected>Landscape</option>', $result);
         $this->assertStringContainsString('<option value="P">Portrait</option>', $result);
 
         // paper size
         $this->assertStringContainsString(
-            '<select name="pdf_paper" id="select_pdf_paper">',
+            '<select class="form-select" name="pdf_paper" id="select_pdf_paper">',
             $result
         );
         $this->assertStringContainsString('<option value="A3">A3</option>', $result);
-        $this->assertStringContainsString(
-            '<option value="A4" selected="selected">A4</option>',
-            $result
-        );
+        $this->assertStringContainsString('<option value="A4" selected>A4</option>', $result);
     }
 }

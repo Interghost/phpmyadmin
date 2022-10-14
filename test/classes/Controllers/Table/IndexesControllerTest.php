@@ -1,69 +1,73 @@
 <?php
-/* vim: set expandtab sw=4 ts=4 sts=4: */
-/**
- * Tests for PhpMyAdmin\Controllers\Table\IndexesController
- * @package PhpMyAdmin-test
- */
+
 declare(strict_types=1);
 
 namespace PhpMyAdmin\Tests\Controllers\Table;
 
 use PhpMyAdmin\Controllers\Table\IndexesController;
-use PhpMyAdmin\Di\Container;
+use PhpMyAdmin\DatabaseInterface;
+use PhpMyAdmin\Html\Generator;
+use PhpMyAdmin\Html\MySQLDocumentation;
 use PhpMyAdmin\Index;
 use PhpMyAdmin\Message;
-use PhpMyAdmin\Response;
-use PhpMyAdmin\Tests\PmaTestCase;
-use PhpMyAdmin\Tests\Stubs\Response as ResponseStub;
+use PhpMyAdmin\Table;
+use PhpMyAdmin\Table\Indexes;
+use PhpMyAdmin\Template;
+use PhpMyAdmin\Tests\AbstractTestCase;
+use PhpMyAdmin\Tests\Stubs\ResponseRenderer as ResponseStub;
 use PhpMyAdmin\Url;
-use PhpMyAdmin\Util;
+use ReflectionMethod;
+
+use function __;
+use function sprintf;
 
 /**
- * Tests for PhpMyAdmin\Controllers\Table\IndexesController
- * @package PhpMyAdmin-test
+ * @covers \PhpMyAdmin\Controllers\Table\IndexesController
  */
-class IndexesControllerTest extends PmaTestCase
+class IndexesControllerTest extends AbstractTestCase
 {
     /**
      * Setup function for test cases
-     *
-     * @access protected
-     * @return void
      */
     protected function setUp(): void
     {
+        parent::setUp();
+        parent::setTheme();
+
         /**
          * SET these to avoid undefined index error
          */
         $GLOBALS['server'] = 1;
         $GLOBALS['db'] = 'db';
         $GLOBALS['table'] = 'table';
+        $GLOBALS['text_dir'] = 'ltr';
         $GLOBALS['PMA_PHP_SELF'] = 'index.php';
         $GLOBALS['cfg']['Server']['pmadb'] = '';
-        $GLOBALS['url_params'] = [
+        $GLOBALS['cfg']['Server']['DisableIS'] = false;
+        $GLOBALS['urlParams'] = [
             'db' => 'db',
             'server' => 1,
         ];
 
-        $dbi = $this->getMockBuilder('PhpMyAdmin\DatabaseInterface')
+        $dbi = $this->getMockBuilder(DatabaseInterface::class)
             ->disableOriginalConstructor()
             ->getMock();
 
         $indexs = [
             [
-                "Schema" => "Schema1",
-                "Key_name" => "Key_name1",
-                "Column_name" => "Column_name1",
+                'Schema' => 'Schema1',
+                'Key_name' => 'Key_name1',
+                'Column_name' => 'Column_name1',
             ],
             [
-                "Schema" => "Schema2",
-                "Key_name" => "Key_name2",
-                "Column_name" => "Column_name2",
+                'Schema' => 'Schema2',
+                'Key_name' => 'Key_name2',
+                'Column_name' => 'Column_name2',
             ],
             [
-                "Schema" => "Schema3",
-                "Key_name" => "Key_name3",
-                "Column_name" => "Column_name3",
+                'Schema' => 'Schema3',
+                'Key_name' => 'Key_name3',
+                'Column_name' => 'Column_name3',
             ],
         ];
 
@@ -76,102 +80,40 @@ class IndexesControllerTest extends PmaTestCase
     }
 
     /**
-     * Tests for doSaveDataAction() method
-     *
-     * @return void
-     * @test
-     */
-    public function testDoSaveDataAction()
-    {
-        $sql_query = 'ALTER TABLE `db`.`table` DROP PRIMARY KEY, ADD UNIQUE ;';
-
-        $table = $this->getMockBuilder('PhpMyAdmin\Table')
-            ->disableOriginalConstructor()
-            ->getMock();
-        $table->expects($this->any())->method('getSqlQueryForIndexCreateOrEdit')
-            ->will($this->returnValue($sql_query));
-
-        $GLOBALS['dbi']->expects($this->any())->method('getTable')
-            ->will($this->returnValue($table));
-
-        $container = Container::getDefaultContainer();
-        $container->set('db', 'db');
-        $container->set('table', 'table');
-        $container->set('dbi', $GLOBALS['dbi']);
-        $response = new ResponseStub();
-        $container->set('PhpMyAdmin\Response', $response);
-        $container->alias('response', 'PhpMyAdmin\Response');
-
-        $ctrl = new IndexesController(
-            $container->get('response'),
-            $container->get('dbi'),
-            $container->get('db'),
-            $container->get('table'),
-            null
-        );
-
-        // Preview SQL
-        $_POST['preview_sql'] = true;
-        $ctrl->doSaveDataAction();
-        $jsonArray = $response->getJSONResult();
-        $this->assertArrayHasKey('sql_data', $jsonArray);
-        $this->assertStringContainsString(
-            $sql_query,
-            $jsonArray['sql_data']
-        );
-
-        // Alter success
-        $response->clear();
-        Response::getInstance()->setAjax(true);
-        unset($_POST['preview_sql']);
-        $ctrl->doSaveDataAction();
-        $jsonArray = $response->getJSONResult();
-        $this->assertArrayHasKey('index_table', $jsonArray);
-        $this->assertArrayHasKey('message', $jsonArray);
-        Response::getInstance()->setAjax(false);
-    }
-
-    /**
      * Tests for displayFormAction()
-     *
-     * @return void
-     * @test
      */
-    public function testDisplayFormAction()
+    public function testDisplayFormAction(): void
     {
-        $table = $this->getMockBuilder('PhpMyAdmin\Table')
+        $table = $this->getMockBuilder(Table::class)
             ->disableOriginalConstructor()
             ->getMock();
         $table->expects($this->any())->method('getStatusInfo')
-            ->will($this->returnValue(""));
+            ->will($this->returnValue(''));
         $table->expects($this->any())->method('isView')
             ->will($this->returnValue(false));
         $table->expects($this->any())->method('getNameAndTypeOfTheColumns')
-            ->will($this->returnValue(["field_name" => "field_type"]));
+            ->will($this->returnValue(['field_name' => 'field_type']));
 
         $GLOBALS['dbi']->expects($this->any())->method('getTable')
             ->will($this->returnValue($table));
 
-        $container = Container::getDefaultContainer();
-        $container->set('db', 'db');
-        $container->set('table', 'table');
-        $container->set('dbi', $GLOBALS['dbi']);
         $response = new ResponseStub();
-        $container->set('PhpMyAdmin\Response', $response);
-        $container->alias('response', 'PhpMyAdmin\Response');
         $index = new Index();
+        $template = new Template();
+
+        $method = new ReflectionMethod(IndexesController::class, 'displayForm');
+        $method->setAccessible(true);
 
         $ctrl = new IndexesController(
-            $container->get('response'),
-            $container->get('dbi'),
-            $container->get('db'),
-            $container->get('table'),
-            $index
+            $response,
+            $template,
+            $GLOBALS['dbi'],
+            new Indexes($response, $template, $GLOBALS['dbi'])
         );
 
         $_POST['create_index'] = true;
         $_POST['added_fields'] = 3;
-        $ctrl->displayFormAction();
+        $method->invoke($ctrl, $index);
         $html = $response->getHTMLResult();
 
         //Url::getHiddenInputs
@@ -186,27 +128,17 @@ class IndexesControllerTest extends PmaTestCase
             $html
         );
 
-        $doc_html = Util::showHint(
+        $doc_html = Generator::showHint(
             Message::notice(
                 __(
-                    '"PRIMARY" <b>must</b> be the name of'
-                    . ' and <b>only of</b> a primary key!'
+                    '"PRIMARY" <b>must</b> be the name of and <b>only of</b> a primary key!'
                 )
-            )
+            )->getMessage()
         );
-        $this->assertStringContainsString(
-            $doc_html,
-            $html
-        );
+        $this->assertStringContainsString($doc_html, $html);
 
         $this->assertStringContainsString(
-            Util::showMySQLDocu('ALTER_TABLE'),
-            $html
-        );
-
-        // generateIndexSelector
-        $this->assertStringContainsString(
-            $index->generateIndexChoiceSelector(false),
+            MySQLDocumentation::show('ALTER_TABLE'),
             $html
         );
 
@@ -216,13 +148,7 @@ class IndexesControllerTest extends PmaTestCase
         );
 
         //$field_name & $field_type
-        $this->assertStringContainsString(
-            "field_name",
-            $html
-        );
-        $this->assertStringContainsString(
-            "field_type",
-            $html
-        );
+        $this->assertStringContainsString('field_name', $html);
+        $this->assertStringContainsString('field_type', $html);
     }
 }

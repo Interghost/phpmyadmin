@@ -1,59 +1,51 @@
 <?php
-/* vim: set expandtab sw=4 ts=4 sts=4: */
-/**
- * Tests for Page-related settings
- *
- * @package PhpMyAdmin-test
- */
+
 declare(strict_types=1);
 
 namespace PhpMyAdmin\Tests\Config;
 
-use PhpMyAdmin\Config;
 use PhpMyAdmin\Config\PageSettings;
-use PhpMyAdmin\Tests\PmaTestCase;
+use PhpMyAdmin\Tests\AbstractTestCase;
 
 /**
- * Tests for PhpMyAdmin\Config\PageSettings
- *
- * @package PhpMyAdmin-test
+ * @covers \PhpMyAdmin\Config\PageSettings
  */
-class PageSettingsTest extends PmaTestCase
+class PageSettingsTest extends AbstractTestCase
 {
     /**
      * Setup tests
-     *
-     * @return void
      */
     protected function setUp(): void
     {
-        $GLOBALS['PMA_Config'] = new Config();
+        parent::setUp();
+        parent::setLanguage();
+        parent::setGlobalConfig();
+        parent::setTheme();
+        $GLOBALS['dbi'] = $this->createDatabaseInterface();
         $GLOBALS['server'] = 1;
         $GLOBALS['db'] = 'db';
         $GLOBALS['table'] = '';
+        $_SERVER['SCRIPT_NAME'] = 'index.php';
         $GLOBALS['PMA_PHP_SELF'] = 'index.php';
+        $GLOBALS['cfg']['Server']['DisableIS'] = false;
     }
 
     /**
      * Test showGroup when group passed does not exist
-     *
-     * @return void
      */
-    public function testShowGroupNonExistent()
+    public function testShowGroupNonExistent(): void
     {
-        $object = PageSettings::showGroup('NonExistent');
+        $object = new PageSettings('NonExistent');
 
         $this->assertEquals('', $object->getHTML());
     }
 
     /**
      * Test showGroup with a known group name
-     *
-     * @return void
      */
-    public function testShowGroupBrowse()
+    public function testShowGroupBrowse(): void
     {
-        $object = PageSettings::showGroup('Browse');
+        $object = new PageSettings('Browse');
 
         $html = $object->getHTML();
 
@@ -62,42 +54,33 @@ class PageSettingsTest extends PmaTestCase
             '<div id="page_settings_modal">'
             . '<div class="page_settings">'
             . '<form method="post" '
-            . 'action="phpunit?db=db&amp;table=&amp;server=1&amp;target=&amp;lang=en" '
+            . 'action="index.php&#x3F;route&#x3D;&#x25;2F&amp;db&#x3D;db&amp;server&#x3D;1&amp;lang&#x3D;en" '
             . 'class="config-form disableAjax">',
             $html
         );
 
-        $this->assertStringContainsString(
-            '<input type="hidden" name="submit_save" value="Browse">',
-            $html
-        );
+        $this->assertStringContainsString('<input type="hidden" name="submit_save" value="Browse">', $html);
 
         $this->assertStringContainsString(
-            "validateField('MaxRows', 'PMA_validatePositiveNumber', true);\n"
-            . "validateField('RepeatCells', 'PMA_validateNonNegativeNumber', true);\n"
-            . "validateField('LimitChars', 'PMA_validatePositiveNumber', true);\n",
+            "window.Config.registerFieldValidator('MaxRows', 'validatePositiveNumber', true);\n"
+            . "window.Config.registerFieldValidator('RepeatCells', 'validateNonNegativeNumber', true);\n"
+            . "window.Config.registerFieldValidator('LimitChars', 'validatePositiveNumber', true);\n",
             $html
         );
     }
 
     /**
      * Test getNaviSettings
-     *
-     * @return void
      */
-    public function testGetNaviSettings()
+    public function testGetNaviSettings(): void
     {
-        $html = PageSettings::getNaviSettings();
+        $pageSettings = new PageSettings('Navi', 'pma_navigation_settings');
+
+        $html = $pageSettings->getHTML();
 
         // Test some sample parts
-        $this->assertStringContainsString(
-            '<div id="pma_navigation_settings">',
-            $html
-        );
+        $this->assertStringContainsString('<div id="pma_navigation_settings">', $html);
 
-        $this->assertStringContainsString(
-            '<input type="hidden" name="submit_save" value="Navi">',
-            $html
-        );
+        $this->assertStringContainsString('<input type="hidden" name="submit_save" value="Navi">', $html);
     }
 }

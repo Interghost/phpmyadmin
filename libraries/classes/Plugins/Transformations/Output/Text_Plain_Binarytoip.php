@@ -1,33 +1,27 @@
 <?php
-/* vim: set expandtab sw=4 ts=4 sts=4: */
 /**
  * Handles the binary to IPv4/IPv6 transformation for text plain
- *
- * @package    PhpMyAdmin-Transformations
- * @subpackage BinaryToIP
  */
+
 declare(strict_types=1);
 
 namespace PhpMyAdmin\Plugins\Transformations\Output;
 
+use PhpMyAdmin\FieldMetadata;
 use PhpMyAdmin\Plugins\TransformationsPlugin;
-use stdClass;
+use PhpMyAdmin\Utils\FormatConverter;
+
+use function __;
 
 /**
  * Handles the binary to IPv4/IPv6 transformation for text plain
- *
- * @package    PhpMyAdmin-Transformations
- * @subpackage BinaryToIP
  */
-// @codingStandardsIgnoreLine
 class Text_Plain_Binarytoip extends TransformationsPlugin
 {
     /**
      * Gets the transformation description of the plugin
-     *
-     * @return string
      */
-    public static function getInfo()
+    public static function getInfo(): string
     {
         return __(
             'Converts an Internet network address stored as a binary string'
@@ -38,57 +32,44 @@ class Text_Plain_Binarytoip extends TransformationsPlugin
     /**
      * Does the actual work of each specific transformations plugin.
      *
-     * @param string        $buffer  text to be transformed. a binary string containing
-     *                               an IP address, as returned from MySQL's INET6_ATON
-     *                               function
-     * @param array         $options transformation options
-     * @param stdClass|null $meta    meta information
+     * @param string             $buffer  text to be transformed. a binary string containing
+     *                                    an IP address, as returned from MySQL's INET6_ATON
+     *                                    function
+     * @param array              $options transformation options
+     * @param FieldMetadata|null $meta    meta information
      *
      * @return string IP address
      */
-    public function applyTransformation($buffer, array $options = [], ?stdClass $meta = null)
+    public function applyTransformation($buffer, array $options = [], ?FieldMetadata $meta = null)
     {
-        $length = strlen($buffer);
-        if ($length == 4 || $length == 16) {
-            $val = @inet_ntop(pack('A' . $length, $buffer));
-            if ($val !== false) {
-                return $val;
-            }
-        }
+        $isBinary = ($meta !== null && $meta->isBinary);
 
-        return $buffer;
+        return FormatConverter::binaryToIp($buffer, $isBinary);
     }
-
 
     /* ~~~~~~~~~~~~~~~~~~~~ Getters and Setters ~~~~~~~~~~~~~~~~~~~~ */
 
     /**
      * Gets the transformation name of the plugin
-     *
-     * @return string
      */
-    public static function getName()
+    public static function getName(): string
     {
-        return "Binary To IPv4/IPv6";
+        return 'Binary To IPv4/IPv6';
     }
 
     /**
      * Gets the plugin`s MIME type
-     *
-     * @return string
      */
-    public static function getMIMEType()
+    public static function getMIMEType(): string
     {
-        return "Text";
+        return 'Text';
     }
 
     /**
      * Gets the plugin`s MIME subtype
-     *
-     * @return string
      */
-    public static function getMIMESubtype()
+    public static function getMIMESubtype(): string
     {
-        return "Plain";
+        return 'Plain';
     }
 }

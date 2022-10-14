@@ -1,166 +1,118 @@
 <?php
-/* vim: set expandtab sw=4 ts=4 sts=4: */
-/**
- * Test for PhpMyAdmin\Navigation\Navigation class
- *
- * @package PhpMyAdmin-test
- */
+
 declare(strict_types=1);
 
 namespace PhpMyAdmin\Tests\Navigation;
 
+use PhpMyAdmin\ConfigStorage\Relation;
+use PhpMyAdmin\ConfigStorage\RelationParameters;
+use PhpMyAdmin\DatabaseInterface;
 use PhpMyAdmin\Navigation\Navigation;
-use PhpMyAdmin\Relation;
-use PhpMyAdmin\Tests\PmaTestCase;
+use PhpMyAdmin\Template;
+use PhpMyAdmin\Tests\AbstractTestCase;
+use PhpMyAdmin\Url;
 
 /**
- * Tests for PhpMyAdmin\Navigation\Navigation class
- *
- * @package PhpMyAdmin-test
+ * @covers \PhpMyAdmin\Navigation\Navigation
  */
-class NavigationTest extends PmaTestCase
+class NavigationTest extends AbstractTestCase
 {
-    /**
-     * @var \PhpMyAdmin\Navigation\Navigation
-     */
+    /** @var Navigation */
     protected $object;
 
     /**
      * Sets up the fixture.
-     *
-     * @access protected
-     * @return void
      */
     protected function setUp(): void
     {
-        $this->object = new Navigation();
-        $GLOBALS['cfgRelation']['db'] = 'pmadb';
-        $GLOBALS['cfgRelation']['navigationhiding'] = 'navigationhiding';
+        parent::setUp();
+        parent::setLanguage();
+        $GLOBALS['dbi'] = $this->createDatabaseInterface();
+        $GLOBALS['server'] = 1;
+        $GLOBALS['db'] = 'db';
+        $GLOBALS['table'] = '';
         $GLOBALS['cfg']['Server']['user'] = 'user';
+        $GLOBALS['cfg']['Server']['DisableIS'] = false;
         $GLOBALS['cfg']['ActionLinksMode'] = 'both';
-        $GLOBALS['pmaThemeImage'] = '';
+
+        $relationParameters = RelationParameters::fromArray([
+            'db' => 'pmadb',
+            'navwork' => true,
+            'navigationhiding' => 'navigationhiding',
+        ]);
+        $_SESSION = ['relation' => [$GLOBALS['server'] => $relationParameters->toArray()]];
+
+        $this->object = new Navigation(
+            new Template(),
+            new Relation($GLOBALS['dbi']),
+            $GLOBALS['dbi']
+        );
     }
 
     /**
      * Tears down the fixture.
-     *
-     * @access protected
-     * @return void
      */
     protected function tearDown(): void
     {
+        parent::tearDown();
         unset($this->object);
     }
 
     /**
      * Tests hideNavigationItem() method.
-     *
-     * @return void
-     * @test
      */
-    public function testHideNavigationItem()
+    public function testHideNavigationItem(): void
     {
-        $expectedQuery = "INSERT INTO `pmadb`.`navigationhiding`"
-            . "(`username`, `item_name`, `item_type`, `db_name`, `table_name`)"
+        $expectedQuery = 'INSERT INTO `pmadb`.`navigationhiding`'
+            . '(`username`, `item_name`, `item_type`, `db_name`, `table_name`)'
             . " VALUES ('user','itemName','itemType','db','')";
-        $dbi = $this->getMockBuilder('PhpMyAdmin\DatabaseInterface')
+        $dbi = $this->getMockBuilder(DatabaseInterface::class)
             ->disableOriginalConstructor()
             ->getMock();
         $dbi->expects($this->once())
-            ->method('tryQuery')
+            ->method('tryQueryAsControlUser')
             ->with($expectedQuery);
         $dbi->expects($this->any())->method('escapeString')
             ->will($this->returnArgument(0));
 
         $GLOBALS['dbi'] = $dbi;
-        $this->object->relation = new Relation($dbi);
+        $this->object = new Navigation(new Template(), new Relation($dbi), $dbi);
         $this->object->hideNavigationItem('itemName', 'itemType', 'db');
     }
 
     /**
      * Tests unhideNavigationItem() method.
-     *
-     * @return void
-     * @test
      */
-    public function testUnhideNavigationItem()
+    public function testUnhideNavigationItem(): void
     {
-        $expectedQuery = "DELETE FROM `pmadb`.`navigationhiding`"
+        $expectedQuery = 'DELETE FROM `pmadb`.`navigationhiding`'
             . " WHERE `username`='user' AND `item_name`='itemName'"
             . " AND `item_type`='itemType' AND `db_name`='db'";
-        $dbi = $this->getMockBuilder('PhpMyAdmin\DatabaseInterface')
+        $dbi = $this->getMockBuilder(DatabaseInterface::class)
             ->disableOriginalConstructor()
             ->getMock();
         $dbi->expects($this->once())
-            ->method('tryQuery')
+            ->method('tryQueryAsControlUser')
             ->with($expectedQuery);
 
         $dbi->expects($this->any())->method('escapeString')
             ->will($this->returnArgument(0));
         $GLOBALS['dbi'] = $dbi;
-        $this->object->relation = new Relation($dbi);
+        $this->object = new Navigation(new Template(), new Relation($dbi), $dbi);
         $this->object->unhideNavigationItem('itemName', 'itemType', 'db');
     }
 
     /**
      * Tests getItemUnhideDialog() method.
-     *
-     * @return void
-     * @test
      */
-    public function testGetItemUnhideDialog()
+    public function testGetItemUnhideDialog(): void
     {
-        $expectedQuery = "SELECT `item_name`, `item_type`"
-            . " FROM `pmadb`.`navigationhiding`"
-            . " WHERE `username`='user' AND `db_name`='db' AND `table_name`=''";
-        $dbi = $this->getMockBuilder('PhpMyAdmin\DatabaseInterface')
-            ->disableOriginalConstructor()
-            ->getMock();
-        $dbi->expects($this->once())
-            ->method('tryQuery')
-            ->with($expectedQuery)
-            ->will($this->returnValue(true));
-        $dbi->expects($this->at(3))
-            ->method('fetchArray')
-            ->will(
-                $this->returnValue(
-                    [
-                        'item_name' => 'tableName',
-                        'item_type' => 'table',
-                    ]
-                )
-            );
-        $dbi->expects($this->at(4))
-            ->method('fetchArray')
-            ->will(
-                $this->returnValue(
-                    [
-                        'item_name' => 'viewName',
-                        'item_type' => 'view',
-                    ]
-                )
-            );
-        $dbi->expects($this->at(5))
-            ->method('fetchArray')
-            ->will($this->returnValue(false));
-        $dbi->expects($this->once())
-            ->method('freeResult');
-        $dbi->expects($this->any())->method('escapeString')
-            ->will($this->returnArgument(0));
-
-        $GLOBALS['dbi'] = $dbi;
-        $this->object->relation = new Relation($dbi);
-
         $html = $this->object->getItemUnhideDialog('db');
+        $this->assertStringContainsString('<td>tableName</td>', $html);
         $this->assertStringContainsString(
-            '<td>tableName</td>',
-            $html
-        );
-        $this->assertStringContainsString(
-            '<a href="navigation.php" data-post="'
-            . 'unhideNavItem=1&amp;itemType=table&amp;'
-            . 'itemName=tableName&amp;dbName=db&amp;lang=en"'
-            . ' class="unhideNavItem ajax">',
+            '<a class="unhideNavItem ajax" href="' . Url::getFromRoute('/navigation') . '" data-post="'
+            . 'unhideNavItem=1&itemType=table&'
+            . 'itemName=tableName&dbName=db&lang=en">',
             $html
         );
     }

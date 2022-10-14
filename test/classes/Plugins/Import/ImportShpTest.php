@@ -1,42 +1,46 @@
 <?php
-/**
- * Tests for PhpMyAdmin\Plugins\Import\ImportShp class
- *
- * @package PhpMyAdmin-test
- */
+
 declare(strict_types=1);
 
 namespace PhpMyAdmin\Tests\Plugins\Import;
 
+use PhpMyAdmin\DatabaseInterface;
 use PhpMyAdmin\File;
 use PhpMyAdmin\Plugins\Import\ImportShp;
-use PhpMyAdmin\Tests\PmaTestCase;
+use PhpMyAdmin\Tests\AbstractTestCase;
+
+use function __;
+use function extension_loaded;
 
 /**
- * Tests for PhpMyAdmin\Plugins\Import\ImportShp class
- *
- * @package PhpMyAdmin-test
+ * @covers \PhpMyAdmin\Plugins\Import\ImportShp
+ * @requires extension zip
  */
-class ImportShpTest extends PmaTestCase
+class ImportShpTest extends AbstractTestCase
 {
-    /**
-     * @var ImportShp
-     * @access protected
-     */
+    /** @var ImportShp */
     protected $object;
 
     /**
      * Sets up the fixture, for example, opens a network connection.
      * This method is called before a test is executed.
-     *
-     * @access protected
-     * @return void
      */
     protected function setUp(): void
     {
-        if (! defined('PMA_IS_WINDOWS')) {
-            define('PMA_IS_WINDOWS', false);
-        }
+        parent::setUp();
+        $GLOBALS['error'] = null;
+        $GLOBALS['buffer'] = null;
+        $GLOBALS['maximum_time'] = null;
+        $GLOBALS['charset_conversion'] = null;
+        $GLOBALS['eof'] = null;
+        $GLOBALS['db'] = '';
+        $GLOBALS['skip_queries'] = null;
+        $GLOBALS['max_sql_len'] = null;
+        $GLOBALS['sql_query'] = '';
+        $GLOBALS['executed_queries'] = null;
+        $GLOBALS['run_query'] = null;
+        $GLOBALS['go_sql'] = null;
+
         $GLOBALS['server'] = 0;
         //setting
         $GLOBALS['plugin_param'] = 'table';
@@ -46,7 +50,7 @@ class ImportShpTest extends PmaTestCase
         $GLOBALS['cfg']['Server']['DisableIS'] = false;
 
         //Mock DBI
-        $dbi = $this->getMockBuilder('PhpMyAdmin\DatabaseInterface')
+        $dbi = $this->getMockBuilder(DatabaseInterface::class)
             ->disableOriginalConstructor()
             ->getMock();
         $GLOBALS['dbi'] = $dbi;
@@ -63,19 +67,18 @@ class ImportShpTest extends PmaTestCase
      * Executes import of given file
      *
      * @param string $filename Name of test file
-     *
-     * @return void
      */
-    protected function runImport($filename)
+    protected function runImport(string $filename): void
     {
         $GLOBALS['import_file'] = $filename;
-        $GLOBALS['import_handle'] = new File($filename);
-        $GLOBALS['import_handle']->setDecompressContent(true);
-        $GLOBALS['import_handle']->open();
+
+        $importHandle = new File($filename);
+        $importHandle->setDecompressContent(true);
+        $importHandle->open();
 
         $GLOBALS['message'] = '';
         $GLOBALS['error'] = false;
-        $this->object->doImport();
+        $this->object->doImport($importHandle);
         $this->assertEquals('', $GLOBALS['message']);
         $this->assertFalse($GLOBALS['error']);
     }
@@ -83,23 +86,19 @@ class ImportShpTest extends PmaTestCase
     /**
      * Tears down the fixture, for example, closes a network connection.
      * This method is called after a test is executed.
-     *
-     * @access protected
-     * @return void
      */
     protected function tearDown(): void
     {
+        parent::tearDown();
         unset($this->object);
     }
 
     /**
      * Test for getProperties
      *
-     * @return void
-     *
      * @group medium
      */
-    public function testGetProperties()
+    public function testGetProperties(): void
     {
         $properties = $this->object->getProperties();
         $this->assertEquals(
@@ -110,10 +109,7 @@ class ImportShpTest extends PmaTestCase
             'shp',
             $properties->getExtension()
         );
-        $this->assertEquals(
-            [],
-            $properties->getOptions()
-        );
+        $this->assertNull($properties->getOptions());
         $this->assertEquals(
             __('Options'),
             $properties->getOptionsText()
@@ -123,108 +119,110 @@ class ImportShpTest extends PmaTestCase
     /**
      * Test for doImport with complex data
      *
-     * @return void
-     *
      * @group medium
+     * @group 32bit-incompatible
      */
-    public function testImportOsm()
+    public function testImportOsm(): void
     {
         //$sql_query_disabled will show the import SQL detail
         //$import_notice will show the import detail result
-        global $import_notice, $sql_query, $sql_query_disabled;
-        $sql_query_disabled = false;
+
+        $GLOBALS['sql_query_disabled'] = false;
+        $GLOBALS['db'] = '';
 
         //Test function called
         $this->runImport('test/test_data/dresden_osm.shp.zip');
 
-        $this->assertMessages($import_notice);
+        $this->assertMessages($GLOBALS['import_notice']);
+
+        $endsWith = "13.737122 51.0542065)))'))";
+
+        if (extension_loaded('dbase')) {
+            $endsWith = "13.737122 51.0542065)))'),";
+        }
+
         $this->assertStringContainsString(
             "(GeomFromText('MULTIPOLYGON((("
-            . "13.737122 51.0542065,"
-            . "13.7373039 51.0541298,"
-            . "13.7372661 51.0540944,"
-            . "13.7370842 51.0541711,"
-            . "13.737122 51.0542065)))'))",
-            $sql_query
+            . '13.737122 51.0542065,'
+            . '13.7373039 51.0541298,'
+            . '13.7372661 51.0540944,'
+            . '13.7370842 51.0541711,'
+            . $endsWith,
+            $GLOBALS['sql_query']
         );
     }
 
     /**
      * Test for doImport
      *
-     * @return void
-     *
      * @group medium
+     * @group 32bit-incompatible
      */
-    public function testDoImport()
+    public function testDoImport(): void
     {
         //$sql_query_disabled will show the import SQL detail
         //$import_notice will show the import detail result
-        global $import_notice, $sql_query, $sql_query_disabled;
-        $sql_query_disabled = false;
+
+        $GLOBALS['sql_query_disabled'] = false;
+        $GLOBALS['db'] = '';
 
         //Test function called
         $this->runImport('test/test_data/timezone.shp.zip');
 
-        //asset that all sql are executed
+        // asset that all sql are executed
         $this->assertStringContainsString(
-            'CREATE DATABASE IF NOT EXISTS `SHP_DB` DEFAULT CHARACTER '
-            . 'SET utf8 COLLATE utf8_general_ci',
-            $sql_query
-        );
-        $this->assertStringContainsString(
-            'CREATE TABLE IF NOT EXISTS `SHP_DB`.`TBL_NAME` '
-            . '(`SPATIAL` geometry) DEFAULT CHARACTER '
-            . 'SET utf8 COLLATE utf8_general_ci;',
-            $sql_query
-        );
-        $this->assertStringContainsString(
-            "INSERT INTO `SHP_DB`.`TBL_NAME` (`SPATIAL`) VALUES",
-            $sql_query
-        );
-        $this->assertStringContainsString(
-            "GeomFromText('POINT(1294523.1759236",
-            $sql_query
+            'CREATE DATABASE IF NOT EXISTS `SHP_DB` DEFAULT CHARACTER SET utf8 COLLATE utf8_general_ci',
+            $GLOBALS['sql_query']
         );
 
+        // dbase extension will generate different sql statement
+        if (extension_loaded('dbase')) {
+            $this->assertStringContainsString(
+                'CREATE TABLE IF NOT EXISTS `SHP_DB`.`TBL_NAME` '
+                . '(`SPATIAL` geometry, `ID` int(2), `AUTHORITY` varchar(25), `NAME` varchar(42)) '
+                . 'DEFAULT CHARACTER SET utf8 COLLATE utf8_general_ci;',
+                $GLOBALS['sql_query']
+            );
+
+            $this->assertStringContainsString(
+                'INSERT INTO `SHP_DB`.`TBL_NAME` (`SPATIAL`, `ID`, `AUTHORITY`, `NAME`) VALUES',
+                $GLOBALS['sql_query']
+            );
+        } else {
+            $this->assertStringContainsString(
+                'CREATE TABLE IF NOT EXISTS `SHP_DB`.`TBL_NAME` (`SPATIAL` geometry)',
+                $GLOBALS['sql_query']
+            );
+
+            $this->assertStringContainsString(
+                'INSERT INTO `SHP_DB`.`TBL_NAME` (`SPATIAL`) VALUES',
+                $GLOBALS['sql_query']
+            );
+        }
+
+        $this->assertStringContainsString("GeomFromText('POINT(1294523.1759236", $GLOBALS['sql_query']);
+
         //asset that all databases and tables are imported
-        $this->assertMessages($import_notice);
+        $this->assertMessages($GLOBALS['import_notice']);
     }
 
     /**
      * Validates import messages
      *
      * @param string $import_notice Messages to check
-     *
-     * @return void
      */
-    protected function assertMessages($import_notice)
+    protected function assertMessages(string $import_notice): void
     {
         $this->assertStringContainsString(
             'The following structures have either been created or altered.',
             $import_notice
         );
-        $this->assertStringContainsString(
-            'Go to database: `SHP_DB`',
-            $import_notice
-        );
-        $this->assertStringContainsString(
-            'Edit settings for `SHP_DB`',
-            $import_notice
-        );
-        $this->assertStringContainsString(
-            'Go to table: `TBL_NAME`',
-            $import_notice
-        );
-        $this->assertStringContainsString(
-            'Edit settings for `TBL_NAME`',
-            $import_notice
-        );
+        $this->assertStringContainsString('Go to database: `SHP_DB`', $import_notice);
+        $this->assertStringContainsString('Edit settings for `SHP_DB`', $import_notice);
+        $this->assertStringContainsString('Go to table: `TBL_NAME`', $import_notice);
+        $this->assertStringContainsString('Edit settings for `TBL_NAME`', $import_notice);
 
         //asset that the import process is finished
-        $this->assertEquals(
-            true,
-            $GLOBALS['finished']
-        );
+        $this->assertTrue($GLOBALS['finished']);
     }
 }

@@ -1,108 +1,88 @@
 <?php
-/* vim: set expandtab sw=4 ts=4 sts=4: */
-/**
- * tests for PhpMyAdmin\Plugins\Export\ExportCodegen class
- *
- * @package PhpMyAdmin-test
- */
+
 declare(strict_types=1);
 
 namespace PhpMyAdmin\Tests\Plugins\Export;
 
+use PhpMyAdmin\ConfigStorage\Relation;
+use PhpMyAdmin\Export;
 use PhpMyAdmin\Plugins\Export\ExportCodegen;
-use PhpMyAdmin\Tests\PmaTestCase;
+use PhpMyAdmin\Properties\Options\Groups\OptionsPropertyMainGroup;
+use PhpMyAdmin\Properties\Options\Groups\OptionsPropertyRootGroup;
+use PhpMyAdmin\Properties\Options\Items\HiddenPropertyItem;
+use PhpMyAdmin\Properties\Options\Items\SelectPropertyItem;
+use PhpMyAdmin\Properties\Plugins\ExportPluginProperties;
+use PhpMyAdmin\Tests\AbstractTestCase;
+use PhpMyAdmin\Transformations;
 use ReflectionClass;
 use ReflectionMethod;
 use ReflectionProperty;
 
+use function ob_get_clean;
+use function ob_start;
+
 /**
- * tests for PhpMyAdmin\Plugins\Export\ExportCodegen class
- *
- * @package PhpMyAdmin-test
+ * @covers \PhpMyAdmin\Plugins\Export\ExportCodegen
  * @group medium
  */
-class ExportCodegenTest extends PmaTestCase
+class ExportCodegenTest extends AbstractTestCase
 {
-    /**
-     * @var ExportCodegen
-     */
+    /** @var ExportCodegen */
     protected $object;
 
     /**
      * Configures global environment.
-     *
-     * @return void
      */
     protected function setUp(): void
     {
+        parent::setUp();
+        $GLOBALS['dbi'] = $this->createDatabaseInterface();
         $GLOBALS['server'] = 0;
-        $this->object = new ExportCodegen();
+        $this->object = new ExportCodegen(
+            new Relation($GLOBALS['dbi']),
+            new Export($GLOBALS['dbi']),
+            new Transformations()
+        );
     }
 
     /**
      * tearDown for test cases
-     *
-     * @return void
      */
     protected function tearDown(): void
     {
+        parent::tearDown();
         unset($this->object);
     }
 
-    /**
-     * Test for PhpMyAdmin\Plugins\Export\ExportCodegen::initSpecificVariables
-     *
-     * @return void
-     */
-    public function testInitSpecificVariables()
+    public function testInitSpecificVariables(): void
     {
-
-        $method = new ReflectionMethod('PhpMyAdmin\Plugins\Export\ExportCodegen', 'initSpecificVariables');
+        $method = new ReflectionMethod(ExportCodegen::class, 'init');
         $method->setAccessible(true);
         $method->invoke($this->object, null);
 
-        $attrCgFormats = new ReflectionProperty('PhpMyAdmin\Plugins\Export\ExportCodegen', '_cgFormats');
+        $attrCgFormats = new ReflectionProperty(ExportCodegen::class, 'cgFormats');
         $attrCgFormats->setAccessible(true);
-
-        $attrCgHandlers = new ReflectionProperty('PhpMyAdmin\Plugins\Export\ExportCodegen', '_cgHandlers');
-        $attrCgHandlers->setAccessible(true);
 
         $this->assertEquals(
             [
-                "NHibernate C# DO",
-                "NHibernate XML",
+                'NHibernate C# DO',
+                'NHibernate XML',
             ],
             $attrCgFormats->getValue($this->object)
         );
-
-        $this->assertEquals(
-            [
-                "_handleNHibernateCSBody",
-                "_handleNHibernateXMLBody",
-            ],
-            $attrCgHandlers->getValue($this->object)
-        );
     }
 
-    /**
-     * Test for PhpMyAdmin\Plugins\Export\ExportCodegen::setProperties
-     *
-     * @return void
-     */
-    public function testSetProperties()
+    public function testSetProperties(): void
     {
-        $method = new ReflectionMethod('PhpMyAdmin\Plugins\Export\ExportCodegen', 'setProperties');
+        $method = new ReflectionMethod(ExportCodegen::class, 'setProperties');
         $method->setAccessible(true);
         $method->invoke($this->object, null);
 
-        $attrProperties = new ReflectionProperty('PhpMyAdmin\Plugins\Export\ExportCodegen', 'properties');
+        $attrProperties = new ReflectionProperty(ExportCodegen::class, 'properties');
         $attrProperties->setAccessible(true);
         $properties = $attrProperties->getValue($this->object);
 
-        $this->assertInstanceOf(
-            'PhpMyAdmin\Properties\Plugins\ExportPluginProperties',
-            $properties
-        );
+        $this->assertInstanceOf(ExportPluginProperties::class, $properties);
 
         $this->assertEquals(
             'CodeGen',
@@ -126,10 +106,7 @@ class ExportCodegenTest extends PmaTestCase
 
         $options = $properties->getOptions();
 
-        $this->assertInstanceOf(
-            'PhpMyAdmin\Properties\Options\Groups\OptionsPropertyRootGroup',
-            $options
-        );
+        $this->assertInstanceOf(OptionsPropertyRootGroup::class, $options);
 
         $this->assertEquals(
             'Format Specific Options',
@@ -139,10 +116,7 @@ class ExportCodegenTest extends PmaTestCase
         $generalOptionsArray = $options->getProperties();
         $generalOptions = $generalOptionsArray[0];
 
-        $this->assertInstanceOf(
-            'PhpMyAdmin\Properties\Options\Groups\OptionsPropertyMainGroup',
-            $generalOptions
-        );
+        $this->assertInstanceOf(OptionsPropertyMainGroup::class, $generalOptions);
 
         $this->assertEquals(
             'general_opts',
@@ -153,10 +127,7 @@ class ExportCodegenTest extends PmaTestCase
 
         $hidden = $generalProperties[0];
 
-        $this->assertInstanceOf(
-            'PhpMyAdmin\Properties\Options\Items\HiddenPropertyItem',
-            $hidden
-        );
+        $this->assertInstanceOf(HiddenPropertyItem::class, $hidden);
 
         $this->assertEquals(
             'structure_or_data',
@@ -165,10 +136,7 @@ class ExportCodegenTest extends PmaTestCase
 
         $select = $generalProperties[1];
 
-        $this->assertInstanceOf(
-            'PhpMyAdmin\Properties\Options\Items\SelectPropertyItem',
-            $select
-        );
+        $this->assertInstanceOf(SelectPropertyItem::class, $select);
 
         $this->assertEquals(
             'format',
@@ -182,67 +150,42 @@ class ExportCodegenTest extends PmaTestCase
 
         $this->assertEquals(
             [
-                "NHibernate C# DO",
-                "NHibernate XML",
+                'NHibernate C# DO',
+                'NHibernate XML',
             ],
             $select->getValues()
         );
     }
 
-    /**
-     * Test for PhpMyAdmin\Plugins\Export\ExportCodegen::exportHeader
-     *
-     * @return void
-     */
-    public function testExportHeader()
+    public function testExportHeader(): void
     {
         $this->assertTrue(
             $this->object->exportHeader()
         );
     }
 
-    /**
-     * Test for PhpMyAdmin\Plugins\Export\ExportCodegen::exportFooter
-     *
-     * @return void
-     */
-    public function testExportFooter()
+    public function testExportFooter(): void
     {
         $this->assertTrue(
             $this->object->exportFooter()
         );
     }
 
-    /**
-     * Test for PhpMyAdmin\Plugins\Export\ExportCodegen::exportDBHeader
-     *
-     * @return void
-     */
-    public function testExportDBHeader()
+    public function testExportDBHeader(): void
     {
         $this->assertTrue(
             $this->object->exportDBHeader('testDB')
         );
     }
 
-    /**
-     * Test for PhpMyAdmin\Plugins\Export\ExportCodegen::exportDBFooter
-     *
-     * @return void
-     */
-    public function testExportDBFooter()
+    public function testExportDBFooter(): void
     {
         $this->assertTrue(
             $this->object->exportDBFooter('testDB')
         );
     }
 
-    /**
-     * Test for PhpMyAdmin\Plugins\Export\ExportCodegen::exportData
-     *
-     * @return void
-     */
-    public function testExportData()
+    public function testExportData(): void
     {
         $GLOBALS['codegen_format'] = 1;
         $GLOBALS['output_kanji_conversion'] = false;
@@ -250,63 +193,39 @@ class ExportCodegenTest extends PmaTestCase
         $GLOBALS['buffer_needed'] = false;
         $GLOBALS['asfile'] = true;
         $GLOBALS['save_on_server'] = false;
-        $dbi = $this->getMockBuilder('PhpMyAdmin\DatabaseInterface')
-            ->disableOriginalConstructor()
-            ->getMock();
-
-        $GLOBALS['dbi'] = $dbi;
 
         ob_start();
-        $this->object->exportData(
-            'testDB',
-            'testTable',
-            "\n",
-            'example.com',
-            'test'
-        );
+        $this->object->exportData('test_db', 'test_table', 'localhost', 'SELECT * FROM `test_db`.`test_table`;');
         $result = ob_get_clean();
 
-        $this->assertStringContainsString(
-            '<?xml version="1.0" encoding="utf-8" ?>',
-            $result
-        );
-
-        $this->assertStringContainsString(
-            '<class name="TestTable" table="TestTable">',
-            $result
-        );
-
-        $this->assertStringContainsString(
-            '</class>',
-            $result
-        );
-
-        $this->assertStringContainsString(
-            '</hibernate-mapping>',
+        $this->assertIsString($result);
+        $this->assertEquals(
+            '<?xml version="1.0" encoding="utf-8" ?>' . "\n"
+            . '<hibernate-mapping xmlns="urn:nhibernate-mapping-2.2" namespace="Test_db" assembly="Test_db">' . "\n"
+            . '    <class name="Test_table" table="Test_table">' . "\n"
+            . '        <id name="Id" type="Int32" unsaved-value="0">' . "\n"
+            . '            <column name="id" sql-type="int" not-null="true" unique="true" index="PRIMARY"/>' . "\n"
+            . '            <generator class="native" />' . "\n"
+            . '        </id>' . "\n"
+            . '        <property name="Name" type="String">' . "\n"
+            . '            <column name="name" sql-type="varchar" not-null="true" />' . "\n"
+            . '        </property>' . "\n"
+            . '        <property name="Datetimefield" type="DateTime">' . "\n"
+            . '            <column name="datetimefield" sql-type="datetime" not-null="true" />' . "\n"
+            . '        </property>' . "\n"
+            . '    </class>' . "\n"
+            . '</hibernate-mapping>',
             $result
         );
 
         $GLOBALS['codegen_format'] = 4;
 
-        $this->object->exportData(
-            'testDB',
-            'testTable',
-            "\n",
-            'example.com',
-            'test'
-        );
+        $this->object->exportData('test_db', 'test_table', 'localhost', 'SELECT * FROM `test_db`.`test_table`;');
 
-        $this->expectOutputString(
-            '4 is not supported.'
-        );
+        $this->expectOutputString('4 is not supported.');
     }
 
-    /**
-     * Test for PhpMyAdmin\Plugins\Export\ExportCodegen::cgMakeIdentifier
-     *
-     * @return void
-     */
-    public function testCgMakeIdentifier()
+    public function testCgMakeIdentifier(): void
     {
         $this->assertEquals(
             '_Ⅲfoo',
@@ -324,120 +243,79 @@ class ExportCodegenTest extends PmaTestCase
         );
     }
 
-    /**
-     * Test for PhpMyAdmin\Plugins\Export\ExportCodegen::_handleNHibernateCSBody
-     *
-     * @return void
-     */
-    public function testHandleNHibernateCSBody()
+    public function testHandleNHibernateCSBody(): void
     {
-        $dbi = $this->getMockBuilder('PhpMyAdmin\DatabaseInterface')
-            ->disableOriginalConstructor()
-            ->getMock();
-
-        $dbi->expects($this->once())
-            ->method('query')
-            ->with('DESC `db`.`table`')
-            ->will($this->returnValue(true));
-
-        $dbi->expects($this->at(1))
-            ->method('fetchRow')
-            ->with(true)
-            ->will($this->returnValue(['a', 'b', 'c', false, 'e', 'f']));
-
-        $dbi->expects($this->at(2))
-            ->method('fetchRow')
-            ->with(true)
-            ->will($this->returnValue(null));
-
-        $GLOBALS['dbi'] = $dbi;
-        $method = new ReflectionMethod('PhpMyAdmin\Plugins\Export\ExportCodegen', '_handleNHibernateCSBody');
+        $method = new ReflectionMethod(ExportCodegen::class, 'handleNHibernateCSBody');
         $method->setAccessible(true);
-        $result = $method->invoke($this->object, 'db', 'table', "\n");
+        $result = $method->invoke($this->object, 'test_db', 'test_table');
 
         $this->assertEquals(
-            "using System;\n" .
-            "using System.Collections;\n" .
-            "using System.Collections.Generic;\n" .
-            "using System.Text;\n" .
-            "namespace Db\n" .
-            "{\n" .
-            "    #region Table\n" .
-            "    public class Table\n" .
-            "    {\n" .
-            "        #region Member Variables\n" .
-            "        protected unknown _a;\n" .
-            "        #endregion\n" .
-            "        #region Constructors\n" .
-            "        public Table() { }\n" .
-            "        public Table(unknown a)\n" .
-            "        {\n" .
-            "            this._a=a;\n" .
-            "        }\n" .
-            "        #endregion\n" .
-            "        #region Public Properties\n" .
-            "        public virtual unknown A\n" .
-            "        {\n" .
-            "            get {return _a;}\n" .
-            "            set {_a=value;}\n" .
-            "        }\n" .
-            "        #endregion\n" .
-            "    }\n" .
-            "    #endregion\n" .
-            "}",
+            'using System;' . "\n" .
+            'using System.Collections;' . "\n" .
+            'using System.Collections.Generic;' . "\n" .
+            'using System.Text;' . "\n" .
+            'namespace Test_db' . "\n" .
+            '{' . "\n" .
+            '    #region Test_table' . "\n" .
+            '    public class Test_table' . "\n" .
+            '    {' . "\n" .
+            '        #region Member Variables' . "\n" .
+            '        protected int _id;' . "\n" .
+            '        protected string _name;' . "\n" .
+            '        protected DateTime _datetimefield;' . "\n" .
+            '        #endregion' . "\n" .
+            '        #region Constructors' . "\n" .
+            '        public Test_table() { }' . "\n" .
+            '        public Test_table(string name, DateTime datetimefield)' . "\n" .
+            '        {' . "\n" .
+            '            this._name=name;' . "\n" .
+            '            this._datetimefield=datetimefield;' . "\n" .
+            '        }' . "\n" .
+            '        #endregion' . "\n" .
+            '        #region Public Properties' . "\n" .
+            '        public virtual int Id' . "\n" .
+            '        {' . "\n" .
+            '            get {return _id;}' . "\n" .
+            '            set {_id=value;}' . "\n" .
+            '        }' . "\n" .
+            '        public virtual string Name' . "\n" .
+            '        {' . "\n" .
+            '            get {return _name;}' . "\n" .
+            '            set {_name=value;}' . "\n" .
+            '        }' . "\n" .
+            '        public virtual DateTime Datetimefield' . "\n" .
+            '        {' . "\n" .
+            '            get {return _datetimefield;}' . "\n" .
+            '            set {_datetimefield=value;}' . "\n" .
+            '        }' . "\n" .
+            '        #endregion' . "\n" .
+            '    }' . "\n" .
+            '    #endregion' . "\n" .
+            '}',
             $result
         );
     }
 
-    /**
-     * Test for PhpMyAdmin\Plugins\Export\ExportCodegen::_handleNHibernateXMLBody
-     *
-     * @return void
-     */
-    public function testHandleNHibernateXMLBody()
+    public function testHandleNHibernateXMLBody(): void
     {
-        $dbi = $this->getMockBuilder('PhpMyAdmin\DatabaseInterface')
-            ->disableOriginalConstructor()
-            ->getMock();
-
-        $dbi->expects($this->once())
-            ->method('query')
-            ->with('DESC `db`.`table`')
-            ->will($this->returnValue(true));
-
-        $dbi->expects($this->at(1))
-            ->method('fetchRow')
-            ->with(true)
-            ->will($this->returnValue(['a', 'b', 'c', false, 'e', 'f']));
-
-        $dbi->expects($this->at(2))
-            ->method('fetchRow')
-            ->with(true)
-            ->will($this->returnValue(['g', 'h', 'i', 'PRI', 'j', 'k']));
-
-        $dbi->expects($this->at(3))
-            ->method('fetchRow')
-            ->with(true)
-            ->will($this->returnValue(null));
-
-        $GLOBALS['dbi'] = $dbi;
-        $method = new ReflectionMethod('PhpMyAdmin\Plugins\Export\ExportCodegen', '_handleNHibernateXMLBody');
+        $method = new ReflectionMethod(ExportCodegen::class, 'handleNHibernateXMLBody');
         $method->setAccessible(true);
-        $result = $method->invoke($this->object, 'db', 'table', "\n");
+        $result = $method->invoke($this->object, 'test_db', 'test_table');
 
         $this->assertEquals(
             '<?xml version="1.0" encoding="utf-8" ?>' . "\n" .
-            '<hibernate-mapping xmlns="urn:nhibernate-mapping-2.2" namespace="Db" ' .
-            'assembly="Db">' . "\n" .
-            '    <class name="Table" table="Table">' . "\n" .
-            '        <property name="A" type="Unknown">' . "\n" .
-            '            <column name="a" sql-type="b" not-null="false" />' . "\n" .
-            '        </property>' . "\n" .
-            '        <id name="G" type="Unknown" unsaved-value="0">' . "\n" .
-            '            <column name="g" sql-type="h" not-null="false" ' .
-            'unique="true" index="PRIMARY"/>' . "\n" .
+            '<hibernate-mapping xmlns="urn:nhibernate-mapping-2.2" namespace="Test_db" assembly="Test_db">' . "\n" .
+            '    <class name="Test_table" table="Test_table">' . "\n" .
+            '        <id name="Id" type="Int32" unsaved-value="0">' . "\n" .
+            '            <column name="id" sql-type="int" not-null="true" unique="true" index="PRIMARY"/>' . "\n" .
             '            <generator class="native" />' . "\n" .
             '        </id>' . "\n" .
+            '        <property name="Name" type="String">' . "\n" .
+            '            <column name="name" sql-type="varchar" not-null="true" />' . "\n" .
+            '        </property>' . "\n" .
+            '        <property name="Datetimefield" type="DateTime">' . "\n" .
+            '            <column name="datetimefield" sql-type="datetime" not-null="true" />' . "\n" .
+            '        </property>' . "\n" .
             '    </class>' . "\n" .
             '</hibernate-mapping>',
             $result
@@ -446,45 +324,15 @@ class ExportCodegenTest extends PmaTestCase
 
     /**
      * Test for
-     *     - PhpMyAdmin\Plugins\Export\ExportCodegen::_getCgFormats
-     *     - PhpMyAdmin\Plugins\Export\ExportCodegen::_setCgFormats
-     *
-     * @return void
+     *     - PhpMyAdmin\Plugins\Export\ExportCodegen::getCgFormats
+     *     - PhpMyAdmin\Plugins\Export\ExportCodegen::setCgFormats
      */
-    public function testSetGetCgFormats()
+    public function testSetGetCgFormats(): void
     {
-        $reflection = new ReflectionClass('PhpMyAdmin\Plugins\Export\ExportCodegen');
+        $reflection = new ReflectionClass(ExportCodegen::class);
 
-        $getter = $reflection->getMethod('_getCgFormats');
-        $setter = $reflection->getMethod('_setCgFormats');
-
-        $getter->setAccessible(true);
-        $setter->setAccessible(true);
-
-        $setter->invoke($this->object, [1, 2]);
-
-        $this->assertEquals(
-            [
-                1,
-                2,
-            ],
-            $getter->invoke($this->object)
-        );
-    }
-
-    /**
-     * Test for
-     *     - PhpMyAdmin\Plugins\Export\ExportCodegen::_getCgHandlers
-     *     - PhpMyAdmin\Plugins\Export\ExportCodegen::_setCgHandlers
-     *
-     * @return void
-     */
-    public function testSetGetCgHandlers()
-    {
-        $reflection = new ReflectionClass('PhpMyAdmin\Plugins\Export\ExportCodegen');
-
-        $getter = $reflection->getMethod('_getCgHandlers');
-        $setter = $reflection->getMethod('_setCgHandlers');
+        $getter = $reflection->getMethod('getCgFormats');
+        $setter = $reflection->getMethod('setCgFormats');
 
         $getter->setAccessible(true);
         $setter->setAccessible(true);

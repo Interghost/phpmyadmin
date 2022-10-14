@@ -1,69 +1,70 @@
 <?php
-/* vim: set expandtab sw=4 ts=4 sts=4: */
-/**
- * tests for PhpMyAdmin\Plugins\Export\ExportExcel class
- *
- * @package PhpMyAdmin-test
- */
+
 declare(strict_types=1);
 
 namespace PhpMyAdmin\Tests\Plugins\Export;
 
+use PhpMyAdmin\ConfigStorage\Relation;
+use PhpMyAdmin\Export;
 use PhpMyAdmin\Plugins\Export\ExportExcel;
-use PhpMyAdmin\Tests\PmaTestCase;
+use PhpMyAdmin\Properties\Options\Groups\OptionsPropertyMainGroup;
+use PhpMyAdmin\Properties\Options\Groups\OptionsPropertyRootGroup;
+use PhpMyAdmin\Properties\Options\Items\BoolPropertyItem;
+use PhpMyAdmin\Properties\Options\Items\HiddenPropertyItem;
+use PhpMyAdmin\Properties\Options\Items\SelectPropertyItem;
+use PhpMyAdmin\Properties\Options\Items\TextPropertyItem;
+use PhpMyAdmin\Properties\Plugins\ExportPluginProperties;
+use PhpMyAdmin\Tests\AbstractTestCase;
+use PhpMyAdmin\Transformations;
 use ReflectionMethod;
 use ReflectionProperty;
 
+use function array_shift;
+
 /**
- * tests for PhpMyAdmin\Plugins\Export\ExportExcel class
- *
- * @package PhpMyAdmin-test
+ * @covers \PhpMyAdmin\Plugins\Export\ExportExcel
  * @group medium
  */
-class ExportExcelTest extends PmaTestCase
+class ExportExcelTest extends AbstractTestCase
 {
+    /** @var ExportExcel */
     protected $object;
 
     /**
      * Configures global environment.
-     *
-     * @return void
      */
     protected function setUp(): void
     {
+        parent::setUp();
+        $GLOBALS['dbi'] = $this->createDatabaseInterface();
         $GLOBALS['server'] = 0;
-        $this->object = new ExportExcel();
+        $this->object = new ExportExcel(
+            new Relation($GLOBALS['dbi']),
+            new Export($GLOBALS['dbi']),
+            new Transformations()
+        );
     }
 
     /**
      * tearDown for test cases
-     *
-     * @return void
      */
     protected function tearDown(): void
     {
+        parent::tearDown();
         unset($this->object);
     }
 
-    /**
-     * Test for PhpMyAdmin\Plugins\Export\ExportExcel::setProperties
-     *
-     * @return void
-     */
-    public function testSetProperties()
+    public function testSetProperties(): void
     {
-        $method = new ReflectionMethod('PhpMyAdmin\Plugins\Export\ExportExcel', 'setProperties');
+        $method = new ReflectionMethod(ExportExcel::class, 'setProperties');
         $method->setAccessible(true);
         $method->invoke($this->object, null);
 
-        $attrProperties = new ReflectionProperty('PhpMyAdmin\Plugins\Export\ExportExcel', 'properties');
+        $attrProperties = new ReflectionProperty(ExportExcel::class, 'properties');
         $attrProperties->setAccessible(true);
         $properties = $attrProperties->getValue($this->object);
 
-        $this->assertInstanceOf(
-            'PhpMyAdmin\Properties\Plugins\ExportPluginProperties',
-            $properties
-        );
+        $this->assertInstanceOf(ExportPluginProperties::class, $properties);
 
         $this->assertEquals(
             'CSV for MS Excel',
@@ -87,10 +88,7 @@ class ExportExcelTest extends PmaTestCase
 
         $options = $properties->getOptions();
 
-        $this->assertInstanceOf(
-            'PhpMyAdmin\Properties\Options\Groups\OptionsPropertyRootGroup',
-            $options
-        );
+        $this->assertInstanceOf(OptionsPropertyRootGroup::class, $options);
 
         $this->assertEquals(
             'Format Specific Options',
@@ -100,10 +98,7 @@ class ExportExcelTest extends PmaTestCase
         $generalOptionsArray = $options->getProperties();
         $generalOptions = $generalOptionsArray[0];
 
-        $this->assertInstanceOf(
-            'PhpMyAdmin\Properties\Options\Groups\OptionsPropertyMainGroup',
-            $generalOptions
-        );
+        $this->assertInstanceOf(OptionsPropertyMainGroup::class, $generalOptions);
 
         $this->assertEquals(
             'general_opts',
@@ -114,10 +109,7 @@ class ExportExcelTest extends PmaTestCase
 
         $property = array_shift($generalProperties);
 
-        $this->assertInstanceOf(
-            'PhpMyAdmin\Properties\Options\Items\TextPropertyItem',
-            $property
-        );
+        $this->assertInstanceOf(TextPropertyItem::class, $property);
 
         $this->assertEquals(
             'null',
@@ -131,10 +123,7 @@ class ExportExcelTest extends PmaTestCase
 
         $property = array_shift($generalProperties);
 
-        $this->assertInstanceOf(
-            'PhpMyAdmin\Properties\Options\Items\BoolPropertyItem',
-            $property
-        );
+        $this->assertInstanceOf(BoolPropertyItem::class, $property);
 
         $this->assertEquals(
             'removeCRLF',
@@ -148,10 +137,7 @@ class ExportExcelTest extends PmaTestCase
 
         $property = array_shift($generalProperties);
 
-        $this->assertInstanceOf(
-            'PhpMyAdmin\Properties\Options\Items\BoolPropertyItem',
-            $property
-        );
+        $this->assertInstanceOf(BoolPropertyItem::class, $property);
 
         $this->assertEquals(
             'columns',
@@ -165,10 +151,7 @@ class ExportExcelTest extends PmaTestCase
 
         $property = array_shift($generalProperties);
 
-        $this->assertInstanceOf(
-            'PhpMyAdmin\Properties\Options\Items\SelectPropertyItem',
-            $property
-        );
+        $this->assertInstanceOf(SelectPropertyItem::class, $property);
 
         $this->assertEquals(
             'edition',
@@ -185,16 +168,13 @@ class ExportExcelTest extends PmaTestCase
         );
 
         $this->assertEquals(
-            "Excel edition:",
+            'Excel edition:',
             $property->getText()
         );
 
         $property = array_shift($generalProperties);
 
-        $this->assertInstanceOf(
-            'PhpMyAdmin\Properties\Options\Items\HiddenPropertyItem',
-            $property
-        );
+        $this->assertInstanceOf(HiddenPropertyItem::class, $property);
 
         $this->assertEquals(
             'structure_or_data',

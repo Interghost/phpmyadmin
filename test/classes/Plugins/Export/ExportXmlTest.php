@@ -1,38 +1,44 @@
 <?php
-/* vim: set expandtab sw=4 ts=4 sts=4: */
-/**
- * tests for PhpMyAdmin\Plugins\Export\ExportXml class
- *
- * @package PhpMyAdmin-test
- */
+
 declare(strict_types=1);
 
 namespace PhpMyAdmin\Tests\Plugins\Export;
 
+use PhpMyAdmin\ConfigStorage\Relation;
 use PhpMyAdmin\DatabaseInterface;
+use PhpMyAdmin\Export;
 use PhpMyAdmin\Plugins\Export\ExportXml;
+use PhpMyAdmin\Properties\Options\Groups\OptionsPropertyMainGroup;
+use PhpMyAdmin\Properties\Options\Groups\OptionsPropertyRootGroup;
+use PhpMyAdmin\Properties\Options\Items\BoolPropertyItem;
+use PhpMyAdmin\Properties\Options\Items\HiddenPropertyItem;
+use PhpMyAdmin\Properties\Plugins\ExportPluginProperties;
 use PhpMyAdmin\Table;
-use PhpMyAdmin\Tests\PmaTestCase;
+use PhpMyAdmin\Tests\AbstractTestCase;
+use PhpMyAdmin\Transformations;
 use ReflectionMethod;
 use ReflectionProperty;
 
+use function array_shift;
+use function ob_get_clean;
+use function ob_start;
+
 /**
- * tests for PhpMyAdmin\Plugins\Export\ExportXml class
- *
- * @package PhpMyAdmin-test
+ * @covers \PhpMyAdmin\Plugins\Export\ExportXml
  * @group medium
  */
-class ExportXmlTest extends PmaTestCase
+class ExportXmlTest extends AbstractTestCase
 {
+    /** @var ExportXml */
     protected $object;
 
     /**
      * Configures global environment.
-     *
-     * @return void
      */
     protected function setUp(): void
     {
+        parent::setUp();
+        $GLOBALS['dbi'] = $this->createDatabaseInterface();
         $GLOBALS['server'] = 0;
         $GLOBALS['output_kanji_conversion'] = false;
         $GLOBALS['buffer_needed'] = false;
@@ -41,41 +47,38 @@ class ExportXmlTest extends PmaTestCase
         $GLOBALS['plugin_param'] = [];
         $GLOBALS['plugin_param']['export_type'] = 'table';
         $GLOBALS['plugin_param']['single_table'] = false;
-        $GLOBALS['cfgRelation']['relation'] = true;
         $GLOBALS['db'] = 'db';
-        $this->object = new ExportXml();
+        $GLOBALS['cfg']['Server']['DisableIS'] = true;
+        $this->object = new ExportXml(
+            new Relation($GLOBALS['dbi']),
+            new Export($GLOBALS['dbi']),
+            new Transformations()
+        );
     }
 
     /**
      * tearDown for test cases
-     *
-     * @return void
      */
     protected function tearDown(): void
     {
+        parent::tearDown();
         unset($this->object);
     }
 
     /**
-     * Test for PhpMyAdmin\Plugins\Export\ExportXml::setProperties
-     *
-     * @return void
      * @group medium
      */
-    public function testSetProperties()
+    public function testSetProperties(): void
     {
-        $method = new ReflectionMethod('PhpMyAdmin\Plugins\Export\ExportXml', 'setProperties');
+        $method = new ReflectionMethod(ExportXml::class, 'setProperties');
         $method->setAccessible(true);
         $method->invoke($this->object, null);
 
-        $attrProperties = new ReflectionProperty('PhpMyAdmin\Plugins\Export\ExportXml', 'properties');
+        $attrProperties = new ReflectionProperty(ExportXml::class, 'properties');
         $attrProperties->setAccessible(true);
         $properties = $attrProperties->getValue($this->object);
 
-        $this->assertInstanceOf(
-            'PhpMyAdmin\Properties\Plugins\ExportPluginProperties',
-            $properties
-        );
+        $this->assertInstanceOf(ExportPluginProperties::class, $properties);
 
         $this->assertEquals(
             'XML',
@@ -94,10 +97,7 @@ class ExportXmlTest extends PmaTestCase
 
         $options = $properties->getOptions();
 
-        $this->assertInstanceOf(
-            'PhpMyAdmin\Properties\Options\Groups\OptionsPropertyRootGroup',
-            $options
-        );
+        $this->assertInstanceOf(OptionsPropertyRootGroup::class, $options);
 
         $this->assertEquals(
             'Format Specific Options',
@@ -108,10 +108,7 @@ class ExportXmlTest extends PmaTestCase
 
         $generalOptions = array_shift($generalOptionsArray);
 
-        $this->assertInstanceOf(
-            'PhpMyAdmin\Properties\Options\Groups\OptionsPropertyMainGroup',
-            $generalOptions
-        );
+        $this->assertInstanceOf(OptionsPropertyMainGroup::class, $generalOptions);
 
         $this->assertEquals(
             'general_opts',
@@ -122,17 +119,11 @@ class ExportXmlTest extends PmaTestCase
 
         $property = array_shift($generalProperties);
 
-        $this->assertInstanceOf(
-            'PhpMyAdmin\Properties\Options\Items\HiddenPropertyItem',
-            $property
-        );
+        $this->assertInstanceOf(HiddenPropertyItem::class, $property);
 
         $generalOptions = array_shift($generalOptionsArray);
 
-        $this->assertInstanceOf(
-            'PhpMyAdmin\Properties\Options\Groups\OptionsPropertyMainGroup',
-            $generalOptions
-        );
+        $this->assertInstanceOf(OptionsPropertyMainGroup::class, $generalOptions);
 
         $this->assertEquals(
             'structure',
@@ -143,45 +134,27 @@ class ExportXmlTest extends PmaTestCase
 
         $property = array_shift($generalProperties);
 
-        $this->assertInstanceOf(
-            'PhpMyAdmin\Properties\Options\Items\BoolPropertyItem',
-            $property
-        );
+        $this->assertInstanceOf(BoolPropertyItem::class, $property);
 
         $property = array_shift($generalProperties);
 
-        $this->assertInstanceOf(
-            'PhpMyAdmin\Properties\Options\Items\BoolPropertyItem',
-            $property
-        );
+        $this->assertInstanceOf(BoolPropertyItem::class, $property);
 
         $property = array_shift($generalProperties);
 
-        $this->assertInstanceOf(
-            'PhpMyAdmin\Properties\Options\Items\BoolPropertyItem',
-            $property
-        );
+        $this->assertInstanceOf(BoolPropertyItem::class, $property);
 
         $property = array_shift($generalProperties);
 
-        $this->assertInstanceOf(
-            'PhpMyAdmin\Properties\Options\Items\BoolPropertyItem',
-            $property
-        );
+        $this->assertInstanceOf(BoolPropertyItem::class, $property);
 
         $property = array_shift($generalProperties);
 
-        $this->assertInstanceOf(
-            'PhpMyAdmin\Properties\Options\Items\BoolPropertyItem',
-            $property
-        );
+        $this->assertInstanceOf(BoolPropertyItem::class, $property);
 
         $generalOptions = array_shift($generalOptionsArray);
 
-        $this->assertInstanceOf(
-            'PhpMyAdmin\Properties\Options\Groups\OptionsPropertyMainGroup',
-            $generalOptions
-        );
+        $this->assertInstanceOf(OptionsPropertyMainGroup::class, $generalOptions);
 
         $this->assertEquals(
             'data',
@@ -192,19 +165,13 @@ class ExportXmlTest extends PmaTestCase
 
         $property = array_shift($generalProperties);
 
-        $this->assertInstanceOf(
-            'PhpMyAdmin\Properties\Options\Items\BoolPropertyItem',
-            $property
-        );
+        $this->assertInstanceOf(BoolPropertyItem::class, $property);
     }
 
     /**
-     * Test for PhpMyAdmin\Plugins\Export\ExportXml::exportHeader
-     *
-     * @return void
      * @group medium
      */
-    public function testExportHeader()
+    public function testExportHeader(): void
     {
         $GLOBALS['xml_export_functions'] = 1;
         $GLOBALS['xml_export_contents'] = 1;
@@ -217,7 +184,6 @@ class ExportXmlTest extends PmaTestCase
         $GLOBALS['xml_export_triggers'] = 1;
         $GLOBALS['xml_export_procedures'] = 1;
         $GLOBALS['xml_export_functions'] = 1;
-        $GLOBALS['crlf'] = "\n";
         $GLOBALS['db'] = 'd<"b';
 
         $result = [
@@ -231,49 +197,32 @@ class ExportXmlTest extends PmaTestCase
                 '"tbl"',
             ],
         ];
-        $dbi = $this->getMockBuilder('PhpMyAdmin\DatabaseInterface')
+        $dbi = $this->getMockBuilder(DatabaseInterface::class)
             ->disableOriginalConstructor()
             ->getMock();
 
-        $dbi->expects($this->exactly(3))
+        $triggers = [
+            [
+                'TRIGGER_SCHEMA' => 'd<"b',
+                'TRIGGER_NAME' => 'trname',
+                'EVENT_MANIPULATION' => 'INSERT',
+                'EVENT_OBJECT_TABLE' => 'table',
+                'ACTION_TIMING' => 'AFTER',
+                'ACTION_STATEMENT' => 'BEGIN END',
+                'EVENT_OBJECT_SCHEMA' => 'd<"b',
+                'DEFINER' => 'test_user@localhost',
+            ],
+        ];
+        $functions = [['Db' => 'd<"b', 'Name' => 'fn', 'Type' => 'FUNCTION']];
+        $procedures = [['Db' => 'd<"b', 'Name' => 'pr', 'Type' => 'PROCEDURE']];
+
+        $dbi->expects($this->exactly(6))
             ->method('fetchResult')
-            ->willReturnOnConsecutiveCalls(
-                $result,
-                $result,
-                false
-            );
-
-        $dbi->expects($this->once())
-            ->method('getTriggers')
-            ->with('d<"b', 'table')
-            ->will(
-                $this->returnValue(
-                    [
-                        [
-                            'create' => 'crt',
-                            'name' => 'trname'
-                        ],
-                    ]
-                )
-            );
+            ->willReturnOnConsecutiveCalls($result, $result, [], $triggers, $functions, $procedures);
 
         $dbi->expects($this->exactly(2))
-            ->method('getProceduresOrFunctions')
-            ->willReturnOnConsecutiveCalls(
-                [
-                    'fn'
-                ],
-                [
-                    'pr'
-                ]
-            );
-
-        $dbi->expects($this->exactly(2))
-            ->method('getDefinition')
-            ->willReturnOnConsecutiveCalls(
-                'fndef',
-                'prdef'
-            );
+            ->method('fetchValue')
+            ->willReturnOnConsecutiveCalls('fndef', 'prdef');
 
         $dbi->expects($this->once())
             ->method('getTable')
@@ -292,6 +241,8 @@ class ExportXmlTest extends PmaTestCase
         );
         $result = ob_get_clean();
 
+        $this->assertIsString($result);
+
         $this->assertStringContainsString(
             '&lt;pma_xml_export version=&quot;1.0&quot; xmlns:pma=&quot;' .
             'https://www.phpmyadmin.net/some_doc_url/&quot;&gt;',
@@ -306,7 +257,8 @@ class ExportXmlTest extends PmaTestCase
             '                &amp;quot;tbl&amp;quot;;' . "\n" .
             '            &lt;/pma:table&gt;' . "\n" .
             '            &lt;pma:trigger name=&quot;trname&quot;&gt;' . "\n" .
-            '                ' . "\n" .
+            '                CREATE TRIGGER `trname` AFTER INSERT ON `table`' . "\n" .
+            '                 FOR EACH ROW BEGIN END' . "\n" .
             '            &lt;/pma:trigger&gt;' . "\n" .
             '            &lt;pma:function name=&quot;fn&quot;&gt;' . "\n" .
             '                fndef' . "\n" .
@@ -328,7 +280,7 @@ class ExportXmlTest extends PmaTestCase
         unset($GLOBALS['xml_export_procedures']);
         $GLOBALS['output_charset_conversion'] = 0;
 
-        $dbi = $this->getMockBuilder('PhpMyAdmin\DatabaseInterface')
+        $dbi = $this->getMockBuilder(DatabaseInterface::class)
             ->disableOriginalConstructor()
             ->getMock();
 
@@ -355,13 +307,7 @@ class ExportXmlTest extends PmaTestCase
 
         $dbi->expects($this->exactly(5))
             ->method('fetchResult')
-            ->willReturnOnConsecutiveCalls(
-                $result_1,
-                $result_2,
-                true,
-                $result_3,
-                false
-            );
+            ->willReturnOnConsecutiveCalls($result_1, $result_2, ['table'], $result_3, []);
 
         $dbi->expects($this->any())
             ->method('getTable')
@@ -380,7 +326,8 @@ class ExportXmlTest extends PmaTestCase
         );
         $result = ob_get_clean();
 
-        //echo $result; die;
+        $this->assertIsString($result);
+
         $this->assertStringContainsString(
             '&lt;pma:structure_schemas&gt;' . "\n" .
             '        &lt;pma:database name=&quot;d&amp;lt;&amp;quot;b&quot; collat' .
@@ -391,27 +338,15 @@ class ExportXmlTest extends PmaTestCase
         );
     }
 
-    /**
-     * Test for PhpMyAdmin\Plugins\Export\ExportXml::exportFooter
-     *
-     * @return void
-     */
-    public function testExportFooter()
+    public function testExportFooter(): void
     {
-        $this->expectOutputString(
-            '&lt;/pma_xml_export&gt;'
-        );
+        $this->expectOutputString('&lt;/pma_xml_export&gt;');
         $this->assertTrue(
             $this->object->exportFooter()
         );
     }
 
-    /**
-     * Test for PhpMyAdmin\Plugins\Export\ExportXml::exportDBHeader
-     *
-     * @return void
-     */
-    public function testExportDBHeader()
+    public function testExportDBHeader(): void
     {
         $GLOBALS['xml_export_contents'] = true;
 
@@ -421,10 +356,9 @@ class ExportXmlTest extends PmaTestCase
         );
         $result = ob_get_clean();
 
-        $this->assertStringContainsString(
-            '&lt;database name=&quot;&amp;amp;db&quot;&gt;',
-            $result
-        );
+        $this->assertIsString($result);
+
+        $this->assertStringContainsString('&lt;database name=&quot;&amp;amp;db&quot;&gt;', $result);
 
         $GLOBALS['xml_export_contents'] = false;
 
@@ -433,12 +367,7 @@ class ExportXmlTest extends PmaTestCase
         );
     }
 
-    /**
-     * Test for PhpMyAdmin\Plugins\Export\ExportXml::exportDBFooter
-     *
-     * @return void
-     */
-    public function testExportDBFooter()
+    public function testExportDBFooter(): void
     {
         $GLOBALS['xml_export_contents'] = true;
 
@@ -448,10 +377,9 @@ class ExportXmlTest extends PmaTestCase
         );
         $result = ob_get_clean();
 
-        $this->assertStringContainsString(
-            '&lt;/database&gt;',
-            $result
-        );
+        $this->assertIsString($result);
+
+        $this->assertStringContainsString('&lt;/database&gt;', $result);
 
         $GLOBALS['xml_export_contents'] = false;
 
@@ -460,117 +388,48 @@ class ExportXmlTest extends PmaTestCase
         );
     }
 
-    /**
-     * Test for PhpMyAdmin\Plugins\Export\ExportXml::exportDBCreate
-     *
-     * @return void
-     */
-    public function testExportDBCreate()
+    public function testExportDBCreate(): void
     {
         $this->assertTrue(
             $this->object->exportDBCreate('testDB', 'database')
         );
     }
 
-    /**
-     * Test for PhpMyAdmin\Plugins\Export\ExportXml::exportData
-     *
-     * @return void
-     */
-    public function testExportData()
+    public function testExportData(): void
     {
         $GLOBALS['xml_export_contents'] = true;
         $GLOBALS['asfile'] = true;
         $GLOBALS['output_charset_conversion'] = false;
 
-        $dbi = $this->getMockBuilder('PhpMyAdmin\DatabaseInterface')
-            ->disableOriginalConstructor()
-            ->getMock();
-
-        $_table = $this->getMockBuilder('PhpMyAdmin\Table')
-            ->disableOriginalConstructor()
-            ->getMock();
-        $_table->expects($this->once())
-            ->method('isMerge')
-            ->will($this->returnValue(false));
-
-        $dbi->expects($this->any())
-            ->method('getTable')
-            ->will($this->returnValue($_table));
-
-        $dbi->expects($this->once())
-            ->method('getTable')
-            ->will($this->returnValue($_table));
-
-        $dbi->expects($this->once())
-            ->method('query')
-            ->with('SELECT', DatabaseInterface::CONNECT_USER, DatabaseInterface::QUERY_UNBUFFERED)
-            ->will($this->returnValue(true));
-
-        $dbi->expects($this->once())
-            ->method('numFields')
-            ->with(true)
-            ->will($this->returnValue(3));
-
-        $dbi->expects($this->at(3))
-            ->method('fieldName')
-            ->will($this->returnValue('fName1'));
-
-        $dbi->expects($this->at(4))
-            ->method('fieldName')
-            ->will($this->returnValue('fNa"me2'));
-
-        $dbi->expects($this->at(5))
-            ->method('fieldName')
-            ->will($this->returnValue('fNa\\me3'));
-
-        $dbi->expects($this->at(6))
-            ->method('fetchRow')
-            ->with(true)
-            ->will($this->returnValue([null, '<a>']));
-
-        $GLOBALS['dbi'] = $dbi;
-
         ob_start();
         $this->assertTrue(
             $this->object->exportData(
-                'db',
-                'ta<ble',
-                "\n",
-                "example.com",
-                "SELECT"
+                'test_db',
+                'test_table',
+                'localhost',
+                'SELECT * FROM `test_db`.`test_table`;'
             )
         );
         $result = ob_get_clean();
 
-        $this->assertStringContainsString(
-            "<!-- Table ta&lt;ble -->",
-            $result
-        );
-
-        $this->assertStringContainsString(
-            "<table name=\"ta&lt;ble\">",
-            $result
-        );
-
-        $this->assertStringContainsString(
-            "<column name=\"fName1\">NULL</column>",
-            $result
-        );
-
-        $this->assertStringContainsString(
-            "<column name=\"fNa&quot;me2\">&lt;a&gt;" .
-            "</column>",
-            $result
-        );
-
-        $this->assertStringContainsString(
-            "<column name=\"fName3\">NULL</column>",
-            $result
-        );
-
-        $this->assertStringContainsString(
-            "</table>",
+        $this->assertIsString($result);
+        $this->assertEquals(
+            '        <!-- Table test_table -->' . "\n"
+            . '        <table name="test_table">' . "\n"
+            . '            <column name="id">1</column>' . "\n"
+            . '            <column name="name">abcd</column>' . "\n"
+            . '            <column name="datetimefield">2011-01-20 02:00:02</column>' . "\n"
+            . '        </table>' . "\n"
+            . '        <table name="test_table">' . "\n"
+            . '            <column name="id">2</column>' . "\n"
+            . '            <column name="name">foo</column>' . "\n"
+            . '            <column name="datetimefield">2010-01-20 02:00:02</column>' . "\n"
+            . '        </table>' . "\n"
+            . '        <table name="test_table">' . "\n"
+            . '            <column name="id">3</column>' . "\n"
+            . '            <column name="name">Abcd</column>' . "\n"
+            . '            <column name="datetimefield">2012-01-20 02:00:02</column>' . "\n"
+            . '        </table>' . "\n",
             $result
         );
     }

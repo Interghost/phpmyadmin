@@ -1,57 +1,67 @@
 <?php
-/* vim: set expandtab sw=4 ts=4 sts=4: */
-/**
- * Tests for PMA_TableSearch
- *
- * @package PhpMyAdmin-test
- */
+
 declare(strict_types=1);
 
 namespace PhpMyAdmin\Tests\Controllers\Table;
 
+use PhpMyAdmin\ConfigStorage\Relation;
 use PhpMyAdmin\Controllers\Table\SearchController;
-use PhpMyAdmin\Di\Container;
-use PhpMyAdmin\Relation;
-use PhpMyAdmin\Tests\PmaTestCase;
-use PhpMyAdmin\Tests\Stubs\Response as ResponseStub;
+use PhpMyAdmin\Core;
+use PhpMyAdmin\DatabaseInterface;
+use PhpMyAdmin\FieldMetadata;
+use PhpMyAdmin\Table\Search;
+use PhpMyAdmin\Template;
+use PhpMyAdmin\Tests\AbstractTestCase;
+use PhpMyAdmin\Tests\Stubs\DbiDummy;
+use PhpMyAdmin\Tests\Stubs\ResponseRenderer as ResponseStub;
 use PhpMyAdmin\Types;
-use ReflectionClass;
-use stdClass;
+
+use function hash;
+
+use const MYSQLI_TYPE_LONG;
 
 /**
- * Tests for PMA_TableSearch
- *
- * @package PhpMyAdmin-test
+ * @covers \PhpMyAdmin\Controllers\Table\SearchController
  */
-class SearchControllerTest extends PmaTestCase
+class SearchControllerTest extends AbstractTestCase
 {
-    /**
-     * @var \PhpMyAdmin\Tests\Stubs\Response
-     */
-    private $_response;
+    /** @var DatabaseInterface */
+    protected $dbi;
+
+    /** @var DbiDummy */
+    protected $dummyDbi;
+
+    /** @var ResponseStub */
+    private $response;
+
+    /** @var Template */
+    private $template;
 
     /**
      * Setup function for test cases
-     *
-     * @access protected
-     * @return void
      */
     protected function setUp(): void
     {
+        parent::setUp();
+        parent::setTheme();
+        $this->dummyDbi = $this->createDbiDummy();
+        $this->dbi = $this->createDatabaseInterface($this->dummyDbi);
+        $GLOBALS['dbi'] = $this->dbi;
+
         /**
          * SET these to avoid undefined index error
          */
         $_POST['zoom_submit'] = 'zoom';
 
         $GLOBALS['server'] = 1;
-        $GLOBALS['db'] = 'db';
-        $GLOBALS['table'] = 'table';
+        $GLOBALS['db'] = 'PMA';
+        $GLOBALS['table'] = 'PMA_BookMark';
+        $GLOBALS['text_dir'] = 'ltr';
         $GLOBALS['PMA_PHP_SELF'] = 'index.php';
         $relation = new Relation($GLOBALS['dbi']);
-        $GLOBALS['cfgRelation'] = $relation->getRelationsParam();
         $GLOBALS['cfg']['Server']['DisableIS'] = false;
 
-        $dbi = $this->getMockBuilder('PhpMyAdmin\DatabaseInterface')
+        $dbi = $this->getMockBuilder(DatabaseInterface::class)
             ->disableOriginalConstructor()
             ->getMock();
         $dbi->types = new Types($dbi);
@@ -92,330 +102,93 @@ class SearchControllerTest extends PmaTestCase
         $GLOBALS['dbi'] = $dbi;
         $relation->dbi = $dbi;
 
-        $this->_response = new ResponseStub();
-
-        $container = Container::getDefaultContainer();
-        $container->set('db', 'PMA');
-        $container->set('table', 'PMA_BookMark');
-        $container->set('dbi', $GLOBALS['dbi']);
-        $container->set('response', $this->_response);
-        $container->set('searchType', 'replace');
-    }
-
-    /**
-     * tearDown function for test cases
-     *
-     * @access protected
-     * @return void
-     */
-    protected function tearDown(): void
-    {
-    }
-
-    /**
-     * Test for replace
-     *
-     * @return void
-     */
-    public function testReplace()
-    {
-        $container = Container::getDefaultContainer();
-
-        $tableSearch = new SearchController(
-            $container->get('response'),
-            $container->get('dbi'),
-            $container->get('db'),
-            $container->get('table'),
-            "zoom",
-            null
-        );
-        $columnIndex = 0;
-        $find = "Field";
-        $replaceWith = "Column";
-        $useRegex = false;
-        $charSet = "UTF-8";
-        $tableSearch->replace(
-            $columnIndex,
-            $find,
-            $replaceWith,
-            $useRegex,
-            $charSet
-        );
-
-        $sql_query = $GLOBALS['sql_query'];
-        $result = "UPDATE `PMA_BookMark` SET `Field1` = "
-            . "REPLACE(`Field1`, 'Field', 'Column') "
-            . "WHERE `Field1` LIKE '%Field%' COLLATE UTF-8_bin";
-        $this->assertEquals(
-            $result,
-            $sql_query
-        );
-    }
-
-    /**
-     * Test for buildSqlQuery
-     *
-     * @return void
-     */
-    public function testBuildSqlQuery()
-    {
-        $_POST['distinct'] = true;
-        $_POST['zoom_submit'] = true;
-        $_POST['table'] = "PMA";
-        $_POST['orderByColumn'] = "name";
-        $_POST['order'] = "asc";
-        $_POST['customWhereClause'] = "name='pma'";
-
-        $container = Container::getDefaultContainer();
-
-        $class = new ReflectionClass('PhpMyAdmin\Controllers\Table\SearchController');
-        $method = $class->getMethod('_buildSqlQuery');
-        $method->setAccessible(true);
-        $tableSearch = new SearchController(
-            $container->get('response'),
-            $container->get('dbi'),
-            $container->get('db'),
-            $container->get('table'),
-            "zoom",
-            null
-        );
-
-        $sql = $method->invoke($tableSearch);
-        $result = "SELECT DISTINCT *  FROM `PMA` WHERE name='pma' "
-            . "ORDER BY `name` asc";
-
-        $this->assertEquals(
-            $result,
-            $sql
-        );
-
-        unset($_POST['customWhereClause']);
-        $sql = $method->invoke($tableSearch);
-        $result = "SELECT DISTINCT *  FROM `PMA` ORDER BY `name` asc";
-        $this->assertEquals(
-            $result,
-            $sql
-        );
-
-        $_POST['criteriaValues'] = [
-            'value1',
-            'value2',
-            'value3',
-            'value4',
-            'value5',
-            'value6',
-            'value7,value8',
-        ];
-        $_POST['criteriaColumnNames'] = [
-            'name',
-            'id',
-            'index',
-            'index2',
-            'index3',
-            'index4',
-            'index5',
-        ];
-        $_POST['criteriaColumnTypes'] = [
-            'varchar',
-            'int',
-            'enum',
-            'type1',
-            'type2',
-            'type3',
-            'type4',
-        ];
-        $_POST['criteriaColumnCollations'] = [
-            "char1",
-            "char2",
-            "char3",
-            "char4",
-            "char5",
-            "char6",
-            "char7",
-        ];
-        $_POST['criteriaColumnOperators'] = [
-            "!=",
-            ">",
-            "IS NULL",
-            "LIKE %...%",
-            "REGEXP ^...$",
-            "IN (...)",
-            "BETWEEN",
-        ];
-
-        $sql = $method->invoke($tableSearch);
-        $result = "SELECT DISTINCT *  FROM `PMA` WHERE `name` != 'value1'"
-            . " AND `id` > value2 AND `index` IS NULL AND `index2` LIKE '%value4%'"
-            . " AND `index3` REGEXP ^value5$ AND `index4` IN (value6) AND `index5`"
-            . " BETWEEN value7 AND value8 ORDER BY `name` asc";
-        $this->assertEquals(
-            $result,
-            $sql
-        );
+        $this->response = new ResponseStub();
+        $this->template = new Template();
     }
 
     /**
      * Tests for getColumnMinMax()
-     *
-     * @return void
-     * @test
      */
-    public function testGetColumnMinMax()
+    public function testGetColumnMinMax(): void
     {
-        $GLOBALS['dbi']->expects($this->any())->method('fetchSingleRow')
-            ->will($this->returnArgument(0));
+        $expected = 'SELECT MIN(`column`) AS `min`, MAX(`column`) AS `max` FROM `PMA`.`PMA_BookMark`';
 
-        $container = Container::getDefaultContainer();
-        $container->set('dbi', $GLOBALS['dbi']);
-        $container->factory('PhpMyAdmin\Controllers\Table\SearchController');
-        $container->alias(
-            'SearchController',
-            'PhpMyAdmin\Controllers\Table\SearchController'
+        $GLOBALS['dbi']->expects($this->any())
+            ->method('fetchSingleRow')
+            ->with($expected)
+            ->will($this->returnValue([$expected]));
+
+        $ctrl = new SearchController(
+            $this->response,
+            $this->template,
+            new Search($GLOBALS['dbi']),
+            new Relation($GLOBALS['dbi']),
+            $GLOBALS['dbi']
         );
-        $ctrl = $container->get('SearchController');
 
         $result = $ctrl->getColumnMinMax('column');
-        $expected = 'SELECT MIN(`column`) AS `min`, '
-            . 'MAX(`column`) AS `max` '
-            . 'FROM `PMA`.`PMA_BookMark`';
-        $this->assertEquals(
-            $expected,
-            $result
-        );
-    }
-
-    /**
-     * Tests for _generateWhereClause()
-     *
-     * @return void
-     * @test
-     */
-    public function testGenerateWhereClause()
-    {
-        $types = $this->getMockBuilder('PhpMyAdmin\Types')
-            ->disableOriginalConstructor()
-            ->getMock();
-        $types->expects($this->any())->method('isUnaryOperator')
-            ->will($this->returnValue(false));
-
-        $class = new ReflectionClass('\PhpMyAdmin\Controllers\Table\SearchController');
-        $method = $class->getMethod('_generateWhereClause');
-        $method->setAccessible(true);
-
-        $container = Container::getDefaultContainer();
-        $container->factory('\PhpMyAdmin\Controllers\Table\SearchController');
-        $container->alias(
-            'SearchController',
-            'PhpMyAdmin\Controllers\Table\SearchController'
-        );
-        $ctrl = $container->get('SearchController');
-
-        $_POST['customWhereClause'] = '`table` = \'PMA_BookMark\'';
-        $result = $method->invoke($ctrl);
-        $this->assertEquals(
-            ' WHERE `table` = \'PMA_BookMark\'',
-            $result
-        );
-
-        unset($_POST['customWhereClause']);
-        $this->assertEquals(
-            '',
-            $method->invoke($ctrl)
-        );
-
-        $_POST['criteriaColumnNames'] = [
-            'b',
-            'a',
-            'c',
-            'd',
-        ];
-        $_POST['criteriaColumnOperators'] = [
-            '<=',
-            '=',
-            'IS NULL',
-            'IS NOT NULL',
-        ];
-        $_POST['criteriaValues'] = [
-            '10',
-            '2',
-            '',
-            '',
-        ];
-        $_POST['criteriaColumnTypes'] = [
-            'int(11)',
-            'int(11)',
-            'int(11)',
-            'int(11)',
-        ];
-        $result = $method->invoke($ctrl);
-        $this->assertEquals(
-            ' WHERE `b` <= 10 AND `a` = 2 AND `c` IS NULL AND `d` IS NOT NULL',
-            $result
-        );
+        $this->assertEquals([$expected], $result);
     }
 
     /**
      * Tests for getDataRowAction()
-     *
-     * @return void
-     * @test
      */
-    public function testGetDataRowAction()
+    public function testGetDataRowAction(): void
     {
-        $meta_one = new stdClass();
-        $meta_one->type = 'int';
-        $meta_one->length = 11;
-        $meta_two = new stdClass();
-        $meta_two->length = 11;
-        $meta_two->type = 'int';
-        $fields_meta = [
-            $meta_one,
-            $meta_two,
-        ];
-        $GLOBALS['dbi']->expects($this->any())->method('getFieldsMeta')
-            ->will($this->returnValue($fields_meta));
+        $this->dummyDbi = $this->createDbiDummy();
+        $this->dbi = $this->createDatabaseInterface($this->dummyDbi);
+        $GLOBALS['dbi'] = $this->dbi;
+        $this->loadContainerBuilder();
+        parent::loadDbiIntoContainerBuilder();
+        parent::loadResponseIntoContainerBuilder();
 
-        $GLOBALS['dbi']->expects($this->any())->method('fetchAssoc')
-            ->will(
-                $this->returnCallback(
-                    function () {
-                        static $count = 0;
-                        if ($count == 0) {
-                            $count++;
+        $_SESSION[' HMAC_secret '] = hash('sha1', 'test');
 
-                            return [
-                                'col1' => 1,
-                                'col2' => 2,
-                            ];
-                        } else {
-                            return null;
-                        }
-                    }
-                )
-            );
-
-        $container = Container::getDefaultContainer();
-        $container->set('dbi', $GLOBALS['dbi']);
-        $container->factory('\PhpMyAdmin\Controllers\Table\SearchController');
-        $container->alias(
-            'SearchController',
-            'PhpMyAdmin\Controllers\Table\SearchController'
+        $this->dummyDbi->addResult(
+            'SHOW FULL COLUMNS FROM `PMA`.`PMA_BookMark`',
+            []
         );
-        $ctrl = $container->get('SearchController');
+
+        $this->dummyDbi->addResult(
+            'SHOW CREATE TABLE `PMA`.`PMA_BookMark`',
+            []
+        );
+
+        $this->dummyDbi->addResult(
+            'SELECT * FROM `PMA`.`PMA_BookMark` WHERE `col1` = 1;',
+            [
+                [
+                    1,
+                    2,
+                ],
+            ],
+            [
+                'col1',
+                'col2',
+            ],
+            [
+                new FieldMetadata(MYSQLI_TYPE_LONG, 0, (object) ['length' => 11]),
+                new FieldMetadata(MYSQLI_TYPE_LONG, 0, (object) ['length' => 11]),
+            ]
+        );
+
+        $GLOBALS['containerBuilder']->setParameter('db', 'PMA');
+        $GLOBALS['containerBuilder']->setParameter('table', 'PMA_BookMark');
+
+        /** @var SearchController $ctrl */
+        $ctrl = $GLOBALS['containerBuilder']->get(SearchController::class);
 
         $_POST['db'] = 'PMA';
         $_POST['table'] = 'PMA_BookMark';
         $_POST['where_clause'] = '`col1` = 1';
+        $_POST['where_clause_sign'] = Core::signSqlQuery($_POST['where_clause']);
         $expected = [
             'col1' => 1,
             'col2' => 2,
         ];
         $ctrl->getDataRowAction();
 
-        $json = $this->_response->getJSONResult();
-        $this->assertEquals(
-            $expected,
-            $json['row_info']
-        );
+        $json = $this->getResponseJsonResult();
+        $this->assertEquals($expected, $json['row_info']);
     }
 }

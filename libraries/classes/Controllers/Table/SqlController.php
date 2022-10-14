@@ -1,53 +1,73 @@
 <?php
-/* vim: set expandtab sw=4 ts=4 sts=4: */
-/**
- * Holds the PhpMyAdmin\Controllers\Table\SqlController
- *
- * @package PhpMyAdmin\Controllers\Table
- */
+
 declare(strict_types=1);
 
 namespace PhpMyAdmin\Controllers\Table;
 
 use PhpMyAdmin\Config\PageSettings;
+use PhpMyAdmin\Controllers\AbstractController;
+use PhpMyAdmin\DbTableExists;
+use PhpMyAdmin\Http\ServerRequest;
+use PhpMyAdmin\ResponseRenderer;
 use PhpMyAdmin\SqlQueryForm;
+use PhpMyAdmin\Template;
+use PhpMyAdmin\Url;
+use PhpMyAdmin\Util;
+
+use function htmlspecialchars;
 
 /**
  * Table SQL executor
- * @package PhpMyAdmin\Controllers\Table
  */
-class SqlController extends AbstractController
+final class SqlController extends AbstractController
 {
-    /**
-     * @param array $params Request parameters
-     * @return string HTML
-     */
-    public function index(array $params): string
+    /** @var SqlQueryForm */
+    private $sqlQueryForm;
+
+    public function __construct(
+        ResponseRenderer $response,
+        Template $template,
+        SqlQueryForm $sqlQueryForm
+    ) {
+        parent::__construct($response, $template);
+        $this->sqlQueryForm = $sqlQueryForm;
+    }
+
+    public function __invoke(ServerRequest $request): void
     {
-        global $url_query, $err_url, $goto, $back;
+        $GLOBALS['errorUrl'] = $GLOBALS['errorUrl'] ?? null;
+        $GLOBALS['goto'] = $GLOBALS['goto'] ?? null;
+        $GLOBALS['back'] = $GLOBALS['back'] ?? null;
 
-        PageSettings::showGroup('Sql');
+        $this->addScriptFiles(['makegrid.js', 'vendor/jquery/jquery.uitablefilter.js', 'sql.js']);
 
-        require ROOT_PATH . 'libraries/tbl_common.inc.php';
+        $pageSettings = new PageSettings('Sql');
+        $this->response->addHTML($pageSettings->getErrorHTML());
+        $this->response->addHTML($pageSettings->getHTML());
 
-        $url_query .= '&amp;goto=tbl_sql.php&amp;back=tbl_sql.php';
-        $err_url = 'tbl_sql.php' . $err_url;
+        $this->checkParameters(['db', 'table']);
+
+        $url_params = ['db' => $GLOBALS['db'], 'table' => $GLOBALS['table']];
+        $GLOBALS['errorUrl'] = Util::getScriptNameForOption($GLOBALS['cfg']['DefaultTabTable'], 'table');
+        $GLOBALS['errorUrl'] .= Url::getCommon($url_params, '&');
+
+        DbTableExists::check($GLOBALS['db'], $GLOBALS['table']);
 
         /**
          * After a syntax error, we return to this script
          * with the typed query in the textarea.
          */
-        $goto = 'tbl_sql.php';
-        $back = 'tbl_sql.php';
+        $GLOBALS['goto'] = Url::getFromRoute('/table/sql');
+        $GLOBALS['back'] = Url::getFromRoute('/table/sql');
 
-        $sqlQueryForm = new SqlQueryForm();
-
-        return $sqlQueryForm->getHtml(
-            $params['sql_query'] ?? true,
+        $this->response->addHTML($this->sqlQueryForm->getHtml(
+            $GLOBALS['db'],
+            $GLOBALS['table'],
+            $_GET['sql_query'] ?? true,
             false,
-            isset($params['delimiter'])
-                ? htmlspecialchars($params['delimiter'])
+            isset($_POST['delimiter'])
+                ? htmlspecialchars($_POST['delimiter'])
                 : ';'
-        );
+        ));
     }
 }

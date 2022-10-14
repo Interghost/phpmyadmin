@@ -1,37 +1,39 @@
 <?php
-/* vim: set expandtab sw=4 ts=4 sts=4: */
-/**
- * Holds BinlogControllerTest
- *
- * @package PhpMyAdmin-test
- */
+
 declare(strict_types=1);
 
 namespace PhpMyAdmin\Tests\Controllers\Server;
 
-use PhpMyAdmin\Config;
 use PhpMyAdmin\Controllers\Server\BinlogController;
 use PhpMyAdmin\DatabaseInterface;
-use PhpMyAdmin\Response;
-use PhpMyAdmin\Util;
-use PHPUnit\Framework\TestCase;
+use PhpMyAdmin\Http\ServerRequest;
+use PhpMyAdmin\Template;
+use PhpMyAdmin\Tests\AbstractTestCase;
+use PhpMyAdmin\Tests\Stubs\DbiDummy;
+use PhpMyAdmin\Tests\Stubs\ResponseRenderer;
+use PhpMyAdmin\Url;
+use PhpMyAdmin\Utils\SessionCache;
 
 /**
- * Tests for BinlogController class
- *
- * @package PhpMyAdmin-test
+ * @covers \PhpMyAdmin\Controllers\Server\BinlogController
  */
-class BinlogControllerTest extends TestCase
+class BinlogControllerTest extends AbstractTestCase
 {
-    /**
-     * Prepares environment for the test.
-     *
-     * @return void
-     */
+    /** @var DatabaseInterface */
+    protected $dbi;
+
+    /** @var DbiDummy */
+    protected $dummyDbi;
+
     protected function setUp(): void
     {
-        $GLOBALS['PMA_Config'] = new Config();
-        $GLOBALS['PMA_Config']->enableBc();
+        parent::setUp();
+        $GLOBALS['text_dir'] = 'ltr';
+        parent::setGlobalConfig();
+        parent::setTheme();
+        $this->dummyDbi = $this->createDbiDummy();
+        $this->dbi = $this->createDatabaseInterface($this->dummyDbi);
+        $GLOBALS['dbi'] = $this->dbi;
 
         $GLOBALS['cfg']['MaxRows'] = 10;
         $GLOBALS['cfg']['ServerDefault'] = 'server';
@@ -40,161 +42,53 @@ class BinlogControllerTest extends TestCase
         $GLOBALS['server'] = 1;
         $GLOBALS['db'] = 'db';
         $GLOBALS['table'] = 'table';
-        $GLOBALS['pmaThemeImage'] = 'image';
         $GLOBALS['PMA_PHP_SELF'] = 'index.php';
 
-        Util::cacheSet('profiling_supported', true);
+        SessionCache::set('profiling_supported', true);
     }
 
-    /**
-     * @return void
-     */
     public function testIndex(): void
     {
-        $binaryLogs = [
-            [
-                'Log_name' => 'index1',
-                'File_size' => 100,
-            ],
-            [
-                'Log_name' => 'index2',
-                'File_size' => 200,
-            ],
-        ];
-        $result = [
-            [
-                "SHOW BINLOG EVENTS IN 'index1' LIMIT 3, 10",
-                null,
-                1,
-                true,
-                ['log1' => 'logd'],
-            ],
-            [
-                ['log2' => 'logb'],
-                null,
-                0,
-                false,
-                'executed',
-            ],
-        ];
-        $value = [
-            'Info' => 'index1_Info',
-            'Log_name' => 'index1_Log_name',
-            'Pos' => 'index1_Pos',
-            'Event_type' => 'index1_Event_type',
-            'Orig_log_pos' => 'index1_Orig_log_pos',
-            'End_log_pos' => 'index1_End_log_pos',
-            'Server_id' => 'index1_Server_id',
-        ];
-        $count = 3;
+        $response = new ResponseRenderer();
 
-        $dbi = $this->getMockBuilder(DatabaseInterface::class)
-            ->disableOriginalConstructor()
-            ->getMock();
-        $dbi->expects($this->once())->method('fetchResult')
-            ->will($this->returnValue($binaryLogs));
-        $dbi->expects($this->once())->method('query')
-            ->will($this->returnValue($result));
-        $dbi->expects($this->once())->method('numRows')
-            ->will($this->returnValue($count));
-        $dbi->expects($this->at(3))->method('fetchAssoc')
-            ->will($this->returnValue($value));
-        $dbi->expects($this->at(4))->method('fetchAssoc')
-            ->will($this->returnValue(false));
+        $controller = new BinlogController($response, new Template(), $GLOBALS['dbi']);
 
-        $controller = new BinlogController(
-            Response::getInstance(),
-            $dbi
-        );
-        $actual = $controller->indexAction([
-            'log' => 'index1',
-            'pos' => '3',
-            'is_full_query' => null,
-        ]);
+        $_POST['log'] = 'index1';
+        $_POST['pos'] = '3';
+        $this->dummyDbi->addSelectDb('mysql');
+        $controller($this->createStub(ServerRequest::class));
+        $this->dummyDbi->assertAllSelectsConsumed();
+        $actual = $response->getHTMLResult();
+
+        $this->assertStringContainsString('Select binary log to view', $actual);
+        $this->assertStringContainsString('<option value="index1" selected>', $actual);
+        $this->assertStringContainsString('<option value="index2">', $actual);
+
+        $this->assertStringContainsString('Your SQL query has been executed successfully', $actual);
+
+        $this->assertStringContainsString("SHOW BINLOG EVENTS IN 'index1' LIMIT 3, 10", $actual);
 
         $this->assertStringContainsString(
-            'Select binary log to view',
-            $actual
-        );
-        $this->assertStringContainsString(
-            '<option value="index1" selected>',
-            $actual
-        );
-        $this->assertStringContainsString(
-            '<option value="index2">',
+            '<table class="table table-striped table-hover align-middle" id="binlogTable">',
             $actual
         );
 
-        $this->assertStringContainsString(
-            'Your SQL query has been executed successfully',
-            $actual
-        );
+        $urlNavigation = Url::getFromRoute('/server/binlog') . '" data-post="log=index1&pos=3&'
+            . 'is_full_query=1&server=1&';
+        $this->assertStringContainsString($urlNavigation, $actual);
+        $this->assertStringContainsString('title="Previous"', $actual);
 
-        $this->assertStringContainsString(
-            "SHOW BINLOG EVENTS IN 'index1' LIMIT 3, 10",
-            $actual
-        );
+        $this->assertStringContainsString('Log name', $actual);
+        $this->assertStringContainsString('Position', $actual);
+        $this->assertStringContainsString('Event type', $actual);
+        $this->assertStringContainsString('Server ID', $actual);
+        $this->assertStringContainsString('Original position', $actual);
 
-        $this->assertStringContainsString(
-            '<table id="binlogTable">',
-            $actual
-        );
-
-        $urlNavigation = 'server_binlog.php" data-post="pos=3&amp;'
-            . 'is_full_query=1&amp;server=1&amp';
-        $this->assertStringContainsString(
-            $urlNavigation,
-            $actual
-        );
-        $this->assertStringContainsString(
-            'title="Previous"',
-            $actual
-        );
-
-        $this->assertStringContainsString(
-            'Log name',
-            $actual
-        );
-        $this->assertStringContainsString(
-            'Position',
-            $actual
-        );
-        $this->assertStringContainsString(
-            'Event type',
-            $actual
-        );
-        $this->assertStringContainsString(
-            'Server ID',
-            $actual
-        );
-        $this->assertStringContainsString(
-            'Original position',
-            $actual
-        );
-
-        $this->assertStringContainsString(
-            $value['Log_name'],
-            $actual
-        );
-        $this->assertStringContainsString(
-            $value['Pos'],
-            $actual
-        );
-        $this->assertStringContainsString(
-            $value['Event_type'],
-            $actual
-        );
-        $this->assertStringContainsString(
-            $value['Server_id'],
-            $actual
-        );
-        $this->assertStringContainsString(
-            $value['Orig_log_pos'],
-            $actual
-        );
-        $this->assertStringContainsString(
-            $value['Info'],
-            $actual
-        );
+        $this->assertStringContainsString('index1_Log_name', $actual);
+        $this->assertStringContainsString('index1_Pos', $actual);
+        $this->assertStringContainsString('index1_Event_type', $actual);
+        $this->assertStringContainsString('index1_Server_id', $actual);
+        $this->assertStringContainsString('index1_Orig_log_pos', $actual);
+        $this->assertStringContainsString('index1_Info', $actual);
     }
 }

@@ -1,92 +1,74 @@
 <?php
-/* vim: set expandtab sw=4 ts=4 sts=4: */
 
-/**
- * Holds the PhpMyAdmin\Controllers\Server\PluginsController
- *
- * @package PhpMyAdmin\Controllers
- */
 declare(strict_types=1);
 
 namespace PhpMyAdmin\Controllers\Server;
 
 use PhpMyAdmin\Controllers\AbstractController;
+use PhpMyAdmin\DatabaseInterface;
+use PhpMyAdmin\Http\ServerRequest;
+use PhpMyAdmin\ResponseRenderer;
+use PhpMyAdmin\Server\Plugins;
+use PhpMyAdmin\Template;
+use PhpMyAdmin\Url;
+
+use function array_keys;
+use function ksort;
+use function mb_strtolower;
+use function preg_replace;
 
 /**
  * Handles viewing server plugin details
- *
- * @package PhpMyAdmin\Controllers
  */
 class PluginsController extends AbstractController
 {
-    /**
-     * @var array plugin details
-     */
+    /** @var Plugins */
     private $plugins;
 
-    /**
-     * Constructs PluginsController
-     *
-     * @param \PhpMyAdmin\Response          $response Response object
-     * @param \PhpMyAdmin\DatabaseInterface $dbi      DatabaseInterface object
-     */
-    public function __construct($response, $dbi)
-    {
-        parent::__construct($response, $dbi);
-        $this->setPlugins();
+    /** @var DatabaseInterface */
+    private $dbi;
+
+    public function __construct(
+        ResponseRenderer $response,
+        Template $template,
+        Plugins $plugins,
+        DatabaseInterface $dbi
+    ) {
+        parent::__construct($response, $template);
+        $this->plugins = $plugins;
+        $this->dbi = $dbi;
     }
 
-    /**
-     * Index action
-     *
-     * @return string
-     */
-    public function index(): string
+    public function __invoke(ServerRequest $request): void
     {
-        include ROOT_PATH . 'libraries/server_common.inc.php';
+        $GLOBALS['errorUrl'] = Url::getFromRoute('/');
 
-        $header = $this->response->getHeader();
-        $scripts = $header->getScripts();
-        $scripts->addFile('vendor/jquery/jquery.tablesorter.js');
-        $scripts->addFile('server_plugins.js');
+        if ($this->dbi->isSuperUser()) {
+            $this->dbi->selectDb('mysql');
+        }
 
-        $pluginsTypeClean = [];
-        foreach (array_keys($this->plugins) as $pluginType) {
-            $pluginsTypeClean[$pluginType] = preg_replace(
+        $this->addScriptFiles(['vendor/jquery/jquery.tablesorter.js', 'server/plugins.js']);
+
+        $plugins = [];
+        $serverPlugins = $this->plugins->getAll();
+        foreach ($serverPlugins as $plugin) {
+            $plugins[$plugin->getType()][] = $plugin->toArray();
+        }
+
+        ksort($plugins);
+
+        $cleanTypes = [];
+        foreach (array_keys($plugins) as $type) {
+            $cleanTypes[$type] = preg_replace(
                 '/[^a-z]/',
                 '',
-                mb_strtolower($pluginType)
+                mb_strtolower($type)
             );
         }
-        return $this->template->render('server/plugins/index', [
-            'plugins' => $this->plugins,
-            'plugins_type_clean' => $pluginsTypeClean,
+
+        $this->render('server/plugins/index', [
+            'plugins' => $plugins,
+            'clean_types' => $cleanTypes,
         ]);
-    }
-
-    /**
-     * Sets details about server plugins
-     *
-     * @return void
-     */
-    private function setPlugins(): void
-    {
-        $sql = "SELECT plugin_name,
-                       plugin_type,
-                       (plugin_status = 'ACTIVE') AS is_active,
-                       plugin_type_version,
-                       plugin_author,
-                       plugin_description,
-                       plugin_license
-                FROM information_schema.plugins
-                ORDER BY plugin_type, plugin_name";
-
-        $res = $this->dbi->query($sql);
-        $this->plugins = [];
-        while ($row = $this->dbi->fetchAssoc($res)) {
-            $this->plugins[$row['plugin_type']][] = $row;
-        }
-        $this->dbi->freeResult($res);
-        ksort($this->plugins);
     }
 }

@@ -1,255 +1,227 @@
 <?php
-/* vim: set expandtab sw=4 ts=4 sts=4: */
-/**
- * Holds the PhpMyAdmin\Controllers\Table\ChartController
- *
- * @package PhpMyAdmin\Controllers
- */
+
 declare(strict_types=1);
 
 namespace PhpMyAdmin\Controllers\Table;
 
+use PhpMyAdmin\Controllers\AbstractController;
+use PhpMyAdmin\DatabaseInterface;
+use PhpMyAdmin\DbTableExists;
+use PhpMyAdmin\FieldMetadata;
+use PhpMyAdmin\Html\Generator;
+use PhpMyAdmin\Http\ServerRequest;
 use PhpMyAdmin\Message;
-use PhpMyAdmin\Response;
+use PhpMyAdmin\ResponseRenderer;
 use PhpMyAdmin\SqlParser\Components\Limit;
-use PhpMyAdmin\SqlParser\Statements\SelectStatement;
 use PhpMyAdmin\SqlParser\Parser;
+use PhpMyAdmin\SqlParser\Statements\SelectStatement;
+use PhpMyAdmin\Template;
+use PhpMyAdmin\Url;
 use PhpMyAdmin\Util;
 
+use function __;
+use function array_keys;
+use function htmlspecialchars;
+use function json_encode;
+use function min;
+use function strlen;
+
 /**
- * Handles table related logic
- *
- * @package PhpMyAdmin\Controllers
+ * Handles creation of the chart.
  */
 class ChartController extends AbstractController
 {
-    /**
-     * @var string
-     */
-    protected $sql_query;
+    /** @var DatabaseInterface */
+    private $dbi;
 
-    /**
-     * @var string
-     */
-    protected $url_query;
-
-    /**
-     * @var array
-     */
-    protected $cfg;
-
-    /**
-     * Constructor
-     *
-     * @param Response                      $response  Response object
-     * @param \PhpMyAdmin\DatabaseInterface $dbi       DatabaseInterface object
-     * @param string                        $db        Database name
-     * @param string                        $table     Table name
-     * @param string                        $sql_query Query
-     * @param string                        $url_query Query URL
-     * @param array                         $cfg       Configuration
-     */
     public function __construct(
-        $response,
-        $dbi,
-        $db,
-        $table,
-        $sql_query,
-        $url_query,
-        array $cfg
+        ResponseRenderer $response,
+        Template $template,
+        DatabaseInterface $dbi
     ) {
-        parent::__construct($response, $dbi, $db, $table);
-
-        $this->sql_query = $sql_query;
-        $this->url_query = $url_query;
-        $this->cfg = $cfg;
+        parent::__construct($response, $template);
+        $this->dbi = $dbi;
     }
 
-    /**
-     * Execute the query and return the result
-     *
-     * @return void
-     */
-    public function indexAction()
+    public function __invoke(ServerRequest $request): void
     {
-        $response = Response::getInstance();
-        if ($response->isAjax()
-            && isset($_REQUEST['pos'])
-            && isset($_REQUEST['session_max_rows'])
-        ) {
-            $this->ajaxAction();
+        $GLOBALS['errorUrl'] = $GLOBALS['errorUrl'] ?? null;
+
+        if (isset($_REQUEST['pos'], $_REQUEST['session_max_rows']) && $this->response->isAjax()) {
+            $this->ajax();
+
             return;
         }
 
         // Throw error if no sql query is set
-        if (! isset($this->sql_query) || $this->sql_query == '') {
+        if (! isset($GLOBALS['sql_query']) || $GLOBALS['sql_query'] == '') {
             $this->response->setRequestStatus(false);
             $this->response->addHTML(
-                Message::error(__('No SQL query was set to fetch data.'))
+                Message::error(__('No SQL query was set to fetch data.'))->getDisplay()
             );
+
             return;
         }
 
-        $this->response->getHeader()->getScripts()->addFiles(
-            [
-                'chart.js',
-                'tbl_chart.js',
-                'vendor/jqplot/jquery.jqplot.js',
-                'vendor/jqplot/plugins/jqplot.barRenderer.js',
-                'vendor/jqplot/plugins/jqplot.canvasAxisLabelRenderer.js',
-                'vendor/jqplot/plugins/jqplot.canvasTextRenderer.js',
-                'vendor/jqplot/plugins/jqplot.categoryAxisRenderer.js',
-                'vendor/jqplot/plugins/jqplot.dateAxisRenderer.js',
-                'vendor/jqplot/plugins/jqplot.pointLabels.js',
-                'vendor/jqplot/plugins/jqplot.pieRenderer.js',
-                'vendor/jqplot/plugins/jqplot.enhancedPieLegendRenderer.js',
-                'vendor/jqplot/plugins/jqplot.highlighter.js',
-            ]
-        );
+        $this->addScriptFiles([
+            'chart.js',
+            'table/chart.js',
+            'vendor/jqplot/jquery.jqplot.js',
+            'vendor/jqplot/plugins/jqplot.barRenderer.js',
+            'vendor/jqplot/plugins/jqplot.canvasAxisLabelRenderer.js',
+            'vendor/jqplot/plugins/jqplot.canvasTextRenderer.js',
+            'vendor/jqplot/plugins/jqplot.categoryAxisRenderer.js',
+            'vendor/jqplot/plugins/jqplot.dateAxisRenderer.js',
+            'vendor/jqplot/plugins/jqplot.pointLabels.js',
+            'vendor/jqplot/plugins/jqplot.pieRenderer.js',
+            'vendor/jqplot/plugins/jqplot.enhancedPieLegendRenderer.js',
+            'vendor/jqplot/plugins/jqplot.highlighter.js',
+        ]);
 
-        /**
-         * Extract values for common work
-         * @todo Extract common files
-         */
-        $db = &$this->db;
-        $table = &$this->table;
         $url_params = [];
 
         /**
          * Runs common work
          */
-        if (strlen($this->table) > 0) {
-            $url_params['goto'] = Util::getScriptNameForOption(
-                $this->cfg['DefaultTabTable'],
-                'table'
-            );
-            $url_params['back'] = 'tbl_sql.php';
-            include ROOT_PATH . 'libraries/tbl_common.inc.php';
+        if (strlen($GLOBALS['table']) > 0) {
+            $this->checkParameters(['db', 'table']);
+
+            $url_params = ['db' => $GLOBALS['db'], 'table' => $GLOBALS['table']];
+            $GLOBALS['errorUrl'] = Util::getScriptNameForOption($GLOBALS['cfg']['DefaultTabTable'], 'table');
+            $GLOBALS['errorUrl'] .= Url::getCommon($url_params, '&');
+
+            DbTableExists::check($GLOBALS['db'], $GLOBALS['table']);
+
+            $url_params['goto'] = Util::getScriptNameForOption($GLOBALS['cfg']['DefaultTabTable'], 'table');
+            $url_params['back'] = Url::getFromRoute('/table/sql');
             $this->dbi->selectDb($GLOBALS['db']);
-        } elseif (strlen($this->db) > 0) {
-            $url_params['goto'] = Util::getScriptNameForOption(
-                $this->cfg['DefaultTabDatabase'],
-                'database'
-            );
-            $url_params['back'] = 'sql.php';
-            include ROOT_PATH . 'libraries/db_common.inc.php';
+        } elseif (strlen($GLOBALS['db']) > 0) {
+            $url_params['goto'] = Util::getScriptNameForOption($GLOBALS['cfg']['DefaultTabDatabase'], 'database');
+            $url_params['back'] = Url::getFromRoute('/sql');
+
+            $this->checkParameters(['db']);
+
+            $GLOBALS['errorUrl'] = Util::getScriptNameForOption($GLOBALS['cfg']['DefaultTabDatabase'], 'database');
+            $GLOBALS['errorUrl'] .= Url::getCommon(['db' => $GLOBALS['db']], '&');
+
+            if (! $this->hasDatabase()) {
+                return;
+            }
         } else {
-            $url_params['goto'] = Util::getScriptNameForOption(
-                $this->cfg['DefaultTabServer'],
-                'server'
-            );
-            $url_params['back'] = 'sql.php';
-            include ROOT_PATH . 'libraries/server_common.inc.php';
-        }
+            $url_params['goto'] = Util::getScriptNameForOption($GLOBALS['cfg']['DefaultTabServer'], 'server');
+            $url_params['back'] = Url::getFromRoute('/sql');
+            $GLOBALS['errorUrl'] = Url::getFromRoute('/');
 
-        $data = [];
-
-        $result = $this->dbi->tryQuery($this->sql_query);
-        $fields_meta = $this->dbi->getFieldsMeta($result);
-        while ($row = $this->dbi->fetchAssoc($result)) {
-            $data[] = $row;
-        }
-
-        $keys = array_keys($data[0]);
-
-        $numeric_types = [
-            'int',
-            'real',
-        ];
-        $numeric_column_count = 0;
-        foreach ($keys as $idx => $key) {
-            if (in_array($fields_meta[$idx]->type, $numeric_types)) {
-                $numeric_column_count++;
+            if ($this->dbi->isSuperUser()) {
+                $this->dbi->selectDb('mysql');
             }
         }
 
-        if ($numeric_column_count == 0) {
+        $result = $this->dbi->tryQuery($GLOBALS['sql_query']);
+        $fields_meta = $row = [];
+        if ($result !== false) {
+            $fields_meta = $this->dbi->getFieldsMeta($result);
+            $row = $result->fetchAssoc();
+        }
+
+        $keys = array_keys($row);
+        $numericColumnFound = false;
+        foreach (array_keys($keys) as $idx) {
+            if (
+                isset($fields_meta[$idx]) && (
+                $fields_meta[$idx]->isType(FieldMetadata::TYPE_INT)
+                || $fields_meta[$idx]->isType(FieldMetadata::TYPE_REAL)
+                )
+            ) {
+                $numericColumnFound = true;
+                break;
+            }
+        }
+
+        if (! $numericColumnFound) {
             $this->response->setRequestStatus(false);
             $this->response->addJSON(
                 'message',
                 __('No numeric columns present in the table to plot.')
             );
+
             return;
         }
 
-        $url_params['db'] = $this->db;
+        $url_params['db'] = $GLOBALS['db'];
         $url_params['reload'] = 1;
+
+        $startAndNumberOfRowsFieldset = Generator::getStartAndNumberOfRowsFieldsetData($GLOBALS['sql_query']);
 
         /**
          * Displays the page
          */
-        $this->response->addHTML(
-            $this->template->render('table/chart/tbl_chart', [
-                'url_query' => $this->url_query,
-                'url_params' => $url_params,
-                'keys' => $keys,
-                'fields_meta' => $fields_meta,
-                'numeric_types' => $numeric_types,
-                'numeric_column_count' => $numeric_column_count,
-                'sql_query' => $this->sql_query,
-            ])
-        );
+        $this->render('table/chart/tbl_chart', [
+            'url_params' => $url_params,
+            'keys' => $keys,
+            'fields_meta' => $fields_meta,
+            'table_has_a_numeric_column' => $numericColumnFound,
+            'start_and_number_of_rows_fieldset' => $startAndNumberOfRowsFieldset,
+        ]);
     }
 
     /**
      * Handle ajax request
-     *
-     * @return void
      */
-    public function ajaxAction()
+    public function ajax(): void
     {
-        /**
-         * Extract values for common work
-         * @todo Extract common files
-         */
-        $db = &$this->db;
-        $table = &$this->table;
+        $GLOBALS['urlParams'] = $GLOBALS['urlParams'] ?? null;
+        $GLOBALS['errorUrl'] = $GLOBALS['errorUrl'] ?? null;
+        if (strlen($GLOBALS['table']) > 0 && strlen($GLOBALS['db']) > 0) {
+            $this->checkParameters(['db', 'table']);
 
-        if (strlen($this->table) > 0 && strlen($this->db) > 0) {
-            include ROOT_PATH . 'libraries/tbl_common.inc.php';
+            $GLOBALS['urlParams'] = ['db' => $GLOBALS['db'], 'table' => $GLOBALS['table']];
+            $GLOBALS['errorUrl'] = Util::getScriptNameForOption($GLOBALS['cfg']['DefaultTabTable'], 'table');
+            $GLOBALS['errorUrl'] .= Url::getCommon($GLOBALS['urlParams'], '&');
+
+            DbTableExists::check($GLOBALS['db'], $GLOBALS['table']);
         }
 
-        $parser = new Parser($this->sql_query);
+        $parser = new Parser($GLOBALS['sql_query']);
         /**
          * @var SelectStatement $statement
          */
         $statement = $parser->statements[0];
         if (empty($statement->limit)) {
-            $statement->limit = new Limit(
-                $_REQUEST['session_max_rows'],
-                $_REQUEST['pos']
-            );
+            $statement->limit = new Limit($_REQUEST['session_max_rows'], $_REQUEST['pos']);
         } else {
             $start = $statement->limit->offset + $_REQUEST['pos'];
-            $rows = min(
-                $_REQUEST['session_max_rows'],
-                $statement->limit->rowCount - $_REQUEST['pos']
-            );
+            $rows = min($_REQUEST['session_max_rows'], $statement->limit->rowCount - $_REQUEST['pos']);
             $statement->limit = new Limit($rows, $start);
         }
+
         $sql_with_limit = $statement->build();
 
-        $data = [];
         $result = $this->dbi->tryQuery($sql_with_limit);
-        while ($row = $this->dbi->fetchAssoc($result)) {
-            $data[] = $row;
+        $data = [];
+        if ($result !== false) {
+            $data = $result->fetchAllAssoc();
         }
 
-        if (empty($data)) {
+        if ($data === []) {
             $this->response->setRequestStatus(false);
             $this->response->addJSON('message', __('No data to display'));
+
             return;
         }
+
         $sanitized_data = [];
 
-        foreach ($data as $data_row_number => $data_row) {
+        foreach ($data as $data_row) {
             $tmp_row = [];
             foreach ($data_row as $data_column => $data_value) {
-                $escaped_value = is_null($data_value) ? null : htmlspecialchars($data_value);
+                $escaped_value = $data_value === null ? null : htmlspecialchars($data_value);
                 $tmp_row[htmlspecialchars($data_column)] = $escaped_value;
             }
+
             $sanitized_data[] = $tmp_row;
         }
+
         $this->response->setRequestStatus(true);
         $this->response->addJSON('message', null);
         $this->response->addJSON('chartData', json_encode($sanitized_data));

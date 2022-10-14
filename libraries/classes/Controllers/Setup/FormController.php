@@ -1,10 +1,5 @@
 <?php
-/* vim: set expandtab sw=4 ts=4 sts=4: */
-/**
- * Holds the PhpMyAdmin\Controllers\Setup\FormController
- *
- * @package PhpMyAdmin\Controllers\Setup
- */
+
 declare(strict_types=1);
 
 namespace PhpMyAdmin\Controllers\Setup;
@@ -14,36 +9,39 @@ use PhpMyAdmin\Config\Forms\Setup\SetupFormList;
 use PhpMyAdmin\Core;
 use PhpMyAdmin\Setup\FormProcessing;
 
-/**
- * Class FormController
- * @package PhpMyAdmin\Controllers\Setup
- */
+use function __;
+use function is_string;
+use function ob_get_clean;
+use function ob_start;
+
 class FormController extends AbstractController
 {
     /**
      * @param array $params Request parameters
+     *
      * @return string HTML
      */
-    public function index(array $params): string
+    public function __invoke(array $params): string
     {
         $pages = $this->getPages();
 
-        $formset = Core::isValid($params['formset'], 'scalar') ? $params['formset'] : null;
+        $formset = isset($params['formset']) && is_string($params['formset']) ? $params['formset'] : '';
 
-        /** @var BaseForm $formClass */
         $formClass = SetupFormList::get($formset);
-        if (is_null($formClass)) {
+        if ($formClass === null) {
             Core::fatalError(__('Incorrect form specified!'));
         }
 
         ob_start();
-        FormProcessing::process(new $formClass($this->config));
+        /** @var BaseForm $form */
+        $form = new $formClass($this->config);
+        FormProcessing::process($form);
         $page = ob_get_clean();
 
         return $this->template->render('setup/form/index', [
-            'formset' => $params['formset'] ?? '',
+            'formset' => $formset,
             'pages' => $pages,
-            'name' => $formClass::getName(),
+            'name' => $form::getName(),
             'page' => $page,
         ]);
     }

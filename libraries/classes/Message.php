@@ -1,16 +1,24 @@
 <?php
-/* vim: set expandtab sw=4 ts=4 sts=4: */
-/**
- * Holds class Message
- *
- * @package PhpMyAdmin
- */
+
 declare(strict_types=1);
 
 namespace PhpMyAdmin;
 
-use PhpMyAdmin\Sanitize;
-use PhpMyAdmin\Util;
+use Stringable;
+
+use function __;
+use function _ngettext;
+use function array_unshift;
+use function count;
+use function htmlspecialchars;
+use function is_array;
+use function is_float;
+use function is_int;
+use function md5;
+use function sprintf;
+use function strlen;
+
+use const ENT_COMPAT;
 
 /**
  * a single message
@@ -18,7 +26,7 @@ use PhpMyAdmin\Util;
  * simple usage examples:
  * <code>
  * // display simple error message 'Error'
- * Message::error()->display();
+ * echo Message::error()->getDisplay();
  *
  * // get simple success message 'Success'
  * $message = Message::success();
@@ -40,75 +48,67 @@ use PhpMyAdmin\Util;
  * // add the retrieved tooltip reference to the original message
  * $message->addMessage($hint);
  * </code>
- *
- * @package PhpMyAdmin
  */
-class Message
+class Message implements Stringable
 {
     public const SUCCESS = 1; // 0001
-    public const NOTICE  = 2; // 0010
-    public const ERROR   = 8; // 1000
+    public const NOTICE = 2; // 0010
+    public const ERROR = 8; // 1000
 
-    public const SANITIZE_NONE   = 0;  // 0000 0000
+    public const SANITIZE_NONE = 0; // 0000 0000
     public const SANITIZE_STRING = 16; // 0001 0000
     public const SANITIZE_PARAMS = 32; // 0010 0000
-    public const SANITIZE_BOOTH  = 48; // 0011 0000
+    public const SANITIZE_BOOTH = 48; // 0011 0000
 
     /**
      * message levels
      *
      * @var array
      */
-    public static $level =  [
-        Message::SUCCESS => 'success',
-        Message::NOTICE  => 'notice',
-        Message::ERROR   => 'error',
+    public static $level = [
+        self::SUCCESS => 'success',
+        self::NOTICE => 'notice',
+        self::ERROR => 'error',
     ];
 
     /**
      * The message number
      *
-     * @access  protected
-     * @var     integer
+     * @var int
      */
-    protected $number = Message::NOTICE;
+    protected $number = self::NOTICE;
 
     /**
      * The locale string identifier
      *
-     * @access  protected
-     * @var     string
+     * @var    string
      */
     protected $string = '';
 
     /**
      * The formatted message
      *
-     * @access  protected
-     * @var     string
+     * @var    string
      */
     protected $message = '';
 
     /**
      * Whether the message was already displayed
      *
-     * @access  protected
-     * @var     boolean
+     * @var bool
      */
     protected $isDisplayed = false;
 
     /**
      * Whether to use BB code when displaying.
      *
-     * @access  protected
-     * @var     boolean
+     * @var bool
      */
     protected $useBBCode = true;
 
     /**
      * Unique id
      *
-     * @access  protected
      * @var string
      */
     protected $hash = null;
@@ -116,43 +116,37 @@ class Message
     /**
      * holds parameters
      *
-     * @access  protected
-     * @var     array
+     * @var    array
      */
     protected $params = [];
 
     /**
      * holds additional messages
      *
-     * @access  protected
-     * @var     array
+     * @var    array
      */
     protected $addedMessages = [];
 
     /**
-     * Constructor
-     *
-     * @param string  $string   The message to be displayed
-     * @param integer $number   A numeric representation of the type of message
-     * @param array   $params   An array of parameters to use in the message
-     * @param integer $sanitize A flag to indicate what to sanitize, see
-     *                          constant definitions above
+     * @param string $string   The message to be displayed
+     * @param int    $number   A numeric representation of the type of message
+     * @param array  $params   An array of parameters to use in the message
+     * @param int    $sanitize A flag to indicate what to sanitize, see
+     *                         constant definitions above
      */
     public function __construct(
         string $string = '',
-        int $number = Message::NOTICE,
+        int $number = self::NOTICE,
         array $params = [],
-        int $sanitize = Message::SANITIZE_NONE
+        int $sanitize = self::SANITIZE_NONE
     ) {
-        $this->setString($string, $sanitize & Message::SANITIZE_STRING);
+        $this->setString($string, $sanitize & self::SANITIZE_STRING);
         $this->setNumber($number);
-        $this->setParams($params, $sanitize & Message::SANITIZE_PARAMS);
+        $this->setParams($params, $sanitize & self::SANITIZE_PARAMS);
     }
 
     /**
      * magic method: return string representation for this object
-     *
-     * @return string
      */
     public function __toString(): string
     {
@@ -169,6 +163,7 @@ class Message
      *                       executed successfully')
      *
      * @return Message
+     *
      * @static
      */
     public static function success(string $string = ''): self
@@ -177,7 +172,7 @@ class Message
             $string = __('Your SQL query has been executed successfully.');
         }
 
-        return new Message($string, Message::SUCCESS);
+        return new Message($string, self::SUCCESS);
     }
 
     /**
@@ -188,6 +183,7 @@ class Message
      * @param string $string A localized string e.g. __('Error')
      *
      * @return Message
+     *
      * @static
      */
     public static function error(string $string = ''): self
@@ -196,7 +192,7 @@ class Message
             $string = __('Error');
         }
 
-        return new Message($string, Message::ERROR);
+        return new Message($string, self::ERROR);
     }
 
     /**
@@ -210,11 +206,12 @@ class Message
      *                       why click %shere%s.')
      *
      * @return Message
+     *
      * @static
      */
     public static function notice(string $string): self
     {
-        return new Message($string, Message::NOTICE);
+        return new Message($string, self::NOTICE);
     }
 
     /**
@@ -222,17 +219,19 @@ class Message
      *
      * shorthand for getting a customized message
      *
-     * @param string  $message A localized string
-     * @param integer $type    A numeric representation of the type of message
+     * @param string $message A localized string
+     * @param int    $type    A numeric representation of the type of message
      *
      * @return Message
+     *
      * @static
      */
-    public static function raw(string $message, int $type = Message::NOTICE): self
+    public static function raw(string $message, int $type = self::NOTICE): self
     {
         $r = new Message('', $type);
         $r->setMessage($message);
         $r->setBBCode(false);
+
         return $r;
     }
 
@@ -241,17 +240,19 @@ class Message
      *
      * shorthand for getting a customized message
      *
-     * @param integer $rows Number of rows
+     * @param int $rows Number of rows
      *
      * @return Message
+     *
      * @static
      */
     public static function getMessageForAffectedRows(int $rows): self
     {
-        $message = Message::success(
+        $message = self::success(
             _ngettext('%1$d row affected.', '%1$d rows affected.', $rows)
         );
         $message->addParam($rows);
+
         return $message;
     }
 
@@ -260,17 +261,19 @@ class Message
      *
      * shorthand for getting a customized message
      *
-     * @param integer $rows Number of rows
+     * @param int $rows Number of rows
      *
      * @return Message
+     *
      * @static
      */
     public static function getMessageForDeletedRows(int $rows): self
     {
-        $message = Message::success(
+        $message = self::success(
             _ngettext('%1$d row deleted.', '%1$d rows deleted.', $rows)
         );
         $message->addParam($rows);
+
         return $message;
     }
 
@@ -279,17 +282,19 @@ class Message
      *
      * shorthand for getting a customized message
      *
-     * @param integer $rows Number of rows
+     * @param int $rows Number of rows
      *
      * @return Message
+     *
      * @static
      */
     public static function getMessageForInsertedRows(int $rows): self
     {
-        $message = Message::success(
+        $message = self::success(
             _ngettext('%1$d row inserted.', '%1$d rows inserted.', $rows)
         );
         $message->addParam($rows);
+
         return $message;
     }
 
@@ -301,11 +306,12 @@ class Message
      * @param string $message A localized string
      *
      * @return Message
+     *
      * @static
      */
     public static function rawError(string $message): self
     {
-        return Message::raw($message, Message::ERROR);
+        return self::raw($message, self::ERROR);
     }
 
     /**
@@ -316,11 +322,12 @@ class Message
      * @param string $message A localized string
      *
      * @return Message
+     *
      * @static
      */
     public static function rawNotice(string $message): self
     {
-        return Message::raw($message, Message::NOTICE);
+        return self::raw($message, self::NOTICE);
     }
 
     /**
@@ -331,70 +338,63 @@ class Message
      * @param string $message A localized string
      *
      * @return Message
+     *
      * @static
      */
     public static function rawSuccess(string $message): self
     {
-        return Message::raw($message, Message::SUCCESS);
+        return self::raw($message, self::SUCCESS);
     }
 
     /**
      * returns whether this message is a success message or not
      * and optionally makes this message a success message
      *
-     * @param boolean $set Whether to make this message of SUCCESS type
-     *
-     * @return boolean whether this is a success message or not
+     * @param bool $set Whether to make this message of SUCCESS type
      */
     public function isSuccess(bool $set = false): bool
     {
         if ($set) {
-            $this->setNumber(Message::SUCCESS);
+            $this->setNumber(self::SUCCESS);
         }
 
-        return $this->getNumber() === Message::SUCCESS;
+        return $this->getNumber() === self::SUCCESS;
     }
 
     /**
      * returns whether this message is a notice message or not
      * and optionally makes this message a notice message
      *
-     * @param boolean $set Whether to make this message of NOTICE type
-     *
-     * @return boolean whether this is a notice message or not
+     * @param bool $set Whether to make this message of NOTICE type
      */
     public function isNotice(bool $set = false): bool
     {
         if ($set) {
-            $this->setNumber(Message::NOTICE);
+            $this->setNumber(self::NOTICE);
         }
 
-        return $this->getNumber() === Message::NOTICE;
+        return $this->getNumber() === self::NOTICE;
     }
 
     /**
      * returns whether this message is an error message or not
      * and optionally makes this message an error message
      *
-     * @param boolean $set Whether to make this message of ERROR type
-     *
-     * @return boolean Whether this is an error message or not
+     * @param bool $set Whether to make this message of ERROR type
      */
     public function isError(bool $set = false): bool
     {
         if ($set) {
-            $this->setNumber(Message::ERROR);
+            $this->setNumber(self::ERROR);
         }
 
-        return $this->getNumber() === Message::ERROR;
+        return $this->getNumber() === self::ERROR;
     }
 
     /**
      * Set whether we should use BB Code when rendering.
      *
-     * @param boolean $useBBCode Use BB Code?
-     *
-     * @return void
+     * @param bool $useBBCode Use BB Code?
      */
     public function setBBCode(bool $useBBCode): void
     {
@@ -404,41 +404,37 @@ class Message
     /**
      * set raw message (overrides string)
      *
-     * @param string  $message  A localized string
-     * @param boolean $sanitize Whether to sanitize $message or not
-     *
-     * @return void
+     * @param string $message  A localized string
+     * @param bool   $sanitize Whether to sanitize $message or not
      */
     public function setMessage(string $message, bool $sanitize = false): void
     {
         if ($sanitize) {
-            $message = Message::sanitize($message);
+            $message = self::sanitize($message);
         }
+
         $this->message = $message;
     }
 
     /**
      * set string (does not take effect if raw message is set)
      *
-     * @param string      $string   string to set
-     * @param boolean|int $sanitize whether to sanitize $string or not
-     *
-     * @return void
+     * @param string   $string   string to set
+     * @param bool|int $sanitize whether to sanitize $string or not
      */
     public function setString(string $string, $sanitize = true): void
     {
         if ($sanitize) {
-            $string = Message::sanitize($string);
+            $string = self::sanitize($string);
         }
+
         $this->string = $string;
     }
 
     /**
      * set message type number
      *
-     * @param integer $number message type number to set
-     *
-     * @return void
+     * @param int $number message type number to set
      */
     public function setNumber(int $number): void
     {
@@ -454,15 +450,13 @@ class Message
      * </code>
      *
      * @param mixed $param parameter to add
-     *
-     * @return void
      */
     public function addParam($param): void
     {
-        if ($param instanceof Message || is_float($param) || is_int($param)) {
+        if ($param instanceof self || is_float($param) || is_int($param)) {
             $this->params[] = $param;
         } else {
-            $this->params[] = htmlspecialchars((string) $param);
+            $this->params[] = htmlspecialchars((string) $param, ENT_COMPAT);
         }
     }
 
@@ -475,12 +469,10 @@ class Message
      * </code>
      *
      * @param string $param parameter to add
-     *
-     * @return void
      */
     public function addParamHtml(string $param): void
     {
-        $this->params[] = Message::notice($param);
+        $this->params[] = self::notice($param);
     }
 
     /**
@@ -488,8 +480,6 @@ class Message
      *
      * @param Message[] $messages  to be added
      * @param string    $separator to use between this and previous string/message
-     *
-     * @return void
      */
     public function addMessages(array $messages, string $separator = ' '): void
     {
@@ -503,8 +493,6 @@ class Message
      *
      * @param string[] $messages  to be added
      * @param string   $separator to use between this and previous string/message
-     *
-     * @return void
      */
     public function addMessagesString(array $messages, string $separator = ' '): void
     {
@@ -518,24 +506,21 @@ class Message
      *
      * @param Message $message   to be added
      * @param string  $separator to use between this and previous string/message
-     *
-     * @return void
      */
     private function addMessageToList(self $message, string $separator): void
     {
         if (! empty($separator)) {
             $this->addedMessages[] = $separator;
         }
+
         $this->addedMessages[] = $message;
     }
 
     /**
      * add another raw message to be concatenated on displaying
      *
-     * @param Message $message   to be added
-     * @param string  $separator to use between this and previous string/message
-     *
-     * @return void
+     * @param self   $message   to be added
+     * @param string $separator to use between this and previous string/message
      */
     public function addMessage(self $message, string $separator = ' '): void
     {
@@ -547,12 +532,10 @@ class Message
      *
      * @param string $message   to be added
      * @param string $separator to use between this and previous string/message
-     *
-     * @return void
      */
     public function addText(string $message, string $separator = ' '): void
     {
-        $this->addMessageToList(Message::notice(htmlspecialchars($message)), $separator);
+        $this->addMessageToList(self::notice(htmlspecialchars($message)), $separator);
     }
 
     /**
@@ -560,36 +543,33 @@ class Message
      *
      * @param string $message   to be added
      * @param string $separator to use between this and previous string/message
-     *
-     * @return void
      */
     public function addHtml(string $message, string $separator = ' '): void
     {
-        $this->addMessageToList(Message::rawNotice($message), $separator);
+        $this->addMessageToList(self::rawNotice($message), $separator);
     }
 
     /**
      * set all params at once, usually used in conjunction with string
      *
-     * @param array|string $params   parameters to set
-     * @param bool|int     $sanitize whether to sanitize params
-     *
-     * @return void
+     * @param array    $params   parameters to set
+     * @param bool|int $sanitize whether to sanitize params
      */
-    public function setParams($params, $sanitize = false): void
+    public function setParams(array $params, $sanitize = false): void
     {
         if ($sanitize) {
-            $params = Message::sanitize($params);
+            $params = self::sanitize($params);
         }
+
         $this->params = $params;
     }
 
     /**
      * return all parameters
      *
-     * @return array|string
+     * @return array
      */
-    public function getParams()
+    public function getParams(): array
     {
         return $this->params;
     }
@@ -610,14 +590,14 @@ class Message
      * @param mixed $message the message(s)
      *
      * @return mixed  the sanitized message(s)
-     * @access  public
+     *
      * @static
      */
     public static function sanitize($message)
     {
         if (is_array($message)) {
             foreach ($message as $key => $val) {
-                $message[$key] = Message::sanitize($val);
+                $message[$key] = self::sanitize($val);
             }
 
             return $message;
@@ -633,18 +613,19 @@ class Message
      * @param string $message the message
      *
      * @return string  the decoded message
-     * @access  public
+     *
      * @static
      */
     public static function decodeBB(string $message): string
     {
-        return Sanitize::sanitize($message, false, true);
+        return Sanitize::sanitizeMessage($message, false, true);
     }
 
     /**
      * wrapper for sprintf()
      *
      * @param mixed[] ...$params Params
+     *
      * @return string formatted
      */
     public static function format(...$params): string
@@ -654,7 +635,7 @@ class Message
             $params = $params[1];
         }
 
-        return call_user_func_array('sprintf', $params);
+        return sprintf(...$params);
     }
 
     /**
@@ -664,7 +645,7 @@ class Message
      */
     public function getHash(): string
     {
-        if (null === $this->hash) {
+        if ($this->hash === null) {
             $this->hash = md5(
                 $this->getNumber() .
                 $this->string .
@@ -696,12 +677,13 @@ class Message
         if ($this->isDisplayed()) {
             $message = $this->getMessageWithIcon($message);
         }
+
         if (count($this->getParams()) > 0) {
-            $message = Message::format($message, $this->getParams());
+            $message = self::format($message, $this->getParams());
         }
 
         if ($this->useBBCode) {
-            $message = Message::decodeBB($message);
+            $message = self::decodeBB($message);
         }
 
         foreach ($this->getAddedMessages() as $add_message) {
@@ -713,14 +695,11 @@ class Message
 
     /**
      * Returns only message string without image & other HTML.
-     *
-     * @return string
      */
     public function getOnlyMessage(): string
     {
         return $this->message;
     }
-
 
     /**
      * returns Message::$string
@@ -735,7 +714,7 @@ class Message
     /**
      * returns Message::$number
      *
-     * @return integer Message::$number
+     * @return int Message::$number
      */
     public function getNumber(): int
     {
@@ -749,18 +728,7 @@ class Message
      */
     public function getLevel(): string
     {
-        return Message::$level[$this->getNumber()];
-    }
-
-    /**
-     * Displays the message in HTML
-     *
-     * @return void
-     */
-    public function display(): void
-    {
-        echo $this->getDisplay();
-        $this->isDisplayed(true);
+        return self::$level[$this->getNumber()];
     }
 
     /**
@@ -771,16 +739,27 @@ class Message
     public function getDisplay(): string
     {
         $this->isDisplayed(true);
-        return '<div class="' . $this->getLevel() . '">'
-            . $this->getMessage() . '</div>';
+
+        $context = 'primary';
+        $level = $this->getLevel();
+        if ($level === 'error') {
+            $context = 'danger';
+        } elseif ($level === 'success') {
+            $context = 'success';
+        }
+
+        $template = new Template();
+
+        return $template->render('message', [
+            'context' => $context,
+            'message' => $this->getMessage(),
+        ]);
     }
 
     /**
      * sets and returns whether the message was displayed or not
      *
-     * @param boolean $isDisplayed whether to set displayed flag
-     *
-     * @return boolean Message::$isDisplayed
+     * @param bool $isDisplayed whether to set displayed flag
      */
     public function isDisplayed(bool $isDisplayed = false): bool
     {
@@ -800,14 +779,16 @@ class Message
      */
     public function getMessageWithIcon(string $message): string
     {
-        if ('error' == $this->getLevel()) {
+        if ($this->getLevel() === 'error') {
             $image = 's_error';
-        } elseif ('success' == $this->getLevel()) {
+        } elseif ($this->getLevel() === 'success') {
             $image = 's_success';
         } else {
             $image = 's_notice';
         }
-        $message = Message::notice(Util::getImage($image)) . " " . $message;
+
+        $message = self::notice(Html\Generator::getImage($image)) . ' ' . $message;
+
         return $message;
     }
 }

@@ -1,32 +1,56 @@
 <?php
-/* vim: set expandtab sw=4 ts=4 sts=4: */
 /**
  * Form validation for configuration editor
- *
- * @package PhpMyAdmin
  */
+
 declare(strict_types=1);
 
 namespace PhpMyAdmin\Config;
 
-use PhpMyAdmin\Config\ConfigFile;
 use PhpMyAdmin\Core;
-use PhpMyAdmin\DatabaseInterface;
 use PhpMyAdmin\Util;
+
+use function __;
+use function array_map;
+use function array_merge;
+use function array_shift;
+use function call_user_func_array;
+use function count;
+use function error_clear_last;
+use function error_get_last;
+use function explode;
+use function filter_var;
+use function htmlspecialchars;
+use function intval;
+use function is_array;
+use function is_object;
+use function mb_strpos;
+use function mb_substr;
+use function mysqli_close;
+use function mysqli_connect;
+use function mysqli_report;
+use function preg_match;
+use function preg_replace;
+use function sprintf;
+use function str_replace;
+use function trim;
+
+use const FILTER_FLAG_IPV4;
+use const FILTER_FLAG_IPV6;
+use const FILTER_VALIDATE_IP;
+use const MYSQLI_REPORT_OFF;
+use const PHP_INT_MAX;
 
 /**
  * Validation class for various validation functions
  *
  * Validation function takes two argument: id for which it is called
- * and array of fields' values (usually values for entire formset, as defined
- * in forms.inc.php).
+ * and array of fields' values (usually values for entire formset).
  * The function must always return an array with an error (or error array)
  * assigned to a form element (formset name or field path). Even if there are
  * no errors, key must be set with an empty value.
  *
  * Validation functions are assigned in $cfg_db['_validators'] (config.values.php).
- *
- * @package PhpMyAdmin
  */
 class Validator
 {
@@ -46,7 +70,7 @@ class Validator
         }
 
         $validators = $cf->getDbEntry('_validators', []);
-        if ($GLOBALS['PMA_Config']->get('is_setup')) {
+        if ($GLOBALS['config']->get('is_setup')) {
             return $validators;
         }
 
@@ -61,19 +85,24 @@ class Validator
                 if (! is_array($uv)) {
                     continue;
                 }
+
                 for ($i = 1, $nb = count($uv); $i < $nb; $i++) {
-                    if (mb_substr($uv[$i], 0, 6) == 'value:') {
-                        $uv[$i] = Core::arrayRead(
-                            mb_substr($uv[$i], 6),
-                            $GLOBALS['PMA_Config']->base_settings
-                        );
+                    if (mb_substr($uv[$i], 0, 6) !== 'value:') {
+                        continue;
                     }
+
+                    $uv[$i] = Core::arrayRead(
+                        mb_substr($uv[$i], 6),
+                        $GLOBALS['config']->baseSettings
+                    );
                 }
             }
+
             $validators[$field] = isset($validators[$field])
                 ? array_merge((array) $validators[$field], $uvList)
                 : $uvList;
         }
+
         return $validators;
     }
 
@@ -106,10 +135,13 @@ class Validator
         $vids = [];
         foreach ($validatorId as &$vid) {
             $vid = $cf->getCanonicalPath($vid);
-            if (isset($validators[$vid])) {
-                $vids[] = $vid;
+            if (! isset($validators[$vid])) {
+                continue;
             }
+
+            $vids[] = $vid;
         }
+
         if (empty($vids)) {
             return false;
         }
@@ -133,6 +165,7 @@ class Validator
             foreach ((array) $validators[$vid] as $validator) {
                 $vdef = (array) $validator;
                 $vname = array_shift($vdef);
+                /** @var callable $vname */
                 $vname = 'PhpMyAdmin\Config\Validator::' . $vname;
                 $args = array_merge([$vid, &$arguments], $vdef);
                 $r = call_user_func_array($vname, $args);
@@ -147,13 +180,13 @@ class Validator
                     if (! $isPostSource && empty($errorList)) {
                         continue;
                     }
+
                     if (! isset($result[$key])) {
                         $result[$key] = [];
                     }
-                    $result[$key] = array_merge(
-                        $result[$key],
-                        (array) $errorList
-                    );
+
+                    $errorList = array_map('PhpMyAdmin\Sanitize::sanitizeMessage', (array) $errorList);
+                    $result[$key] = array_merge($result[$key], $errorList);
                 }
             }
         }
@@ -161,9 +194,10 @@ class Validator
         // restore original paths
         $newResult = [];
         foreach ($result as $k => $v) {
-            $k2 = isset($keyMap[$k]) ? $keyMap[$k] : $k;
+            $k2 = $keyMap[$k] ?? $k;
             $newResult[$k2] = $v;
         }
+
         return empty($newResult) ? true : $newResult;
     }
 
@@ -197,38 +231,28 @@ class Validator
 
         error_clear_last();
 
-        if (DatabaseInterface::checkDbExtension('mysqli')) {
-            $socket = empty($socket) ? null : $socket;
-            $port = empty($port) ? null : $port;
-            $extension = 'mysqli';
+        /** @var string $socket */
+        $socket = empty($socket) ? null : $socket;
+        /** @var int $port */
+        $port = empty($port) ? null : (int) $port;
+
+        mysqli_report(MYSQLI_REPORT_OFF);
+
+        $conn = @mysqli_connect($host, $user, (string) $pass, '', $port, $socket);
+        if (! $conn) {
+            $error = __('Could not connect to the database server!');
         } else {
-            $socket = empty($socket) ? null : ':' . ($socket[0] == '/' ? '' : '/') . $socket;
-            $port = empty($port) ? null : ':' . $port;
-            $extension = 'mysql';
+            mysqli_close($conn);
         }
 
-        if ($extension == 'mysql') {
-            $conn = @\mysql_connect($host . $port . $socket, $user, $pass);
-            if (! $conn) {
-                $error = __('Could not connect to the database server!');
-            } else {
-                \mysql_close($conn);
-            }
-        } else {
-            $conn = @\mysqli_connect($host, $user, $pass, null, $port, $socket);
-            if (! $conn) {
-                $error = __('Could not connect to the database server!');
-            } else {
-                \mysqli_close($conn);
-            }
-        }
-        if (! is_null($error)) {
+        if ($error !== null) {
             $lastError = error_get_last();
             if ($lastError !== null) {
                 $error .= ' - ' . $lastError['message'];
             }
         }
-        return is_null($error) ? true : [$errorKey => $error];
+
+        return $error === null ? true : [$errorKey => $error];
     }
 
     /**
@@ -247,7 +271,7 @@ class Validator
             'Server' => '',
             'Servers/1/user' => '',
             'Servers/1/SignonSession' => '',
-            'Servers/1/SignonURL' => ''
+            'Servers/1/SignonURL' => '',
         ];
         $error = false;
         if (empty($values['Servers/1/auth_type'])) {
@@ -255,38 +279,32 @@ class Validator
             $result['Servers/1/auth_type'] = __('Invalid authentication type!');
             $error = true;
         }
-        if ($values['Servers/1/auth_type'] == 'config'
-            && empty($values['Servers/1/user'])
-        ) {
-            $result['Servers/1/user'] = __(
-                'Empty username while using [kbd]config[/kbd] authentication method!'
-            );
+
+        if ($values['Servers/1/auth_type'] === 'config' && empty($values['Servers/1/user'])) {
+            $result['Servers/1/user'] = __('Empty username while using [kbd]config[/kbd] authentication method!');
             $error = true;
         }
-        if ($values['Servers/1/auth_type'] == 'signon'
-            && empty($values['Servers/1/SignonSession'])
-        ) {
+
+        if ($values['Servers/1/auth_type'] === 'signon' && empty($values['Servers/1/SignonSession'])) {
             $result['Servers/1/SignonSession'] = __(
-                'Empty signon session name '
-                . 'while using [kbd]signon[/kbd] authentication method!'
-            );
-            $error = true;
-        }
-        if ($values['Servers/1/auth_type'] == 'signon'
-            && empty($values['Servers/1/SignonURL'])
-        ) {
-            $result['Servers/1/SignonURL'] = __(
-                'Empty signon URL while using [kbd]signon[/kbd] authentication '
-                . 'method!'
+                'Empty signon session name while using [kbd]signon[/kbd] authentication method!'
             );
             $error = true;
         }
 
-        if (! $error && $values['Servers/1/auth_type'] == 'config') {
+        if ($values['Servers/1/auth_type'] === 'signon' && empty($values['Servers/1/SignonURL'])) {
+            $result['Servers/1/SignonURL'] = __(
+                'Empty signon URL while using [kbd]signon[/kbd] authentication method!'
+            );
+            $error = true;
+        }
+
+        if (! $error && $values['Servers/1/auth_type'] === 'config') {
             $password = '';
             if (! empty($values['Servers/1/password'])) {
                 $password = $values['Servers/1/password'];
             }
+
             $test = static::testDBConnection(
                 empty($values['Servers/1/host']) ? '' : $values['Servers/1/host'],
                 empty($values['Servers/1/port']) ? '' : $values['Servers/1/port'],
@@ -296,10 +314,11 @@ class Validator
                 'Server'
             );
 
-            if ($test !== true) {
+            if (is_array($test)) {
                 $result = array_merge($result, $test);
             }
         }
+
         return $result;
     }
 
@@ -329,18 +348,18 @@ class Validator
         $result = [];
         if (empty($values['Servers/1/controluser'])) {
             $result['Servers/1/controluser'] = __(
-                'Empty phpMyAdmin control user while using phpMyAdmin configuration '
-                . 'storage!'
+                'Empty phpMyAdmin control user while using phpMyAdmin configuration storage!'
             );
             $error = true;
         }
+
         if (empty($values['Servers/1/controlpass'])) {
             $result['Servers/1/controlpass'] = __(
-                'Empty phpMyAdmin control user password while using phpMyAdmin '
-                . 'configuration storage!'
+                'Empty phpMyAdmin control user password while using phpMyAdmin configuration storage!'
             );
             $error = true;
         }
+
         if (! $error) {
             $test = static::testDBConnection(
                 empty($values['Servers/1/host']) ? '' : $values['Servers/1/host'],
@@ -350,13 +369,13 @@ class Validator
                 empty($values['Servers/1/controlpass']) ? '' : $values['Servers/1/controlpass'],
                 'Server_pmadb'
             );
-            if ($test !== true) {
+            if (is_array($test)) {
                 $result = array_merge($result, $test);
             }
         }
+
         return $result;
     }
-
 
     /**
      * Validates regular expression
@@ -385,6 +404,7 @@ class Validator
 
         if ($currentError !== null) {
             $error = preg_replace('/^preg_match\(\): /', '', $currentError['message']);
+
             return [$path => $error];
         }
 
@@ -420,17 +440,20 @@ class Validator
             // AJAX validation
             $lines = explode("\n", $values[$path]);
         }
+
         foreach ($lines as $line) {
             $line = trim($line);
             $matches = [];
             // we catch anything that may (or may not) be an IP
-            if (! preg_match("/^(.+):(?:[ ]?)\\w+$/", $line, $matches)) {
+            if (! preg_match('/^(.+):(?:[ ]?)\\w+$/', $line, $matches)) {
                 $result[$path][] = __('Incorrect value:') . ' '
                     . htmlspecialchars($line);
                 continue;
             }
+
             // now let's check whether we really have an IP address
-            if (filter_var($matches[1], FILTER_VALIDATE_IP, FILTER_FLAG_IPV4) === false
+            if (
+                filter_var($matches[1], FILTER_VALIDATE_IP, FILTER_FLAG_IPV4) === false
                 && filter_var($matches[1], FILTER_VALIDATE_IP, FILTER_FLAG_IPV6) === false
             ) {
                 $ip = htmlspecialchars(trim($matches[1]));
@@ -468,7 +491,8 @@ class Validator
 
         $value = Util::requestString($values[$path]);
 
-        if (intval($value) != $value
+        if (
+            intval($value) != $value
             || (! $allowNegative && $value < 0)
             || (! $allowZero && $value == 0)
             || $value > $maxValue
@@ -553,14 +577,16 @@ class Validator
      * @param array  $values config values
      * @param string $regex  regular expression to match
      *
-     * @return array
+     * @return array|string
      */
     public static function validateByRegex($path, array $values, $regex)
     {
         if (! isset($values[$path])) {
             return '';
         }
+
         $result = preg_match($regex, Util::requestString($values[$path]));
+
         return [$path => $result ? '' : __('Incorrect value!')];
     }
 
@@ -576,6 +602,7 @@ class Validator
     public static function validateUpperBound($path, array $values, $maxValue)
     {
         $result = $values[$path] <= $maxValue;
+
         return [
             $path => $result ? '' : sprintf(
                 __('Value must be less than or equal to %s!'),

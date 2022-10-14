@@ -1,49 +1,21 @@
 <?php
-/* vim: set expandtab sw=4 ts=4 sts=4: */
-/**
- * hold the ListAbstract base class
- *
- * @package PhpMyAdmin
- */
+
 declare(strict_types=1);
 
 namespace PhpMyAdmin;
 
 use ArrayObject;
+use PhpMyAdmin\Query\Utilities;
+
+use function in_array;
 
 /**
- * Generic list class
- *
- * @todo add caching
- * @abstract
- * @package PhpMyAdmin
- * @since   phpMyAdmin 2.9.10
+ * @extends ArrayObject<int, string>
  */
 abstract class ListAbstract extends ArrayObject
 {
-    /**
-     * @var mixed   empty item
-     */
-    protected $item_empty = '';
-
-    /**
-     * ListAbstract constructor
-     *
-     * @param array  $array          The input parameter accepts an array or an
-     *                               Object.
-     * @param int    $flags          Flags to control the behaviour of the
-     *                               ArrayObject object.
-     * @param string $iterator_class Specify the class that will be used for
-     *                               iteration of the ArrayObject object.
-     *                               ArrayIterator is the default class used.
-     */
-    public function __construct(
-        array $array = [],
-        $flags = 0,
-        $iterator_class = "ArrayIterator"
-    ) {
-        parent::__construct($array, $flags, $iterator_class);
-    }
+    /** @var mixed   empty item */
+    protected $itemEmpty = '';
 
     /**
      * defines what is an empty item (0, '', false or null)
@@ -52,7 +24,7 @@ abstract class ListAbstract extends ArrayObject
      */
     public function getEmpty()
     {
-        return $this->item_empty;
+        return $this->itemEmpty;
     }
 
     /**
@@ -60,9 +32,8 @@ abstract class ListAbstract extends ArrayObject
      * missing at least one item it returns false otherwise true
      *
      * @param mixed[] ...$params params
-     * @return bool true if all items exists, otherwise false
      */
-    public function exists(...$params)
+    public function exists(...$params): bool
     {
         $this_elements = $this->getArrayCopy();
         foreach ($params as $result) {
@@ -70,41 +41,30 @@ abstract class ListAbstract extends ArrayObject
                 return false;
             }
         }
+
         return true;
     }
 
     /**
-     * returns HTML <option>-tags to be used inside <select></select>
-     *
-     * @param mixed   $selected                   the selected db or true for
-     *                                            selecting current db
-     * @param boolean $include_information_schema whether include information schema
-     *
-     * @return string  HTML option tags
+     * @return array<int, array<string, bool|string>>
      */
-    public function getHtmlOptions(
-        $selected = '',
-        $include_information_schema = true
-    ) {
-        if (true === $selected) {
-            $selected = $this->getDefault();
-        }
+    public function getList(): array
+    {
+        $selected = $this->getDefault();
 
-        $options = '';
-        foreach ($this as $each_item) {
-            if (false === $include_information_schema
-                && $GLOBALS['dbi']->isSystemSchema($each_item)
-            ) {
+        $list = [];
+        foreach ($this as $eachItem) {
+            if (Utilities::isSystemSchema($eachItem)) {
                 continue;
             }
-            $options .= '<option value="' . htmlspecialchars($each_item) . '"';
-            if ($selected === $each_item) {
-                $options .= ' selected="selected"';
-            }
-            $options .= '>' . htmlspecialchars($each_item) . '</option>' . "\n";
+
+            $list[] = [
+                'name' => $eachItem,
+                'is_selected' => $selected === $eachItem,
+            ];
         }
 
-        return $options;
+        return $list;
     }
 
     /**
@@ -119,8 +79,6 @@ abstract class ListAbstract extends ArrayObject
 
     /**
      * builds up the list
-     *
-     * @return void
      */
-    abstract public function build();
+    abstract public function build(): void;
 }

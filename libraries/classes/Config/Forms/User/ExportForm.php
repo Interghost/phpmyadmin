@@ -1,20 +1,16 @@
 <?php
-/* vim: set expandtab sw=4 ts=4 sts=4: */
 /**
  * User preferences form
- *
- * @package PhpMyAdmin
  */
+
 declare(strict_types=1);
 
 namespace PhpMyAdmin\Config\Forms\User;
 
 use PhpMyAdmin\Config\Forms\BaseForm;
 
-/**
- * Class ExportForm
- * @package PhpMyAdmin\Config\Forms\User
- */
+use function __;
+
 class ExportForm extends BaseForm
 {
     /**
@@ -42,7 +38,7 @@ class ExportForm extends BaseForm
                 ':group:end',
                 'Export/file_template_table',
                 'Export/file_template_database',
-                'Export/file_template_server'
+                'Export/file_template_server',
             ],
             'Sql' => [
                 'Export/sql_include_comments' => ':group',
@@ -79,11 +75,9 @@ class ExportForm extends BaseForm
                 'Export/sql_insert_syntax',
                 'Export/sql_max_query_size',
                 'Export/sql_hex_for_binary',
-                'Export/sql_utc_time'
+                'Export/sql_utc_time',
             ],
-            'CodeGen' => [
-                'Export/codegen_format'
-            ],
+            'CodeGen' => ['Export/codegen_format'],
             'Csv' => [
                 ':group:' . __('CSV'),
                 'Export/csv_separator',
@@ -147,6 +141,7 @@ class ExportForm extends BaseForm
                 'Export/texytext_columns',
             ],
         ];
+
         // phpcs:enable
     }
 

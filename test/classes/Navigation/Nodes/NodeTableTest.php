@@ -1,35 +1,28 @@
 <?php
-/* vim: set expandtab sw=4 ts=4 sts=4: */
-/**
- * Tests for PhpMyAdmin\Navigation\Nodes\NodeTable class
- *
- * @package PhpMyAdmin-test
- */
+
 declare(strict_types=1);
 
 namespace PhpMyAdmin\Tests\Navigation\Nodes;
 
 use PhpMyAdmin\Navigation\NodeFactory;
-use PhpMyAdmin\Tests\PmaTestCase;
-use PhpMyAdmin\Theme;
+use PhpMyAdmin\Tests\AbstractTestCase;
 
 /**
- * Tests for PhpMyAdmin\Navigation\Nodes\NodeTable class
- *
- * @package PhpMyAdmin-test
+ * @covers \PhpMyAdmin\Navigation\Nodes\NodeTable
  */
-class NodeTableTest extends PmaTestCase
+class NodeTableTest extends AbstractTestCase
 {
     /**
      * SetUp for test cases
-     *
-     * @return void
      */
     protected function setUp(): void
     {
+        parent::setUp();
+        $GLOBALS['dbi'] = $this->createDatabaseInterface();
+
         $GLOBALS['server'] = 0;
-        $GLOBALS['cfg']['NavigationTreeDefaultTabTable'] = 'b_browse';
-        $GLOBALS['cfg']['NavigationTreeDefaultTabTable2'] = '';
+        $GLOBALS['cfg']['NavigationTreeDefaultTabTable'] = 'search';
+        $GLOBALS['cfg']['NavigationTreeDefaultTabTable2'] = 'insert';
         $GLOBALS['cfg']['DefaultTabTable'] = 'browse';
         $GLOBALS['cfg']['MaxNavigationItems'] = 250;
         $GLOBALS['cfg']['NavigationTreeEnableGrouping'] = true;
@@ -38,22 +31,21 @@ class NodeTableTest extends PmaTestCase
         $GLOBALS['cfg']['NavigationTreeTableLevel'] = 1;
     }
 
-
     /**
      * Test for __construct
-     *
-     * @return void
      */
-    public function testConstructor()
+    public function testConstructor(): void
     {
         $parent = NodeFactory::getInstance('NodeTable');
-        $this->assertArrayHasKey(
-            'text',
+        $this->assertIsArray($parent->links);
+        $this->assertEquals(
+            [
+                'text' => ['route' => '/sql', 'params' => ['pos' => 0, 'db' => null, 'table' => null]],
+                'icon' => ['route' => '/table/search', 'params' => ['db' => null, 'table' => null]],
+                'second_icon' => ['route' => '/table/change', 'params' => ['db' => null, 'table' => null]],
+                'title' => 'Browse',
+            ],
             $parent->links
-        );
-        $this->assertStringContainsString(
-            'sql.php',
-            $parent->links['text']
         );
         $this->assertStringContainsString('table', $parent->classes);
     }
@@ -64,14 +56,14 @@ class NodeTableTest extends PmaTestCase
      * @param string $target    target of the icon
      * @param string $imageName name of the image that should be set
      *
-     * @return void
      * @dataProvider providerForTestIcon
      */
-    public function testIcon($target, $imageName): void
+    public function testIcon(string $target, string $imageName, string $imageTitle): void
     {
         $GLOBALS['cfg']['NavigationTreeDefaultTabTable'] = $target;
         $node = NodeFactory::getInstance('NodeTable');
-        $this->assertStringContainsString($imageName, $node->icon[0]);
+        $this->assertEquals($imageName, $node->icon['image']);
+        $this->assertEquals($imageTitle, $node->icon['title']);
     }
 
     /**
@@ -79,29 +71,14 @@ class NodeTableTest extends PmaTestCase
      *
      * @return array data for testIcon()
      */
-    public function providerForTestIcon()
+    public function providerForTestIcon(): array
     {
         return [
-            [
-                'structure',
-                'b_props',
-            ],
-            [
-                'search',
-                'b_search',
-            ],
-            [
-                'insert',
-                'b_insrow',
-            ],
-            [
-                'sql',
-                'b_sql',
-            ],
-            [
-                'browse',
-                'b_browse',
-            ],
+            ['structure', 'b_props', 'Structure'],
+            ['search', 'b_search', 'Search'],
+            ['insert', 'b_insrow', 'Insert'],
+            ['sql', 'b_sql', 'SQL'],
+            ['browse', 'b_browse', 'Browse'],
         ];
     }
 }

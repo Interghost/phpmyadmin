@@ -1,11 +1,9 @@
 <?php
-/* vim: set expandtab sw=4 ts=4 sts=4: */
 /**
  * Database with allowed values for configuration stored in the $cfg array,
  * used by setup script and user preferences to generate forms.
- *
- * @package PhpMyAdmin
  */
+
 declare(strict_types=1);
 
 if (! defined('PHPMYADMIN')) {
@@ -189,6 +187,15 @@ return [
         'closed' => __('Closed'),
         'disabled' => __('Disabled'),
     ],
+    'FirstDayOfCalendar' => [
+        '1' => __('Monday'),
+        '2' => __('Tuesday'),
+        '3' => __('Wednesday'),
+        '4' => __('Thursday'),
+        '5' => __('Friday'),
+        '6' => __('Saturday'),
+        '7' => __('Sunday'),
+    ],
     'SendErrorReports' => [
         'ask' => __('Ask before sending error reports'),
         'always' => __('Always send error reports'),
@@ -251,9 +258,7 @@ return [
         'method' => [
             'quick' => __('Quick - display only the minimal options to configure'),
             'custom' => __('Custom - display all possible options to configure'),
-            'custom-no-form' => __(
-                'Custom - like above, but without the quick/custom choice'
-            ),
+            'custom-no-form' => __('Custom - like above, but without the quick/custom choice'),
         ],
         'format' => [
             'codegen',
@@ -352,7 +357,6 @@ return [
             'show',
             'collapse',
         ],
-        'Height' => 'integer',
         'OrderBy' => [
             'exec',
             'time',
@@ -372,10 +376,11 @@ return [
 
     /**
      * Basic validator assignments (functions from libraries/config/Validator.php
-     * and 'validators' object in js/config.js)
+     * and 'window.validators' object in js/config.js)
      * Use only full paths and form ids
      */
     '_validators' => [
+        'Console/Height' => 'validateNonNegativeNumber',
         'CharTextareaCols' => 'validatePositiveNumber',
         'CharTextareaRows' => 'validatePositiveNumber',
         'ExecTimeLimit' => 'validateNonNegativeNumber',
@@ -438,6 +443,7 @@ return [
                 '/^(-1|(\d+(?:[kmg])?))$/i',
             ],
         ],
+        'NavigationTreeDisplayItemFilterMinimum' => 'validatePositiveNumber',
         'NavigationTreeTableLevel' => 'validatePositiveNumber',
         'NavigationWidth' => 'validateNonNegativeNumber',
         'QueryHistoryMax' => 'validatePositiveNumber',

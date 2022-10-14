@@ -1,38 +1,45 @@
 <?php
-/* vim: set expandtab sw=4 ts=4 sts=4: */
 /**
  * Functions for the replication GUI
- *
- * @package PhpMyAdmin
  */
+
 declare(strict_types=1);
 
 namespace PhpMyAdmin;
 
+use PhpMyAdmin\Query\Utilities;
+
+use function __;
+use function htmlspecialchars;
+use function in_array;
+use function mb_strrpos;
+use function mb_strtolower;
+use function mb_substr;
+use function sprintf;
+use function str_replace;
+use function strlen;
+use function strtok;
+use function time;
+
 /**
  * Functions for the replication GUI
- *
- * @package PhpMyAdmin
  */
 class ReplicationGui
 {
-    /**
-     * @var Replication
-     */
+    /** @var Replication */
     private $replication;
 
-    /**
-     * @var Template
-     */
+    /** @var Template */
     private $template;
 
     /**
-     * ReplicationGui constructor.
+     * @param Replication $replication Replication instance
+     * @param Template    $template    Template instance
      */
-    public function __construct()
+    public function __construct(Replication $replication, Template $template)
     {
-        $this->replication = new Replication();
-        $this->template = new Template();
+        $this->replication = $replication;
+        $this->template = $template;
     }
 
     /**
@@ -40,153 +47,157 @@ class ReplicationGui
      *
      * @return string HTML code
      */
-    public function getHtmlForErrorMessage()
+    public function getHtmlForErrorMessage(): string
     {
         $html = '';
-        if (isset($_SESSION['replication']['sr_action_status'])
-            && isset($_SESSION['replication']['sr_action_info'])
-        ) {
-            if ($_SESSION['replication']['sr_action_status'] == 'error') {
-                $error_message = $_SESSION['replication']['sr_action_info'];
-                $html .= Message::error($error_message)->getDisplay();
+        if (isset($_SESSION['replication']['sr_action_status'], $_SESSION['replication']['sr_action_info'])) {
+            if ($_SESSION['replication']['sr_action_status'] === 'error') {
+                $errorMessage = $_SESSION['replication']['sr_action_info'];
+                $html .= Message::error($errorMessage)->getDisplay();
                 $_SESSION['replication']['sr_action_status'] = 'unknown';
-            } elseif ($_SESSION['replication']['sr_action_status'] == 'success') {
-                $success_message = $_SESSION['replication']['sr_action_info'];
-                $html .= Message::success($success_message)->getDisplay();
+            } elseif ($_SESSION['replication']['sr_action_status'] === 'success') {
+                $successMessage = $_SESSION['replication']['sr_action_info'];
+                $html .= Message::success($successMessage)->getDisplay();
                 $_SESSION['replication']['sr_action_status'] = 'unknown';
             }
         }
+
         return $html;
     }
 
     /**
-     * returns HTML for master replication
+     * returns HTML for primary replication
      *
      * @return string HTML code
      */
-    public function getHtmlForMasterReplication()
-    {
-        if (! isset($_POST['repl_clear_scr'])) {
-            $masterStatusTable = $this->getHtmlForReplicationStatusTable('master', true, false);
-            $slaves = $GLOBALS['dbi']->fetchResult('SHOW SLAVE HOSTS', null, null);
+    public function getHtmlForPrimaryReplication(
+        ?string $connection,
+        ?bool $replClearScr,
+        ?string $primaryAddUser
+    ): string {
+        if ($replClearScr === null) {
+            $primaryStatusTable = $this->getHtmlForReplicationStatusTable($connection, 'primary', true, false);
+            $replicas = $GLOBALS['dbi']->fetchResult('SHOW SLAVE HOSTS', null, null);
 
-            $urlParams = $GLOBALS['url_params'];
-            $urlParams['mr_adduser'] = true;
+            $urlParams = $GLOBALS['urlParams'];
+            $urlParams['primary_add_user'] = true;
             $urlParams['repl_clear_scr'] = true;
         }
 
-        if (isset($_POST['mr_adduser'])) {
-            $masterAddSlaveUser = $this->getHtmlForReplicationMasterAddSlaveUser();
+        if ($primaryAddUser !== null) {
+            $primaryAddReplicaUser = $this->getHtmlForReplicationPrimaryAddReplicaUser();
         }
 
-        return $this->template->render('server/replication/master_replication', [
-            'clear_screen' => isset($_POST['repl_clear_scr']),
-            'master_status_table' => $masterStatusTable ?? '',
-            'slaves' => $slaves ?? [],
+        return $this->template->render('server/replication/primary_replication', [
+            'clear_screen' => $replClearScr !== null,
+            'primary_status_table' => $primaryStatusTable ?? '',
+            'replicas' => $replicas ?? [],
             'url_params' => $urlParams ?? [],
-            'master_add_user' => isset($_POST['mr_adduser']),
-            'master_add_slave_user' => $masterAddSlaveUser ?? '',
+            'primary_add_user' => $primaryAddUser !== null,
+            'primary_add_replica_user' => $primaryAddReplicaUser ?? '',
         ]);
     }
 
     /**
-     * returns HTML for master replication configuration
+     * returns HTML for primary replication configuration
      *
      * @return string HTML code
      */
-    public function getHtmlForMasterConfiguration()
+    public function getHtmlForPrimaryConfiguration(): string
     {
         $databaseMultibox = $this->getHtmlForReplicationDbMultibox();
 
-        return $this->template->render('server/replication/master_configuration', [
-            'database_multibox' => $databaseMultibox,
-        ]);
+        return $this->template->render(
+            'server/replication/primary_configuration',
+            ['database_multibox' => $databaseMultibox]
+        );
     }
 
     /**
-     * returns HTML for slave replication configuration
+     * returns HTML for replica replication configuration
      *
-     * @param bool  $serverSlaveStatus      Whether it is Master or Slave
-     * @param array $serverSlaveReplication Slave replication
+     * @param ?string $connection               Primary connection
+     * @param bool    $serverReplicaStatus      Whether it is Primary or Replica
+     * @param array   $serverReplicaReplication Replica replication
      *
      * @return string HTML code
      */
-    public function getHtmlForSlaveConfiguration(
-        $serverSlaveStatus,
-        array $serverSlaveReplication
-    ) {
-        $serverSlaveMultiReplication = $GLOBALS['dbi']->fetchResult(
-            'SHOW ALL SLAVES STATUS'
-        );
-        if ($serverSlaveStatus) {
-            $urlParams = $GLOBALS['url_params'];
+    public function getHtmlForReplicaConfiguration(
+        ?string $connection,
+        $serverReplicaStatus,
+        array $serverReplicaReplication
+    ): string {
+        $serverReplicaMultiReplication = $GLOBALS['dbi']->fetchResult('SHOW ALL SLAVES STATUS');
+        if ($serverReplicaStatus) {
+            $urlParams = $GLOBALS['urlParams'];
             $urlParams['sr_take_action'] = true;
-            $urlParams['sr_slave_server_control'] = true;
+            $urlParams['sr_replica_server_control'] = true;
 
-            if ($serverSlaveReplication[0]['Slave_IO_Running'] == 'No') {
-                $urlParams['sr_slave_action'] = 'start';
+            if ($serverReplicaReplication[0]['Slave_IO_Running'] === 'No') {
+                $urlParams['sr_replica_action'] = 'start';
             } else {
-                $urlParams['sr_slave_action'] = 'stop';
+                $urlParams['sr_replica_action'] = 'stop';
             }
 
-            $urlParams['sr_slave_control_parm'] = 'IO_THREAD';
-            $slaveControlIoLink = Url::getCommon($urlParams, '');
+            $urlParams['sr_replica_control_param'] = 'IO_THREAD';
+            $replicaControlIoLink = Url::getCommon($urlParams, '', false);
 
-            if ($serverSlaveReplication[0]['Slave_SQL_Running'] == 'No') {
-                $urlParams['sr_slave_action'] = 'start';
+            if ($serverReplicaReplication[0]['Slave_SQL_Running'] === 'No') {
+                $urlParams['sr_replica_action'] = 'start';
             } else {
-                $urlParams['sr_slave_action'] = 'stop';
+                $urlParams['sr_replica_action'] = 'stop';
             }
 
-            $urlParams['sr_slave_control_parm'] = 'SQL_THREAD';
-            $slaveControlSqlLink = Url::getCommon($urlParams, '');
+            $urlParams['sr_replica_control_param'] = 'SQL_THREAD';
+            $replicaControlSqlLink = Url::getCommon($urlParams, '', false);
 
-            if ($serverSlaveReplication[0]['Slave_IO_Running'] == 'No'
-                || $serverSlaveReplication[0]['Slave_SQL_Running'] == 'No'
+            if (
+                $serverReplicaReplication[0]['Slave_IO_Running'] === 'No'
+                || $serverReplicaReplication[0]['Slave_SQL_Running'] === 'No'
             ) {
-                $urlParams['sr_slave_action'] = 'start';
+                $urlParams['sr_replica_action'] = 'start';
             } else {
-                $urlParams['sr_slave_action'] = 'stop';
+                $urlParams['sr_replica_action'] = 'stop';
             }
 
-            $urlParams['sr_slave_control_parm'] = null;
-            $slaveControlFullLink = Url::getCommon($urlParams, '');
+            $urlParams['sr_replica_control_param'] = null;
+            $replicaControlFullLink = Url::getCommon($urlParams, '', false);
 
-            $urlParams['sr_slave_action'] = 'reset';
-            $slaveControlResetLink = Url::getCommon($urlParams, '');
+            $urlParams['sr_replica_action'] = 'reset';
+            $replicaControlResetLink = Url::getCommon($urlParams, '', false);
 
-            $urlParams = $GLOBALS['url_params'];
+            $urlParams = $GLOBALS['urlParams'];
             $urlParams['sr_take_action'] = true;
-            $urlParams['sr_slave_skip_error'] = true;
-            $slaveSkipErrorLink = Url::getCommon($urlParams, '');
+            $urlParams['sr_replica_skip_error'] = true;
+            $replicaSkipErrorLink = Url::getCommon($urlParams, '', false);
 
-            $urlParams = $GLOBALS['url_params'];
-            $urlParams['sl_configure'] = true;
+            $urlParams = $GLOBALS['urlParams'];
+            $urlParams['replica_configure'] = true;
             $urlParams['repl_clear_scr'] = true;
 
-            $reconfigureMasterLink =  Url::getCommon($urlParams, '');
+            $reconfigurePrimaryLink = Url::getCommon($urlParams, '', false);
 
-            $slaveStatusTable = $this->getHtmlForReplicationStatusTable('slave', true, false);
+            $replicaStatusTable = $this->getHtmlForReplicationStatusTable($connection, 'replica', true, false);
 
-            $slaveIoRunning = $serverSlaveReplication[0]['Slave_IO_Running'] !== 'No';
-            $slaveSqlRunning = $serverSlaveReplication[0]['Slave_SQL_Running'] !== 'No';
+            $replicaIoRunning = $serverReplicaReplication[0]['Slave_IO_Running'] !== 'No';
+            $replicaSqlRunning = $serverReplicaReplication[0]['Slave_SQL_Running'] !== 'No';
         }
 
-        return $this->template->render('server/replication/slave_configuration', [
-            'server_slave_multi_replication' => $serverSlaveMultiReplication,
-            'url_params' => $GLOBALS['url_params'],
-            'master_connection' => $_POST['master_connection'] ?? '',
-            'server_slave_status' => $serverSlaveStatus,
-            'slave_status_table' => $slaveStatusTable ?? '',
-            'slave_sql_running' => $slaveSqlRunning ?? false,
-            'slave_io_running' => $slaveIoRunning ?? false,
-            'slave_control_full_link' => $slaveControlFullLink ?? '',
-            'slave_control_reset_link' => $slaveControlResetLink ?? '',
-            'slave_control_sql_link' => $slaveControlSqlLink ?? '',
-            'slave_control_io_link' => $slaveControlIoLink ?? '',
-            'slave_skip_error_link' => $slaveSkipErrorLink ?? '',
-            'reconfigure_master_link' => $reconfigureMasterLink ?? '',
-            'has_slave_configure' => isset($_POST['sl_configure']),
+        return $this->template->render('server/replication/replica_configuration', [
+            'server_replica_multi_replication' => $serverReplicaMultiReplication,
+            'url_params' => $GLOBALS['urlParams'],
+            'primary_connection' => $connection ?? '',
+            'server_replica_status' => $serverReplicaStatus,
+            'replica_status_table' => $replicaStatusTable ?? '',
+            'replica_sql_running' => $replicaSqlRunning ?? false,
+            'replica_io_running' => $replicaIoRunning ?? false,
+            'replica_control_full_link' => $replicaControlFullLink ?? '',
+            'replica_control_reset_link' => $replicaControlResetLink ?? '',
+            'replica_control_sql_link' => $replicaControlSqlLink ?? '',
+            'replica_control_io_link' => $replicaControlIoLink ?? '',
+            'replica_skip_error_link' => $replicaSkipErrorLink ?? '',
+            'reconfigure_primary_link' => $reconfigurePrimaryLink ?? '',
+            'has_replica_configure' => isset($_POST['replica_configure']),
         ]);
     }
 
@@ -195,35 +206,35 @@ class ReplicationGui
      *
      * @return string HTML code
      */
-    public function getHtmlForReplicationDbMultibox()
+    public function getHtmlForReplicationDbMultibox(): string
     {
         $databases = [];
         foreach ($GLOBALS['dblist']->databases as $database) {
-            if (! $GLOBALS['dbi']->isSystemSchema($database)) {
-                $databases[] = $database;
+            if (Utilities::isSystemSchema($database)) {
+                continue;
             }
+
+            $databases[] = $database;
         }
 
-        return $this->template->render('server/replication/database_multibox', [
-            'databases' => $databases,
-        ]);
+        return $this->template->render('server/replication/database_multibox', ['databases' => $databases]);
     }
 
     /**
-     * returns HTML for changing master
+     * returns HTML for changing primary
      *
      * @param string $submitName submit button name
      *
      * @return string HTML code
      */
-    public function getHtmlForReplicationChangeMaster($submitName)
+    public function getHtmlForReplicationChangePrimary($submitName): string
     {
-        list(
+        [
             $usernameLength,
-            $hostnameLength
-        ) = $this->getUsernameHostnameLength();
+            $hostnameLength,
+        ] = $this->getUsernameHostnameLength();
 
-        return $this->template->render('server/replication/change_master', [
+        return $this->template->render('server/replication/change_primary', [
             'server_id' => time(),
             'username_length' => $usernameLength,
             'hostname_length' => $hostnameLength,
@@ -234,50 +245,55 @@ class ReplicationGui
     /**
      * This function returns html code for table with replication status.
      *
-     * @param string  $type     either master or slave
-     * @param boolean $isHidden if true, then default style is set to hidden,
-     *                          default value false
-     * @param boolean $hasTitle if true, then title is displayed, default true
+     * @param ?string $connection primary connection
+     * @param string  $type       either primary or replica
+     * @param bool    $isHidden   if true, then default style is set to hidden, default value false
+     * @param bool    $hasTitle   if true, then title is displayed, default true
      *
      * @return string HTML code
      */
     public function getHtmlForReplicationStatusTable(
+        ?string $connection,
         $type,
         $isHidden = false,
         $hasTitle = true
     ): string {
-        global $master_variables, $slave_variables;
-        global $master_variables_alerts, $slave_variables_alerts;
-        global $master_variables_oks, $slave_variables_oks;
-        global $server_master_replication, $server_slave_replication;
+        $replicationInfo = new ReplicationInfo($GLOBALS['dbi']);
+        $replicationInfo->load($connection);
 
-        $replicationVariables = $master_variables;
-        $variablesAlerts = $master_variables_alerts;
-        $variablesOks = $master_variables_oks;
-        $serverReplication = $server_master_replication;
-        if ($type === 'slave') {
-            $replicationVariables = $slave_variables;
-            $variablesAlerts = $slave_variables_alerts;
-            $variablesOks = $slave_variables_oks;
-            $serverReplication = $server_slave_replication;
+        $replicationVariables = $replicationInfo->primaryVariables;
+        $variablesAlerts = null;
+        $variablesOks = null;
+        $serverReplication = $replicationInfo->getPrimaryStatus();
+        if ($type === 'replica') {
+            $replicationVariables = $replicationInfo->replicaVariables;
+            $variablesAlerts = [
+                'Slave_IO_Running' => 'No',
+                'Slave_SQL_Running' => 'No',
+            ];
+            $variablesOks = [
+                'Slave_IO_Running' => 'Yes',
+                'Slave_SQL_Running' => 'Yes',
+            ];
+            $serverReplication = $replicationInfo->getReplicaStatus();
         }
 
         $variables = [];
         foreach ($replicationVariables as $variable) {
+            $serverReplicationVariable = isset($serverReplication[0])
+                ? $serverReplication[0][$variable]
+                : '';
+
             $variables[$variable] = [
                 'name' => $variable,
                 'status' => '',
-                'value' => $serverReplication[0][$variable],
+                'value' => $serverReplicationVariable,
             ];
 
-            if (isset($variablesAlerts[$variable])
-                && $variablesAlerts[$variable] === $serverReplication[0][$variable]
-            ) {
-                $variables[$variable]['status'] = 'attention';
-            } elseif (isset($variablesOks[$variable])
-                && $variablesOks[$variable] === $serverReplication[0][$variable]
-            ) {
-                $variables[$variable]['status'] = 'allfine';
+            if (isset($variablesAlerts[$variable]) && $variablesAlerts[$variable] === $serverReplicationVariable) {
+                $variables[$variable]['status'] = 'text-danger';
+            } elseif (isset($variablesOks[$variable]) && $variablesOks[$variable] === $serverReplicationVariable) {
+                $variables[$variable]['status'] = 'text-success';
             }
 
             $variablesWrap = [
@@ -288,13 +304,11 @@ class ReplicationGui
                 'Replicate_Wild_Do_Table',
                 'Replicate_Wild_Ignore_Table',
             ];
-            if (in_array($variable, $variablesWrap)) {
-                $variables[$variable]['value'] = str_replace(
-                    ',',
-                    ', ',
-                    $serverReplication[0][$variable]
-                );
+            if (! in_array($variable, $variablesWrap)) {
+                continue;
             }
+
+            $variables[$variable]['value'] = str_replace(',', ', ', $serverReplicationVariable);
         }
 
         return $this->template->render('server/replication/status_table', [
@@ -308,45 +322,46 @@ class ReplicationGui
     /**
      * get the correct username and hostname lengths for this MySQL server
      *
-     * @return array   username length, hostname length
+     * @return array<int,int> username length, hostname length
      */
-    public function getUsernameHostnameLength()
+    public function getUsernameHostnameLength(): array
     {
-        $fields_info = $GLOBALS['dbi']->getColumns('mysql', 'user');
-        $username_length = 16;
-        $hostname_length = 41;
-        foreach ($fields_info as $val) {
-            if ($val['Field'] == 'User') {
+        $fieldsInfo = $GLOBALS['dbi']->getColumns('mysql', 'user');
+        $usernameLength = 16;
+        $hostnameLength = 41;
+        foreach ($fieldsInfo as $val) {
+            if ($val['Field'] === 'User') {
                 strtok($val['Type'], '()');
                 $v = strtok('()');
-                if (is_int($v)) {
-                    $username_length = $v;
+                if (Util::isInteger($v)) {
+                    $usernameLength = (int) $v;
                 }
-            } elseif ($val['Field'] == 'Host') {
+            } elseif ($val['Field'] === 'Host') {
                 strtok($val['Type'], '()');
                 $v = strtok('()');
-                if (is_int($v)) {
-                    $hostname_length = $v;
+                if (Util::isInteger($v)) {
+                    $hostnameLength = (int) $v;
                 }
             }
         }
+
         return [
-            $username_length,
-            $hostname_length,
+            $usernameLength,
+            $hostnameLength,
         ];
     }
 
     /**
-     * returns html code to add a replication slave user to the master
+     * returns html code to add a replication replica user to the primary
      *
      * @return string HTML code
      */
-    public function getHtmlForReplicationMasterAddSlaveUser()
+    public function getHtmlForReplicationPrimaryAddReplicaUser(): string
     {
-        list(
+        [
             $usernameLength,
-            $hostnameLength
-        ) = $this->getUsernameHostnameLength();
+            $hostnameLength,
+        ] = $this->getUsernameHostnameLength();
 
         if (isset($_POST['username']) && strlen($_POST['username']) === 0) {
             $GLOBALS['pred_username'] = 'any';
@@ -388,7 +403,7 @@ class ReplicationGui
             }
         }
 
-        return $this->template->render('server/replication/master_add_slave_user', [
+        return $this->template->render('server/replication/primary_add_replica_user', [
             'username_length' => $usernameLength,
             'hostname_length' => $hostnameLength,
             'has_username' => isset($_POST['username']),
@@ -402,134 +417,139 @@ class ReplicationGui
 
     /**
      * handle control requests
-     *
-     * @return void
      */
-    public function handleControlRequest()
-    {
-        if (isset($_POST['sr_take_action'])) {
-            $refresh = false;
-            $result = false;
-            $messageSuccess = null;
-            $messageError = null;
-
-            if (isset($_POST['slave_changemaster']) && ! $GLOBALS['cfg']['AllowArbitraryServer']) {
-                $_SESSION['replication']['sr_action_status'] = 'error';
-                $_SESSION['replication']['sr_action_info'] = __('Connection to server is disabled, please enable $cfg[\'AllowArbitraryServer\'] in phpMyAdmin configuration.');
-            } elseif (isset($_POST['slave_changemaster'])) {
-                $result = $this->handleRequestForSlaveChangeMaster();
-            } elseif (isset($_POST['sr_slave_server_control'])) {
-                $result = $this->handleRequestForSlaveServerControl();
-                $refresh = true;
-
-                switch ($_POST['sr_slave_action']) {
-                    case 'start':
-                        $messageSuccess = __('Replication started successfully.');
-                        $messageError = __('Error starting replication.');
-                        break;
-                    case 'stop':
-                        $messageSuccess = __('Replication stopped successfully.');
-                        $messageError = __('Error stopping replication.');
-                        break;
-                    case 'reset':
-                        $messageSuccess = __('Replication resetting successfully.');
-                        $messageError = __('Error resetting replication.');
-                        break;
-                    default:
-                        $messageSuccess = __('Success.');
-                        $messageError = __('Error.');
-                        break;
-                }
-            } elseif (isset($_POST['sr_slave_skip_error'])) {
-                $result = $this->handleRequestForSlaveSkipError();
-            }
-
-            if ($refresh) {
-                $response = Response::getInstance();
-                if ($response->isAjax()) {
-                    $response->setRequestStatus($result);
-                    $response->addJSON(
-                        'message',
-                        $result
-                        ? Message::success($messageSuccess)
-                        : Message::error($messageError)
-                    );
-                } else {
-                    Core::sendHeaderLocation(
-                        './server_replication.php'
-                        . Url::getCommonRaw($GLOBALS['url_params'])
-                    );
-                }
-            }
-            unset($refresh);
+    public function handleControlRequest(
+        bool $srTakeAction,
+        bool $replicaChangePrimary,
+        bool $srReplicaServerControl,
+        ?string $srReplicaAction,
+        bool $srReplicaSkipError
+    ): void {
+        if (! $srTakeAction) {
+            return;
         }
+
+        $refresh = false;
+        $result = false;
+        $messageSuccess = '';
+        $messageError = '';
+
+        if ($replicaChangePrimary && ! $GLOBALS['cfg']['AllowArbitraryServer']) {
+            $_SESSION['replication']['sr_action_status'] = 'error';
+            $_SESSION['replication']['sr_action_info'] = __(
+                'Connection to server is disabled, please enable'
+                . ' $cfg[\'AllowArbitraryServer\'] in phpMyAdmin configuration.'
+            );
+        } elseif ($replicaChangePrimary) {
+            $result = $this->handleRequestForReplicaChangePrimary();
+        } elseif ($srReplicaServerControl) {
+            $result = $this->handleRequestForReplicaServerControl($srReplicaAction);
+            $refresh = true;
+
+            switch ($srReplicaAction) {
+                case 'start':
+                    $messageSuccess = __('Replication started successfully.');
+                    $messageError = __('Error starting replication.');
+                    break;
+                case 'stop':
+                    $messageSuccess = __('Replication stopped successfully.');
+                    $messageError = __('Error stopping replication.');
+                    break;
+                case 'reset':
+                    $messageSuccess = __('Replication resetting successfully.');
+                    $messageError = __('Error resetting replication.');
+                    break;
+                default:
+                    $messageSuccess = __('Success.');
+                    $messageError = __('Error.');
+                    break;
+            }
+        } elseif ($srReplicaSkipError) {
+            $result = $this->handleRequestForReplicaSkipError();
+        }
+
+        if ($refresh) {
+            $response = ResponseRenderer::getInstance();
+            if ($response->isAjax()) {
+                $response->setRequestStatus($result);
+                $response->addJSON(
+                    'message',
+                    $result
+                    ? Message::success($messageSuccess)
+                    : Message::error($messageError)
+                );
+            } else {
+                Core::sendHeaderLocation(
+                    './index.php?route=/server/replication'
+                    . Url::getCommonRaw($GLOBALS['urlParams'], '&')
+                );
+            }
+        }
+
+        unset($refresh);
     }
 
-    /**
-     * handle control requests for Slave Change Master
-     *
-     * @return boolean
-     */
-    public function handleRequestForSlaveChangeMaster()
+    public function handleRequestForReplicaChangePrimary(): bool
     {
-        $sr = [];
-        $_SESSION['replication']['m_username'] = $sr['username']
-            = $GLOBALS['dbi']->escapeString($_POST['username']);
-        $_SESSION['replication']['m_password'] = $sr['pma_pw']
-            = $GLOBALS['dbi']->escapeString($_POST['pma_pw']);
-        $_SESSION['replication']['m_hostname'] = $sr['hostname']
-            = $GLOBALS['dbi']->escapeString($_POST['hostname']);
-        $_SESSION['replication']['m_port']     = $sr['port']
-            = $GLOBALS['dbi']->escapeString($_POST['text_port']);
-        $_SESSION['replication']['m_correct']  = '';
+        $sr = [
+            'username' => $GLOBALS['dbi']->escapeString($_POST['username']),
+            'pma_pw' => $GLOBALS['dbi']->escapeString($_POST['pma_pw']),
+            'hostname' => $GLOBALS['dbi']->escapeString($_POST['hostname']),
+            'port' => (int) $GLOBALS['dbi']->escapeString($_POST['text_port']),
+        ];
+
+        $_SESSION['replication']['m_username'] = $sr['username'];
+        $_SESSION['replication']['m_password'] = $sr['pma_pw'];
+        $_SESSION['replication']['m_hostname'] = $sr['hostname'];
+        $_SESSION['replication']['m_port'] = $sr['port'];
+        $_SESSION['replication']['m_correct'] = '';
         $_SESSION['replication']['sr_action_status'] = 'error';
         $_SESSION['replication']['sr_action_info'] = __('Unknown error');
 
-        // Attempt to connect to the new master server
-        $link_to_master = $this->replication->connectToMaster(
+        // Attempt to connect to the new primary server
+        $linkToPrimary = $this->replication->connectToPrimary(
             $sr['username'],
             $sr['pma_pw'],
             $sr['hostname'],
             $sr['port']
         );
 
-        if (! $link_to_master) {
+        if (! $linkToPrimary) {
             $_SESSION['replication']['sr_action_status'] = 'error';
             $_SESSION['replication']['sr_action_info'] = sprintf(
-                __('Unable to connect to master %s.'),
+                __('Unable to connect to primary %s.'),
                 htmlspecialchars($sr['hostname'])
             );
         } else {
-            // Read the current master position
-            $position = $this->replication->slaveBinLogMaster($link_to_master);
+            // Read the current primary position
+            $position = $this->replication->replicaBinLogPrimary(DatabaseInterface::CONNECT_AUXILIARY);
 
             if (empty($position)) {
                 $_SESSION['replication']['sr_action_status'] = 'error';
-                $_SESSION['replication']['sr_action_info']
-                    = __(
-                        'Unable to read master log position. '
-                        . 'Possible privilege problem on master.'
-                    );
+                $_SESSION['replication']['sr_action_info'] = __(
+                    'Unable to read primary log position. Possible privilege problem on primary.'
+                );
             } else {
-                $_SESSION['replication']['m_correct']  = true;
+                $_SESSION['replication']['m_correct'] = true;
 
-                if (! $this->replication->slaveChangeMaster(
-                    $sr['username'],
-                    $sr['pma_pw'],
-                    $sr['hostname'],
-                    $sr['port'],
-                    $position,
-                    true,
-                    false
-                )
+                if (
+                    ! $this->replication->replicaChangePrimary(
+                        $sr['username'],
+                        $sr['pma_pw'],
+                        $sr['hostname'],
+                        $sr['port'],
+                        $position,
+                        true,
+                        false,
+                        DatabaseInterface::CONNECT_USER
+                    )
                 ) {
                     $_SESSION['replication']['sr_action_status'] = 'error';
-                    $_SESSION['replication']['sr_action_info']
-                        = __('Unable to change master!');
+                    $_SESSION['replication']['sr_action_info'] = __('Unable to change primary!');
                 } else {
                     $_SESSION['replication']['sr_action_status'] = 'success';
                     $_SESSION['replication']['sr_action_info'] = sprintf(
-                        __('Master server changed successfully to %s.'),
+                        __('Primary server changed successfully to %s.'),
                         htmlspecialchars($sr['hostname'])
                     );
                 }
@@ -539,58 +559,45 @@ class ReplicationGui
         return $_SESSION['replication']['sr_action_status'] === 'success';
     }
 
-    /**
-     * handle control requests for Slave Server Control
-     *
-     * @return boolean
-     */
-    public function handleRequestForSlaveServerControl()
+    public function handleRequestForReplicaServerControl(?string $srReplicaAction): bool
     {
-        if (empty($_POST['sr_slave_control_parm'])) {
-            $_POST['sr_slave_control_parm'] = null;
-        }
-        if ($_POST['sr_slave_action'] == 'reset') {
-            $qStop = $this->replication->slaveControl("STOP");
-            $qReset = $GLOBALS['dbi']->tryQuery("RESET SLAVE;");
-            $qStart = $this->replication->slaveControl("START");
+        /** @var string|null $control */
+        $control = $_POST['sr_replica_control_param'] ?? null;
 
-            $result = ($qStop !== false && $qStop !== -1 &&
-                $qReset !== false && $qReset !== -1 &&
-                $qStart !== false && $qStart !== -1);
+        if ($srReplicaAction === 'reset') {
+            $qStop = $this->replication->replicaControl('STOP', null, DatabaseInterface::CONNECT_USER);
+            $qReset = $GLOBALS['dbi']->tryQuery('RESET SLAVE;');
+            $qStart = $this->replication->replicaControl('START', null, DatabaseInterface::CONNECT_USER);
+
+            $result = $qStop !== false && $qStop !== -1 &&
+                $qReset !== false &&
+                $qStart !== false && $qStart !== -1;
         } else {
-            $qControl = $this->replication->slaveControl(
-                $_POST['sr_slave_action'],
-                $_POST['sr_slave_control_parm']
+            $qControl = $this->replication->replicaControl(
+                $srReplicaAction,
+                $control,
+                DatabaseInterface::CONNECT_USER
             );
 
-            $result = ($qControl !== false && $qControl !== -1);
+            $result = $qControl !== false && $qControl !== -1;
         }
 
         return $result;
     }
 
-    /**
-     * handle control requests for Slave Skip Error
-     *
-     * @return boolean
-     */
-    public function handleRequestForSlaveSkipError()
+    public function handleRequestForReplicaSkipError(): bool
     {
         $count = 1;
         if (isset($_POST['sr_skip_errors_count'])) {
             $count = $_POST['sr_skip_errors_count'] * 1;
         }
 
-        $qStop = $this->replication->slaveControl("STOP");
-        $qSkip = $GLOBALS['dbi']->tryQuery(
-            "SET GLOBAL SQL_SLAVE_SKIP_COUNTER = " . $count . ";"
-        );
-        $qStart = $this->replication->slaveControl("START");
+        $qStop = $this->replication->replicaControl('STOP', null, DatabaseInterface::CONNECT_USER);
+        $qSkip = $GLOBALS['dbi']->tryQuery('SET GLOBAL SQL_SLAVE_SKIP_COUNTER = ' . $count . ';');
+        $qStart = $this->replication->replicaControl('START', null, DatabaseInterface::CONNECT_USER);
 
-        $result = ($qStop !== false && $qStop !== -1 &&
-            $qSkip !== false && $qSkip !== -1 &&
-            $qStart !== false && $qStart !== -1);
-
-        return $result;
+        return $qStop !== false && $qStop !== -1 &&
+            $qSkip !== false &&
+            $qStart !== false && $qStart !== -1;
     }
 }

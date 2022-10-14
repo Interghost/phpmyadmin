@@ -1,10 +1,8 @@
 <?php
-/* vim: set expandtab sw=4 ts=4 sts=4: */
 /**
  * Handles Database Search
- *
- * @package PhpMyAdmin
  */
+
 declare(strict_types=1);
 
 namespace PhpMyAdmin\Database;
@@ -13,17 +11,26 @@ use PhpMyAdmin\DatabaseInterface;
 use PhpMyAdmin\Template;
 use PhpMyAdmin\Util;
 
+use function __;
+use function array_intersect;
+use function array_key_exists;
+use function count;
+use function explode;
+use function htmlspecialchars;
+use function implode;
+use function intval;
+use function is_array;
+use function is_string;
+use function strlen;
+
 /**
  * Class to handle database search
- *
- * @package PhpMyAdmin
  */
 class Search
 {
     /**
      * Database name
      *
-     * @access private
      * @var string
      */
     private $db;
@@ -31,7 +38,6 @@ class Search
     /**
      * Table Names
      *
-     * @access private
      * @var array
      */
     private $tablesNamesOnly;
@@ -39,7 +45,6 @@ class Search
     /**
      * Type of search
      *
-     * @access private
      * @var array
      */
     private $searchTypes;
@@ -47,15 +52,13 @@ class Search
     /**
      * Already set search type
      *
-     * @access private
-     * @var integer
+     * @var int
      */
     private $criteriaSearchType;
 
     /**
      * Already set search type's description
      *
-     * @access private
      * @var string
      */
     private $searchTypeDescription;
@@ -63,7 +66,6 @@ class Search
     /**
      * Search string/regexp
      *
-     * @access private
      * @var string
      */
     private $criteriaSearchString;
@@ -71,7 +73,6 @@ class Search
     /**
      * Criteria Tables to search in
      *
-     * @access private
      * @var array
      */
     private $criteriaTables;
@@ -79,28 +80,22 @@ class Search
     /**
      * Restrict the search to this column
      *
-     * @access private
      * @var string
      */
     private $criteriaColumnName;
 
-    /**
-     * @var DatabaseInterface
-     */
+    /** @var DatabaseInterface */
     private $dbi;
 
-    /**
-     * @var Template
-     */
+    /** @var Template */
     public $template;
 
     /**
-     * Public Constructor
-     *
-     * @param DatabaseInterface $dbi DatabaseInterface object
-     * @param string            $db  Database name
+     * @param DatabaseInterface $dbi      DatabaseInterface object
+     * @param string            $db       Database name
+     * @param Template          $template Template object
      */
-    public function __construct(DatabaseInterface $dbi, $db)
+    public function __construct(DatabaseInterface $dbi, $db, Template $template)
     {
         $this->db = $db;
         $this->dbi = $dbi;
@@ -111,38 +106,31 @@ class Search
             '4' => __('the exact phrase as whole field'),
             '5' => __('as regular expression'),
         ];
-        $this->template = new Template();
+        $this->template = $template;
         // Sets criteria parameters
         $this->setSearchParams();
     }
 
     /**
      * Sets search parameters
-     *
-     * @return void
      */
-    private function setSearchParams()
+    private function setSearchParams(): void
     {
         $this->tablesNamesOnly = $this->dbi->getTables($this->db);
 
-        if (empty($_POST['criteriaSearchType'])
+        if (
+            empty($_POST['criteriaSearchType'])
             || ! is_string($_POST['criteriaSearchType'])
-            || ! array_key_exists(
-                $_POST['criteriaSearchType'],
-                $this->searchTypes
-            )
+            || ! array_key_exists($_POST['criteriaSearchType'], $this->searchTypes)
         ) {
             $this->criteriaSearchType = 1;
             unset($_POST['submit_search']);
         } else {
             $this->criteriaSearchType = (int) $_POST['criteriaSearchType'];
-            $this->searchTypeDescription
-                = $this->searchTypes[$_POST['criteriaSearchType']];
+            $this->searchTypeDescription = $this->searchTypes[$_POST['criteriaSearchType']];
         }
 
-        if (empty($_POST['criteriaSearchString'])
-            || ! is_string($_POST['criteriaSearchString'])
-        ) {
+        if (empty($_POST['criteriaSearchString']) || ! is_string($_POST['criteriaSearchString'])) {
             $this->criteriaSearchString = '';
             unset($_POST['submit_search']);
         } else {
@@ -150,25 +138,16 @@ class Search
         }
 
         $this->criteriaTables = [];
-        if (empty($_POST['criteriaTables'])
-            || ! is_array($_POST['criteriaTables'])
-        ) {
+        if (empty($_POST['criteriaTables']) || ! is_array($_POST['criteriaTables'])) {
             unset($_POST['submit_search']);
         } else {
-            $this->criteriaTables = array_intersect(
-                $_POST['criteriaTables'],
-                $this->tablesNamesOnly
-            );
+            $this->criteriaTables = array_intersect($_POST['criteriaTables'], $this->tablesNamesOnly);
         }
 
-        if (empty($_POST['criteriaColumnName'])
-            || ! is_string($_POST['criteriaColumnName'])
-        ) {
+        if (empty($_POST['criteriaColumnName']) || ! is_string($_POST['criteriaColumnName'])) {
             unset($this->criteriaColumnName);
         } else {
-            $this->criteriaColumnName = $this->dbi->escapeString(
-                $_POST['criteriaColumnName']
-            );
+            $this->criteriaColumnName = $this->dbi->escapeString($_POST['criteriaColumnName']);
         }
     }
 
@@ -181,7 +160,6 @@ class Search
      *
      * @todo    can we make use of fulltextsearch IN BOOLEAN MODE for this?
      * PMA_backquote
-     * DatabaseInterface::freeResult
      * DatabaseInterface::fetchAssoc
      * $GLOBALS['db']
      * explode
@@ -205,9 +183,9 @@ class Search
             . $where_clause;
         // here, I think we need to still use the COUNT clause, even for
         // VIEWs, anyway we have a WHERE clause that should limit results
-        $sql['select_count']  = $sqlstr_select . ' COUNT(*) AS `count`'
+        $sql['select_count'] = $sqlstr_select . ' COUNT(*) AS `count`'
             . $sqlstr_from . $where_clause;
-        $sql['delete']        = $sqlstr_delete . $sqlstr_from . $where_clause;
+        $sql['delete'] = $sqlstr_delete . $sqlstr_from . $where_clause;
 
         return $sql;
     }
@@ -225,45 +203,51 @@ class Search
         $allColumns = $this->dbi->getColumns($GLOBALS['db'], $table);
         $likeClauses = [];
         // Based on search type, decide like/regex & '%'/''
-        $like_or_regex   = (($this->criteriaSearchType == 5) ? 'REGEXP' : 'LIKE');
-        $automatic_wildcard   = (($this->criteriaSearchType < 4) ? '%' : '');
+        $like_or_regex = ($this->criteriaSearchType == 5 ? 'REGEXP' : 'LIKE');
+        $automatic_wildcard = ($this->criteriaSearchType < 4 ? '%' : '');
         // For "as regular expression" (search option 5), LIKE won't be used
         // Usage example: If user is searching for a literal $ in a regexp search,
-        // he should enter \$ as the value.
-        $criteriaSearchStringEscaped = $this->dbi->escapeString(
-            $this->criteriaSearchString
-        );
+        // they should enter \$ as the value.
+        $criteriaSearchStringEscaped = $this->dbi->escapeString($this->criteriaSearchString);
         // Extract search words or pattern
-        $search_words = (($this->criteriaSearchType > 2)
+        $search_words = $this->criteriaSearchType > 2
             ? [$criteriaSearchStringEscaped]
-            : explode(' ', $criteriaSearchStringEscaped));
+            : explode(' ', $criteriaSearchStringEscaped);
 
         foreach ($search_words as $search_word) {
             // Eliminates empty values
             if (strlen($search_word) === 0) {
                 continue;
             }
+
             $likeClausesPerColumn = [];
             // for each column in the table
             foreach ($allColumns as $column) {
-                if (! isset($this->criteriaColumnName)
-                    || strlen($this->criteriaColumnName) === 0
-                    || $column['Field'] == $this->criteriaColumnName
+                if (
+                    isset($this->criteriaColumnName)
+                    && strlen($this->criteriaColumnName) !== 0
+                    && $column['Field'] != $this->criteriaColumnName
                 ) {
-                    $column = 'CONVERT(' . Util::backquote($column['Field'])
-                            . ' USING utf8)';
-                    $likeClausesPerColumn[] = $column . ' ' . $like_or_regex . ' '
-                        . "'"
-                        . $automatic_wildcard . $search_word . $automatic_wildcard
-                        . "'";
+                    continue;
                 }
-            } // end for
-            if (count($likeClausesPerColumn) > 0) {
-                $likeClauses[] = implode(' OR ', $likeClausesPerColumn);
+
+                $column = 'CONVERT(' . Util::backquote($column['Field'])
+                        . ' USING utf8)';
+                $likeClausesPerColumn[] = $column . ' ' . $like_or_regex . ' '
+                    . "'"
+                    . $automatic_wildcard . $search_word . $automatic_wildcard
+                    . "'";
             }
-        } // end for
+
+            if (count($likeClausesPerColumn) <= 0) {
+                continue;
+            }
+
+            $likeClauses[] = implode(' OR ', $likeClausesPerColumn);
+        }
+
         // Use 'OR' if 'at least one word' is to be searched, else use 'AND'
-        $implode_str  = ($this->criteriaSearchType == 1 ? ' OR ' : ' AND ');
+        $implode_str = ($this->criteriaSearchType == 1 ? ' OR ' : ' AND ');
         if (empty($likeClauses)) {
             // this could happen when the "inside column" does not exist
             // in any selected tables
@@ -273,6 +257,7 @@ class Search
                 . implode(') ' . $implode_str . ' (', $likeClauses)
                 . ')';
         }
+
         return $where_clause;
     }
 
@@ -319,28 +304,13 @@ class Search
      */
     public function getMainHtml()
     {
-        $choices = [
-            '1' => $this->searchTypes[1] . ' '
-                . Util::showHint(
-                    __('Words are separated by a space character (" ").')
-                ),
-            '2' => $this->searchTypes[2] . ' '
-                . Util::showHint(
-                    __('Words are separated by a space character (" ").')
-                ),
-            '3' => $this->searchTypes[3],
-            '4' => $this->searchTypes[4],
-            '5' => $this->searchTypes[5] . ' ' . Util::showMySQLDocu('Regexp'),
-        ];
         return $this->template->render('database/search/main', [
             'db' => $this->db,
-            'choices' => $choices,
             'criteria_search_string' => $this->criteriaSearchString,
             'criteria_search_type' => $this->criteriaSearchType,
             'criteria_tables' => $this->criteriaTables,
             'tables_names_only' => $this->tablesNamesOnly,
-            'criteria_column_name' => isset($this->criteriaColumnName)
-                ? $this->criteriaColumnName : null,
+            'criteria_column_name' => $this->criteriaColumnName ?? null,
         ]);
     }
 }

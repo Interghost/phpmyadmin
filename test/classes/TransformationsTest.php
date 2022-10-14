@@ -1,37 +1,28 @@
 <?php
-/* vim: set expandtab sw=4 ts=4 sts=4: */
-/**
- * tests for transformation wrappers
- *
- * @package PhpMyAdmin-test
- */
+
 declare(strict_types=1);
 
 namespace PhpMyAdmin\Tests;
 
-use PhpMyAdmin\Theme;
+use PhpMyAdmin\ConfigStorage\RelationParameters;
+use PhpMyAdmin\DatabaseInterface;
 use PhpMyAdmin\Transformations;
-use PHPUnit\Framework\TestCase;
 
 /**
- * tests for transformation wrappers
- *
- * @package PhpMyAdmin-test
+ * @covers \PhpMyAdmin\Transformations
  */
-class TransformationsTest extends TestCase
+class TransformationsTest extends AbstractTestCase
 {
-    /**
-     * @var Transformations
-     */
+    /** @var Transformations */
     private $transformations;
 
     /**
      * Set up global environment.
-     *
-     * @return void
      */
     protected function setUp(): void
     {
+        parent::setUp();
+        $GLOBALS['dbi'] = $this->createDatabaseInterface();
         $GLOBALS['table'] = 'table';
         $GLOBALS['db'] = 'db';
         $GLOBALS['cfg'] = [
@@ -47,8 +38,6 @@ class TransformationsTest extends TestCase
         $GLOBALS['cfg']['Server']['table_coords'] = '';
         $GLOBALS['cfg']['Server']['column_info'] = 'column_info';
         $GLOBALS['cfg']['DBG']['sql'] = false;
-        // need to clear relation test cache
-        unset($_SESSION['relation']);
 
         $this->transformations = new Transformations();
     }
@@ -59,11 +48,9 @@ class TransformationsTest extends TestCase
      * @param string $input    String to parse
      * @param array  $expected Expected result
      *
-     * @return void
-     *
      * @dataProvider getOptionsData
      */
-    public function testGetOptions($input, $expected): void
+    public function testGetOptions(string $input, array $expected): void
     {
         $this->assertEquals(
             $expected,
@@ -73,14 +60,12 @@ class TransformationsTest extends TestCase
 
     /**
      * Data provided for parsing options
-     *
-     * @return array with test data
      */
-    public function getOptionsData()
+    public function getOptionsData(): array
     {
         return [
             [
-                "option1 , option2 ",
+                'option1 , option2 ',
                 [
                     'option1 ',
                     ' option2 ',
@@ -116,22 +101,21 @@ class TransformationsTest extends TestCase
     }
 
     /**
-     * Test for getting available types.
-     *
-     * @return void
+     * @runInSeparateProcess
+     * @preserveGlobalState disabled
      */
-    public function testGetTypes()
+    public function testGetTypes(): void
     {
         $this->assertEquals(
             [
-                'mimetype' =>  [
+                'mimetype' => [
                     'Application/Octetstream' => 'Application/Octetstream',
                     'Image/JPEG' => 'Image/JPEG',
                     'Image/PNG' => 'Image/PNG',
                     'Text/Plain' => 'Text/Plain',
-                    'Text/Octetstream' => 'Text/Octetstream'
+                    'Text/Octetstream' => 'Text/Octetstream',
                 ],
-                'transformation' =>  [
+                'transformation' => [
                     0 => 'Application/Octetstream: Download',
                     1 => 'Application/Octetstream: Hex',
                     2 => 'Image/JPEG: Inline',
@@ -152,7 +136,7 @@ class TransformationsTest extends TestCase
                     17 => 'Text/Plain: PreApPend',
                     18 => 'Text/Plain: Substring',
                 ],
-                'transformation_file' =>  [
+                'transformation_file' => [
                     0 => 'Output/Application_Octetstream_Download.php',
                     1 => 'Output/Application_Octetstream_Hex.php',
                     2 => 'Output/Image_JPEG_Inline.php',
@@ -177,6 +161,7 @@ class TransformationsTest extends TestCase
                     'Image/JPEG: Upload',
                     'Text/Plain: FileUpload',
                     'Text/Plain: Iptobinary',
+                    'Text/Plain: Iptolong',
                     'Text/Plain: JsonEditor',
                     'Text/Plain: RegexValidation',
                     'Text/Plain: SqlEditor',
@@ -190,6 +175,7 @@ class TransformationsTest extends TestCase
                     'Input/Image_JPEG_Upload.php',
                     'Input/Text_Plain_FileUpload.php',
                     'Input/Text_Plain_Iptobinary.php',
+                    'Input/Text_Plain_Iptolong.php',
                     'Input/Text_Plain_JsonEditor.php',
                     'Input/Text_Plain_RegexValidation.php',
                     'Input/Text_Plain_SqlEditor.php',
@@ -206,16 +192,16 @@ class TransformationsTest extends TestCase
 
     /**
      * Tests getting mime types for table
-     *
-     * @return void
      */
-    public function testGetMime()
+    public function testGetMime(): void
     {
-        $_SESSION['relation'][$GLOBALS['server']]['PMA_VERSION'] = PMA_VERSION;
-        $_SESSION['relation'][$GLOBALS['server']]['mimework'] = true;
-        $_SESSION['relation'][$GLOBALS['server']]['db'] = "pmadb";
-        $_SESSION['relation'][$GLOBALS['server']]['column_info'] = "column_info";
-        $_SESSION['relation'][$GLOBALS['server']]['trackingwork'] = false;
+        $_SESSION['relation'] = [];
+        $_SESSION['relation'][$GLOBALS['server']] = RelationParameters::fromArray([
+            'db' => 'pmadb',
+            'mimework' => true,
+            'trackingwork' => true,
+            'column_info' => 'column_info',
+        ])->toArray();
         $this->assertEquals(
             [
                 'o' => [
@@ -241,13 +227,11 @@ class TransformationsTest extends TestCase
 
     /**
      * Test for clear
-     *
-     * @return void
      */
-    public function testClear()
+    public function testClear(): void
     {
         // Mock dbi
-        $dbi = $this->getMockBuilder('PhpMyAdmin\DatabaseInterface')
+        $dbi = $this->getMockBuilder(DatabaseInterface::class)
             ->disableOriginalConstructor()
             ->getMock();
         $dbi->expects($this->any())
@@ -257,46 +241,35 @@ class TransformationsTest extends TestCase
 
         // Case 1 : no configuration storage
         $actual = $this->transformations->clear('db');
-        $this->assertEquals(
-            false,
-            $actual
-        );
+        $this->assertFalse($actual);
 
-        $_SESSION['relation'][$GLOBALS['server']]['PMA_VERSION'] = PMA_VERSION;
-        $_SESSION['relation'][$GLOBALS['server']]['column_info'] = "column_info";
-        $_SESSION['relation'][$GLOBALS['server']]['db'] = "pmadb";
+        $_SESSION['relation'] = [];
+        $_SESSION['relation'][$GLOBALS['server']] = RelationParameters::fromArray([
+            'db' => 'pmadb',
+            'mimework' => true,
+            'column_info' => 'column_info',
+        ])->toArray();
 
         // Case 2 : database delete
         $actual = $this->transformations->clear('db');
-        $this->assertEquals(
-            true,
-            $actual
-        );
+        $this->assertTrue($actual);
 
         // Case 3 : table delete
         $actual = $this->transformations->clear('db', 'table');
-        $this->assertEquals(
-            true,
-            $actual
-        );
+        $this->assertTrue($actual);
 
         // Case 4 : column delete
         $actual = $this->transformations->clear('db', 'table', 'col');
-        $this->assertEquals(
-            true,
-            $actual
-        );
+        $this->assertTrue($actual);
     }
 
     /**
      * @param string $value    value
      * @param string $expected expected result
      *
-     * @return void
-     *
      * @dataProvider fixupData
      */
-    public function testFixup($value, $expected): void
+    public function testFixup(string $value, string $expected): void
     {
         $this->assertEquals(
             $expected,
@@ -304,10 +277,7 @@ class TransformationsTest extends TestCase
         );
     }
 
-    /**
-     * @return array
-     */
-    public function fixupData()
+    public function fixupData(): array
     {
         return [
             [
@@ -339,11 +309,9 @@ class TransformationsTest extends TestCase
      * @param string $file                transformation file
      * @param string $expectedDescription expected description
      *
-     * @return void
-     *
      * @dataProvider providerGetDescription
      */
-    public function testGetDescription($file, $expectedDescription): void
+    public function testGetDescription(string $file, string $expectedDescription): void
     {
         $this->assertEquals(
             $expectedDescription,
@@ -351,10 +319,7 @@ class TransformationsTest extends TestCase
         );
     }
 
-    /**
-     * @return array
-     */
-    public function providerGetDescription()
+    public function providerGetDescription(): array
     {
         return [
             [
@@ -378,11 +343,9 @@ class TransformationsTest extends TestCase
      * @param string $file         transformation file
      * @param string $expectedName expected name
      *
-     * @return void
-     *
      * @dataProvider providerGetName
      */
-    public function testGetName($file, $expectedName): void
+    public function testGetName(string $file, string $expectedName): void
     {
         $this->assertEquals(
             $expectedName,
@@ -390,10 +353,7 @@ class TransformationsTest extends TestCase
         );
     }
 
-    /**
-     * @return array
-     */
-    public function providerGetName()
+    public function providerGetName(): array
     {
         return [
             [

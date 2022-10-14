@@ -1,63 +1,38 @@
 <?php
-/* vim: set expandtab sw=4 ts=4 sts=4: */
-/**
- * Tests for PhpMyAdmin\BrowseForeigners
- *
- * @package PhpMyAdmin-test
- */
+
 declare(strict_types=1);
 
 namespace PhpMyAdmin\Tests;
 
 use PhpMyAdmin\BrowseForeigners;
-use PHPUnit\Framework\TestCase;
-use ReflectionClass;
+use PhpMyAdmin\Template;
 
 /**
- * Tests for PhpMyAdmin\BrowseForeigners
- *
- * @package PhpMyAdmin-test
+ * @covers \PhpMyAdmin\BrowseForeigners
  */
-class BrowseForeignersTest extends TestCase
+class BrowseForeignersTest extends AbstractTestCase
 {
+    /** @var BrowseForeigners */
     private $browseForeigners;
 
     /**
      * Setup for test cases
-     *
-     * @return void
      */
     protected function setUp(): void
     {
-        $this->browseForeigners = new BrowseForeigners(50, 25, 100, false, '');
-    }
-
-    /**
-     * Call protected functions by setting visibility to public.
-     *
-     * @param string           $name   method name
-     * @param array            $params parameters for the invocation
-     * @param BrowseForeigners $object BrowseForeigners instance object
-     *
-     * @return mixed the output from the protected method.
-     */
-    private function callProtectedMethod($name, $params, BrowseForeigners $object = null)
-    {
-        $class = new ReflectionClass(BrowseForeigners::class);
-        $method = $class->getMethod($name);
-        $method->setAccessible(true);
-        return $method->invokeArgs(
-            $object ?? $this->browseForeigners,
-            $params
-        );
+        parent::setUp();
+        parent::setTheme();
+        $GLOBALS['cfg']['LimitChars'] = 50;
+        $GLOBALS['cfg']['MaxRows'] = 25;
+        $GLOBALS['cfg']['RepeatCells'] = 100;
+        $GLOBALS['cfg']['ShowAll'] = false;
+        $this->browseForeigners = new BrowseForeigners(new Template());
     }
 
     /**
      * Test for BrowseForeigners::getForeignLimit
-     *
-     * @return void
      */
-    public function testGetForeignLimit()
+    public function testGetForeignLimit(): void
     {
         $this->assertNull(
             $this->browseForeigners->getForeignLimit('Show all')
@@ -75,13 +50,8 @@ class BrowseForeignersTest extends TestCase
             $this->browseForeigners->getForeignLimit(null)
         );
 
-        $browseForeigners = new BrowseForeigners(
-            50,
-            50,
-            100,
-            false,
-            ''
-        );
+        $GLOBALS['cfg']['MaxRows'] = 50;
+        $browseForeigners = new BrowseForeigners(new Template());
 
         $this->assertEquals(
             'LIMIT 10, 50 ',
@@ -96,14 +66,14 @@ class BrowseForeignersTest extends TestCase
 
     /**
      * Test for BrowseForeigners::getHtmlForGotoPage
-     *
-     * @return void
      */
-    public function testGetHtmlForGotoPage()
+    public function testGetHtmlForGotoPage(): void
     {
         $this->assertEquals(
             '',
-            $this->callProtectedMethod(
+            $this->callFunction(
+                $this->browseForeigners,
+                BrowseForeigners::class,
                 'getHtmlForGotoPage',
                 [null]
             )
@@ -116,86 +86,74 @@ class BrowseForeignersTest extends TestCase
 
         $this->assertEquals(
             '',
-            $this->callProtectedMethod(
+            $this->callFunction(
+                $this->browseForeigners,
+                BrowseForeigners::class,
                 'getHtmlForGotoPage',
                 [$foreignData]
             )
         );
 
         $foreignData['the_total'] = 30;
-        $result = $this->callProtectedMethod(
+        $result = $this->callFunction(
+            $this->browseForeigners,
+            BrowseForeigners::class,
             'getHtmlForGotoPage',
             [$foreignData]
         );
 
-        $this->assertStringStartsWith(
-            'Page number:',
-            $result
-        );
+        $this->assertStringStartsWith('Page number:', $result);
 
-        $this->assertStringEndsWith(
-            '</select>',
-            $result
-        );
+        $this->assertStringEndsWith('</select>', $result);
 
-        $this->assertStringContainsString(
-            '<select class="pageselector ajax" name="pos"',
-            $result
-        );
+        $this->assertStringContainsString('<select class="pageselector ajax" name="pos"', $result);
 
-        $this->assertStringContainsString(
-            '<option selected="selected" '
-            . 'style="font-weight: bold" value="0">',
-            $result
-        );
+        $this->assertStringContainsString('<option selected="selected" style="font-weight: bold" value="0">', $result);
 
-        $this->assertStringContainsString(
-            '<option  value="25"',
-            $result
-        );
+        $this->assertStringContainsString('<option  value="25"', $result);
     }
 
     /**
      * Test for BrowseForeigners::getDescriptionAndTitle
-     *
-     * @return void
      */
-    public function testGetDescriptionAndTitle()
+    public function testGetDescriptionAndTitle(): void
     {
         $desc = 'foobar<baz';
 
         $this->assertEquals(
             [
-                'foobar&lt;baz',
+                'foobar<baz',
                 '',
             ],
-            $this->callProtectedMethod(
+            $this->callFunction(
+                $this->browseForeigners,
+                BrowseForeigners::class,
                 'getDescriptionAndTitle',
                 [$desc]
             )
         );
 
-        $browseForeigners = new BrowseForeigners(5, 25, 100, false, '');
+        $GLOBALS['cfg']['LimitChars'] = 5;
+        $browseForeigners = new BrowseForeigners(new Template());
 
         $this->assertEquals(
             [
                 'fooba...',
-                'foobar&lt;baz',
+                'foobar<baz',
             ],
-            $this->callProtectedMethod(
+            $this->callFunction(
+                $browseForeigners,
+                BrowseForeigners::class,
                 'getDescriptionAndTitle',
-                [$desc],
-                $browseForeigners
+                [$desc]
             )
         );
     }
 
     /**
      * Test for BrowseForeigners::getHtmlForRelationalFieldSelection
-     *
-     * @return void
      */
-    public function testGetHtmlForRelationalFieldSelection()
+    public function testGetHtmlForRelationalFieldSelection(): void
     {
         $db = '';
         $table = '';
@@ -218,45 +176,24 @@ class BrowseForeignersTest extends TestCase
         $this->assertStringContainsString(
             '<form class="ajax" '
             . 'id="browse_foreign_form" name="browse_foreign_from" '
-            . 'action="browse_foreigners.php" method="post">',
+            . 'action="index.php?route=/browse-foreigners',
             $result
         );
+        $this->assertStringContainsString('" method="post">', $result);
 
-        $this->assertStringContainsString(
-            '<fieldset>',
-            $result
-        );
+        $this->assertStringContainsString('<fieldset class="row g-3 align-items-center mb-3">', $result);
 
-        $this->assertStringContainsString(
-            '<input type="hidden" name="field" value="foo">',
-            $result
-        );
+        $this->assertStringContainsString('<input type="hidden" name="field" value="foo">', $result);
 
-        $this->assertStringContainsString(
-            '<input type="hidden" name="fieldkey" value="bar">',
-            $result
-        );
+        $this->assertStringContainsString('<input type="hidden" name="fieldkey" value="bar">', $result);
 
-        $this->assertStringContainsString(
-            '<input type="hidden" name="rownumber" value="1">',
-            $result
-        );
+        $this->assertStringContainsString('<input type="hidden" name="rownumber" value="1">', $result);
 
+        $this->assertStringContainsString('<div class="col-auto">', $result);
+        $this->assertStringContainsString('<label class="form-label" for="input_foreign_filter">', $result);
         $this->assertStringContainsString(
-            '<span class="formelement">',
-            $result
-        );
-
-        $this->assertStringContainsString(
-            '<label for="input_foreign_filter">',
-            $result
-        );
-
-        $this->assertStringContainsString(
-            '<input type="text" name="foreign_filter" '
-            . 'id="input_foreign_filter" '
-            . 'value="5" data-old="5" '
-            . '>',
+            '<input class="form-control" type="text" name="foreign_filter" '
+            . 'id="input_foreign_filter" value="5" data-old="5">',
             $result
         );
 
@@ -266,12 +203,7 @@ class BrowseForeignersTest extends TestCase
         );
 
         $this->assertStringContainsString(
-            '<span class="formelement">',
-            $result
-        );
-
-        $this->assertStringContainsString(
-            '<table width="100%" id="browse_foreign_table">',
+            '<table class="table table-striped table-hover" id="browse_foreign_table">',
             $result
         );
 
@@ -287,13 +219,10 @@ class BrowseForeignersTest extends TestCase
         );
 
         $this->assertStringContainsString(
-            '<table width="100%" id="browse_foreign_table">',
+            '<table class="table table-striped table-hover" id="browse_foreign_table">',
             $result
         );
 
-        $this->assertStringContainsString(
-            '<th>',
-            $result
-        );
+        $this->assertStringContainsString('<th>', $result);
     }
 }

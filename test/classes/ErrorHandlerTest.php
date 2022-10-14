@@ -1,67 +1,54 @@
 <?php
-/**
- * Tests for ErrorHandler
- *
- * @package PhpMyAdmin-test
- */
+
 declare(strict_types=1);
 
 namespace PhpMyAdmin\Tests;
 
+use Exception;
+use PhpMyAdmin\Error;
 use PhpMyAdmin\ErrorHandler;
-use PhpMyAdmin\Tests\PmaTestCase;
-use ReflectionClass;
+
+use function array_keys;
+use function array_pop;
+use function count;
+
+use const E_RECOVERABLE_ERROR;
+use const E_USER_NOTICE;
+use const E_USER_WARNING;
+use const E_WARNING;
 
 /**
- * Test for PhpMyAdmin\ErrorHandler class.
- *
- * @package PhpMyAdmin-test
+ * @covers \PhpMyAdmin\ErrorHandler
  */
-class ErrorHandlerTest extends PmaTestCase
+class ErrorHandlerTest extends AbstractTestCase
 {
-    /**
-     * @access protected
-     */
+    /** @var ErrorHandler */
     protected $object;
 
     /**
      * Sets up the fixture, for example, opens a network connection.
      * This method is called before a test is executed.
-     *
-     * @access protected
-     * @return void
      */
     protected function setUp(): void
     {
+        parent::setUp();
+        $GLOBALS['lang'] = 'en';
+        $GLOBALS['dbi'] = $this->createDatabaseInterface();
         $this->object = new ErrorHandler();
+        $_SESSION['errors'] = [];
+        $GLOBALS['server'] = 0;
+        $GLOBALS['cfg']['environment'] = 'production';
+        $GLOBALS['cfg']['SendErrorReports'] = 'always';
     }
 
     /**
      * Tears down the fixture, for example, closes a network connection.
      * This method is called after a test is executed.
-     *
-     * @access protected
-     * @return void
      */
     protected function tearDown(): void
     {
+        parent::tearDown();
         unset($this->object);
-    }
-
-    /**
-     * Call protected functions by setting visibility to public.
-     *
-     * @param string $name   method name
-     * @param array  $params parameters for the invocation
-     *
-     * @return mixed the output from the protected method.
-     */
-    private function _callProtectedFunction($name, $params)
-    {
-        $class = new ReflectionClass(ErrorHandler::class);
-        $method = $class->getMethod($name);
-        $method->setAccessible(true);
-        return $method->invokeArgs($this->object, $params);
     }
 
     /**
@@ -69,7 +56,7 @@ class ErrorHandlerTest extends PmaTestCase
      *
      * @return array data for testHandleError
      */
-    public function providerForTestHandleError()
+    public function providerForTestHandleError(): array
     {
         return [
             [
@@ -94,27 +81,25 @@ class ErrorHandlerTest extends PmaTestCase
     /**
      * Test for getDispErrors when PHP errors are not shown
      *
-     * @param integer $errno       error number
-     * @param string  $errstr      error string
-     * @param string  $errfile     error file
-     * @param integer $errline     error line
-     * @param string  $output_show expected output if showing of errors is
-     *                             enabled
-     * @param string  $output_hide expected output if showing of errors is
-     *                             disabled and 'sendErrorReports' is set to 'never'
-     *
-     * @return void
+     * @param int    $errno       error number
+     * @param string $errstr      error string
+     * @param string $errfile     error file
+     * @param int    $errline     error line
+     * @param string $output_show expected output if showing of errors is
+     *                            enabled
+     * @param string $output_hide expected output if showing of errors is
+     *                            disabled and 'sendErrorReports' is set to 'never'
      *
      * @dataProvider providerForTestHandleError
      */
     public function testGetDispErrorsForDisplayFalse(
-        $errno,
-        $errstr,
-        $errfile,
-        $errline,
-        $output_show,
-        $output_hide
-    ) {
+        int $errno,
+        string $errstr,
+        string $errfile,
+        int $errline,
+        string $output_show,
+        string $output_hide
+    ): void {
         // TODO: Add other test cases for all combination of 'sendErrorReports'
         $GLOBALS['cfg']['SendErrorReports'] = 'never';
 
@@ -122,9 +107,10 @@ class ErrorHandlerTest extends PmaTestCase
 
         $output = $this->object->getDispErrors();
 
-        if ($output_hide == '') {
+        if ($output_hide === '') {
             $this->assertEquals('', $output);
         } else {
+            $this->assertNotEmpty($output_show);// Useless check
             $this->assertStringContainsString($output_hide, $output);
         }
     }
@@ -132,29 +118,28 @@ class ErrorHandlerTest extends PmaTestCase
     /**
      * Test for getDispErrors when PHP errors are shown
      *
-     * @param integer $errno       error number
-     * @param string  $errstr      error string
-     * @param string  $errfile     error file
-     * @param integer $errline     error line
-     * @param string  $output_show expected output if showing of errors is
-     *                             enabled
-     * @param string  $output_hide expected output if showing of errors is
-     *                             disabled
-     *
-     * @return void
+     * @param int    $errno       error number
+     * @param string $errstr      error string
+     * @param string $errfile     error file
+     * @param int    $errline     error line
+     * @param string $output_show expected output if showing of errors is
+     *                            enabled
+     * @param string $output_hide expected output if showing of errors is
+     *                            disabled
      *
      * @dataProvider providerForTestHandleError
      */
     public function testGetDispErrorsForDisplayTrue(
-        $errno,
-        $errstr,
-        $errfile,
-        $errline,
-        $output_show,
-        $output_hide
-    ) {
+        int $errno,
+        string $errstr,
+        string $errfile,
+        int $errline,
+        string $output_show,
+        string $output_hide
+    ): void {
         $this->object->handleError($errno, $errstr, $errfile, $errline);
 
+        $this->assertIsString($output_hide);// Useless check
         $this->assertStringContainsString(
             $output_show,
             $this->object->getDispErrors()
@@ -163,15 +148,12 @@ class ErrorHandlerTest extends PmaTestCase
 
     /**
      * Test for checkSavedErrors
-     *
-     * @return void
      */
-    public function testCheckSavedErrors()
+    public function testCheckSavedErrors(): void
     {
-
-        $_SESSION['errors'] = [];
-
-        $this->_callProtectedFunction(
+        $this->callFunction(
+            $this->object,
+            ErrorHandler::class,
             'checkSavedErrors',
             []
         );
@@ -181,18 +163,11 @@ class ErrorHandlerTest extends PmaTestCase
     /**
      * Test for countErrors
      *
-     * @return void
-     *
      * @group medium
      */
-    public function testCountErrors()
+    public function testCountErrors(): void
     {
-        $this->object->addError(
-            'Compile Error',
-            E_WARNING,
-            'error.txt',
-            15
-        );
+        $this->object->addError('Compile Error', E_WARNING, 'error.txt', 15);
         $this->assertEquals(
             1,
             $this->object->countErrors()
@@ -202,63 +177,87 @@ class ErrorHandlerTest extends PmaTestCase
     /**
      * Test for sliceErrors
      *
-     * @return void
-     *
      * @group medium
      */
-    public function testSliceErrors()
+    public function testSliceErrors(): void
     {
-        $this->object->addError(
-            'Compile Error',
-            E_WARNING,
-            'error.txt',
-            15
-        );
+        $this->object->addError('Compile Error', E_WARNING, 'error.txt', 15);
+        $this->object->addError('Compile Error', E_WARNING, 'error.txt', 16);
         $this->assertEquals(
-            1,
+            2,
             $this->object->countErrors()
         );
         $this->assertEquals(
             [],
+            $this->object->sliceErrors(2)
+        );
+        $this->assertEquals(
+            2,
+            $this->object->countErrors()
+        );
+        $this->assertCount(
+            1,
             $this->object->sliceErrors(1)
         );
         $this->assertEquals(
             1,
             $this->object->countErrors()
         );
-        $this->assertCount(
-            1,
-            $this->object->sliceErrors(0)
-        );
+    }
+
+    /**
+     * Test for sliceErrors with 10 elements as an example
+     *
+     * @group medium
+     */
+    public function testSliceErrorsOtherExample(): void
+    {
+        for ($i = 0; $i < 10; $i++) {
+            $this->object->addError('Compile Error', E_WARNING, 'error.txt', $i);
+        }
+
+        // 10 initial items
+        $this->assertEquals(10, $this->object->countErrors());
+        $this->assertEquals(10, count($this->object->getCurrentErrors()));
+
+        // slice 9 elements, returns one 10 - 9
+        $elements = $this->object->sliceErrors(9);
+        $firstKey = array_keys($elements)[0];
+
+        // Gives the last element
         $this->assertEquals(
-            0,
-            $this->object->countErrors()
+            [
+                $firstKey => $elements[$firstKey],
+            ],
+            $elements
         );
+        $this->assertEquals(9, count($this->object->getCurrentErrors()));
+        $this->assertEquals(9, $this->object->countErrors());
+
+        // Slice as much as there is (9), does nothing
+        $elements = $this->object->sliceErrors(9);
+        $this->assertEquals([], $elements);
+        $this->assertEquals(9, count($this->object->getCurrentErrors()));
+        $this->assertEquals(9, $this->object->countErrors());
+
+        // Slice 0, removes everything
+        $elements = $this->object->sliceErrors(0);
+        $this->assertEquals(9, count($elements));
+        $this->assertEquals(0, count($this->object->getCurrentErrors()));
+        $this->assertEquals(0, $this->object->countErrors());
     }
 
     /**
      * Test for countUserErrors
-     *
-     * @return void
      */
-    public function testCountUserErrors()
+    public function testCountUserErrors(): void
     {
-        $this->object->addError(
-            'Compile Error',
-            E_WARNING,
-            'error.txt',
-            15
-        );
+        $this->object->addError('Compile Error', E_WARNING, 'error.txt', 15);
         $this->assertEquals(
             0,
             $this->object->countUserErrors()
         );
-        $this->object->addError(
-            'Compile Error',
-            E_USER_WARNING,
-            'error.txt',
-            15
-        );
+        $this->object->addError('Compile Error', E_USER_WARNING, 'error.txt', 15);
         $this->assertEquals(
             1,
             $this->object->countUserErrors()
@@ -267,30 +266,24 @@ class ErrorHandlerTest extends PmaTestCase
 
     /**
      * Test for hasUserErrors
-     *
-     * @return void
      */
-    public function testHasUserErrors()
+    public function testHasUserErrors(): void
     {
         $this->assertFalse($this->object->hasUserErrors());
     }
 
     /**
      * Test for hasErrors
-     *
-     * @return void
      */
-    public function testHasErrors()
+    public function testHasErrors(): void
     {
         $this->assertFalse($this->object->hasErrors());
     }
 
     /**
      * Test for countDisplayErrors
-     *
-     * @return void
      */
-    public function testCountDisplayErrorsForDisplayTrue()
+    public function testCountDisplayErrorsForDisplayTrue(): void
     {
         $this->assertEquals(
             0,
@@ -300,10 +293,8 @@ class ErrorHandlerTest extends PmaTestCase
 
     /**
      * Test for countDisplayErrors
-     *
-     * @return void
      */
-    public function testCountDisplayErrorsForDisplayFalse()
+    public function testCountDisplayErrorsForDisplayFalse(): void
     {
         $this->assertEquals(
             0,
@@ -313,11 +304,45 @@ class ErrorHandlerTest extends PmaTestCase
 
     /**
      * Test for hasDisplayErrors
-     *
-     * @return void
      */
-    public function testHasDisplayErrors()
+    public function testHasDisplayErrors(): void
     {
         $this->assertFalse($this->object->hasDisplayErrors());
+    }
+
+    public function testHandleExceptionForDevEnv(): void
+    {
+        $GLOBALS['config']->set('environment', 'development');
+        $errorHandler = new ErrorHandler();
+        $this->assertSame([], $errorHandler->getCurrentErrors());
+        $errorHandler->handleException(new Exception('Exception message.'));
+        $output = $this->getActualOutputForAssertion();
+        $errors = $errorHandler->getCurrentErrors();
+        $this->assertCount(1, $errors);
+        $error = array_pop($errors);
+        $this->assertInstanceOf(Error::class, $error);
+        $this->assertSame('Exception: Exception message.', $error->getOnlyMessage());
+        $this->assertStringContainsString($error->getDisplay(), $output);
+        $this->assertStringContainsString('Internal error', $output);
+        $this->assertStringContainsString('ErrorHandlerTest.php#' . $error->getLine(), $output);
+        $this->assertStringContainsString('Exception: Exception message.', $output);
+    }
+
+    public function testHandleExceptionForProdEnv(): void
+    {
+        $GLOBALS['config']->set('environment', 'production');
+        $errorHandler = new ErrorHandler();
+        $this->assertSame([], $errorHandler->getCurrentErrors());
+        $errorHandler->handleException(new Exception('Exception message.'));
+        $output = $this->getActualOutputForAssertion();
+        $errors = $errorHandler->getCurrentErrors();
+        $this->assertCount(1, $errors);
+        $error = array_pop($errors);
+        $this->assertInstanceOf(Error::class, $error);
+        $this->assertSame('Exception: Exception message.', $error->getOnlyMessage());
+        $this->assertStringContainsString($error->getDisplay(), $output);
+        $this->assertStringContainsString('Exception: Exception message.', $output);
+        $this->assertStringNotContainsString('Internal error', $output);
+        $this->assertStringNotContainsString('ErrorHandlerTest.php#' . $error->getLine(), $output);
     }
 }

@@ -1,104 +1,89 @@
 <?php
-/* vim: set expandtab sw=4 ts=4 sts=4: */
-/**
- * Holds DatabasesControllerTest class
- *
- * @package PhpMyAdmin-test
- */
+
 declare(strict_types=1);
 
 namespace PhpMyAdmin\Tests\Controllers\Server;
 
-use PhpMyAdmin\Config;
+use PhpMyAdmin\ConfigStorage\Relation;
+use PhpMyAdmin\ConfigStorage\RelationCleanup;
 use PhpMyAdmin\Controllers\Server\DatabasesController;
 use PhpMyAdmin\DatabaseInterface;
-use PhpMyAdmin\Message;
-use PhpMyAdmin\Response;
-use PHPUnit\Framework\TestCase;
+use PhpMyAdmin\Http\ServerRequest;
+use PhpMyAdmin\Template;
+use PhpMyAdmin\Tests\AbstractTestCase;
+use PhpMyAdmin\Tests\Stubs\DbiDummy;
+use PhpMyAdmin\Tests\Stubs\ResponseRenderer;
+use PhpMyAdmin\Transformations;
+use stdClass;
+
+use function __;
 
 /**
- * Tests for DatabasesController class
- *
- * @package PhpMyAdmin-test
+ * @covers \PhpMyAdmin\Controllers\Server\DatabasesController
  */
-class DatabasesControllerTest extends TestCase
+class DatabasesControllerTest extends AbstractTestCase
 {
-    /**
-     * @return void
-     */
+    /** @var DatabaseInterface */
+    protected $dbi;
+
+    /** @var DbiDummy */
+    protected $dummyDbi;
+
     protected function setUp(): void
     {
-        $GLOBALS['PMA_Config'] = new Config();
-        $GLOBALS['PMA_Config']->enableBc();
+        parent::setUp();
+        parent::setGlobalConfig();
+        parent::setTheme();
+        $this->dummyDbi = $this->createDbiDummy();
+        $this->dbi = $this->createDatabaseInterface($this->dummyDbi);
+        $GLOBALS['dbi'] = $this->dbi;
 
         $GLOBALS['server'] = 1;
         $GLOBALS['db'] = 'pma_test';
         $GLOBALS['table'] = '';
         $GLOBALS['PMA_PHP_SELF'] = 'index.php';
         $GLOBALS['cfg']['Server']['DisableIS'] = false;
-        $GLOBALS['pmaThemeImage'] = 'image';
-        $GLOBALS['text_dir'] = "text_dir";
+        $GLOBALS['text_dir'] = 'text_dir';
     }
 
-    /**
-     * @return void
-     */
     public function testIndexAction(): void
     {
-        global $cfg, $dblist, $is_create_db_priv;
-
-        $databases = [
-            [
-                'DEFAULT_COLLATION_NAME' => 'utf8_general_ci',
-                'SCHEMA_TABLES' => '23',
-                'SCHEMA_TABLE_ROWS' => '47274',
-                'SCHEMA_DATA_LENGTH' => '4358144',
-                'SCHEMA_INDEX_LENGTH' => '2392064',
-                'SCHEMA_LENGTH' => '6750208',
-                'SCHEMA_DATA_FREE' => '0',
-                'SCHEMA_NAME' => 'sakila',
-            ],
-            [
-                'DEFAULT_COLLATION_NAME' => 'utf8mb4_general_ci',
-                'SCHEMA_TABLES' => '8',
-                'SCHEMA_TABLE_ROWS' => '3912174',
-                'SCHEMA_DATA_LENGTH' => '148111360',
-                'SCHEMA_INDEX_LENGTH' => '5816320',
-                'SCHEMA_LENGTH' => '153927680',
-                'SCHEMA_DATA_FREE' => '0',
-                'SCHEMA_NAME' => 'employees',
-            ],
+        $GLOBALS['dblist'] = new stdClass();
+        $GLOBALS['dblist']->databases = [
+            'sakila',
+            'employees',
         ];
 
-        $dblist = new \stdClass();
-        $dblist->databases = $databases;
-
-        $dbi = $this->getMockBuilder(DatabaseInterface::class)
-            ->disableOriginalConstructor()
-            ->getMock();
-        $dbi->method('getDatabasesFull')
-            ->willReturn($databases);
-
-        $controller = new DatabasesController(
-            Response::getInstance(),
-            $dbi
+        $template = new Template();
+        $transformations = new Transformations();
+        $relationCleanup = new RelationCleanup(
+            $GLOBALS['dbi'],
+            new Relation($GLOBALS['dbi'])
         );
 
-        $actual = $controller->indexAction([
-            'statistics' => null,
-            'pos' => null,
-            'sort_by' => null,
-            'sort_order' => null,
-        ]);
+        $response = new ResponseRenderer();
+
+        $controller = new DatabasesController(
+            $response,
+            $template,
+            $transformations,
+            $relationCleanup,
+            $GLOBALS['dbi']
+        );
+
+        $this->dummyDbi->addSelectDb('mysql');
+        $controller($this->createStub(ServerRequest::class));
+        $this->dummyDbi->assertAllSelectsConsumed();
+        $actual = $response->getHTMLResult();
 
         $this->assertStringContainsString('data-filter-row="SAKILA"', $actual);
         $this->assertStringContainsString('sakila', $actual);
         $this->assertStringContainsString('utf8_general_ci', $actual);
         $this->assertStringContainsString('title="Unicode, case-insensitive"', $actual);
         $this->assertStringContainsString('data-filter-row="SAKILA"', $actual);
-        $this->assertStringContainsString('sakila', $actual);
-        $this->assertStringContainsString('utf8mb4_general_ci', $actual);
-        $this->assertStringContainsString('title="Unicode (UCA 4.0.0), case-insensitive"', $actual);
+        $this->assertStringContainsString('employees', $actual);
+        $this->assertStringContainsString('latin1_swedish_ci', $actual);
+        $this->assertStringContainsString('title="Swedish, case-insensitive"', $actual);
         $this->assertStringContainsString('<span id="filter-rows-count">2</span>', $actual);
         $this->assertStringContainsString('name="pos" value="0"', $actual);
         $this->assertStringContainsString('name="sort_by" value="SCHEMA_NAME"', $actual);
@@ -107,15 +92,26 @@ class DatabasesControllerTest extends TestCase
         $this->assertStringContainsString(__('No privileges to create databases'), $actual);
         $this->assertStringNotContainsString(__('Indexes'), $actual);
 
-        $cfg['ShowCreateDb'] = true;
-        $is_create_db_priv = true;
+        $response = new ResponseRenderer();
 
-        $actual = $controller->indexAction([
-            'statistics' => '1',
-            'pos' => null,
-            'sort_by' => 'SCHEMA_TABLES',
-            'sort_order' => 'desc',
-        ]);
+        $controller = new DatabasesController(
+            $response,
+            $template,
+            $transformations,
+            $relationCleanup,
+            $GLOBALS['dbi']
+        );
+
+        $GLOBALS['cfg']['ShowCreateDb'] = true;
+        $GLOBALS['is_create_db_priv'] = true;
+        $_REQUEST['statistics'] = '1';
+        $_REQUEST['sort_by'] = 'SCHEMA_TABLES';
+        $_REQUEST['sort_order'] = 'desc';
+
+        $this->dummyDbi->addSelectDb('mysql');
+        $controller($this->createStub(ServerRequest::class));
+        $this->dummyDbi->assertAllSelectsConsumed();
+        $actual = $response->getHTMLResult();
 
         $this->assertStringNotContainsString(__('Enable statistics'), $actual);
         $this->assertStringContainsString(__('Indexes'), $actual);
@@ -128,73 +124,5 @@ class DatabasesControllerTest extends TestCase
         $this->assertStringContainsString('4.2', $actual);
         $this->assertStringContainsString('MiB', $actual);
         $this->assertStringContainsString('name="db_collation"', $actual);
-    }
-
-    /**
-     * @return void
-     */
-    public function testCreateDatabaseAction()
-    {
-        $dbi = $this->getMockBuilder(DatabaseInterface::class)
-            ->disableOriginalConstructor()
-            ->getMock();
-        $dbi->method('getError')
-            ->willReturn('CreateDatabaseError');
-
-        $controller = new DatabasesController(
-            Response::getInstance(),
-            $dbi
-        );
-
-        $actual = $controller->createDatabaseAction([
-            'new_db' => 'pma_test',
-            'db_collation' => null,
-        ]);
-
-        $this->assertArrayHasKey('message', $actual);
-        $this->assertInstanceOf(Message::class, $actual['message']);
-        $this->assertStringContainsString('<div class="error">', $actual['message']->getDisplay());
-        $this->assertStringContainsString('CreateDatabaseError', $actual['message']->getDisplay());
-
-        $dbi->method('tryQuery')
-            ->willReturn(true);
-
-        $actual = $controller->createDatabaseAction([
-            'new_db' => 'pma_test',
-            'db_collation' => 'utf8_general_ci',
-        ]);
-
-        $this->assertArrayHasKey('message', $actual);
-        $this->assertInstanceOf(Message::class, $actual['message']);
-        $this->assertStringContainsString('<div class="success">', $actual['message']->getDisplay());
-        $this->assertStringContainsString(
-            sprintf(__('Database %1$s has been created.'), 'pma_test'),
-            $actual['message']->getDisplay()
-        );
-    }
-
-    /**
-     * @return void
-     */
-    public function testDropDatabasesAction()
-    {
-        $dbi = $this->getMockBuilder(DatabaseInterface::class)
-            ->disableOriginalConstructor()
-            ->getMock();
-
-        $controller = new DatabasesController(
-            Response::getInstance(),
-            $dbi
-        );
-
-        $actual = $controller->dropDatabasesAction([
-            'drop_selected_dbs' => true,
-            'selected_dbs' => null,
-        ]);
-
-        $this->assertArrayHasKey('message', $actual);
-        $this->assertInstanceOf(Message::class, $actual['message']);
-        $this->assertStringContainsString('<div class="error">', $actual['message']->getDisplay());
-        $this->assertStringContainsString(__('No databases selected.'), $actual['message']->getDisplay());
     }
 }

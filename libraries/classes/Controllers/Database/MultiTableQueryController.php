@@ -1,58 +1,39 @@
 <?php
-/* vim: set expandtab sw=4 ts=4 sts=4: */
-/**
- * Holds the PhpMyAdmin\Controllers\Database\MultiTableQueryController
- *
- * @package PhpMyAdmin\Controllers\Database
- */
+
 declare(strict_types=1);
 
 namespace PhpMyAdmin\Controllers\Database;
 
+use PhpMyAdmin\Controllers\AbstractController;
 use PhpMyAdmin\Database\MultiTableQuery;
+use PhpMyAdmin\DatabaseInterface;
+use PhpMyAdmin\Http\ServerRequest;
+use PhpMyAdmin\ResponseRenderer;
+use PhpMyAdmin\Template;
 
 /**
  * Handles database multi-table querying
- * @package PhpMyAdmin\Controllers\Database
  */
 class MultiTableQueryController extends AbstractController
 {
-    /**
-     * @return string HTML
-     */
-    public function index(): string
-    {
-        $queryInstance = new MultiTableQuery($this->dbi, $this->db);
+    /** @var DatabaseInterface */
+    private $dbi;
 
-        return $queryInstance->getFormHtml();
+    public function __construct(ResponseRenderer $response, Template $template, DatabaseInterface $dbi)
+    {
+        parent::__construct($response, $template);
+        $this->dbi = $dbi;
     }
 
-    /**
-     * @param array $params Request parameters
-     * @return void
-     */
-    public function displayResults(array $params): void
+    public function __invoke(ServerRequest $request): void
     {
-        global $pmaThemeImage;
+        $this->addScriptFiles([
+            'database/multi_table_query.js',
+            'database/query_generator.js',
+        ]);
 
-        MultiTableQuery::displayResults(
-            $params['sql_query'],
-            $params['db'],
-            $pmaThemeImage
-        );
-    }
+        $queryInstance = new MultiTableQuery($this->dbi, $this->template, $GLOBALS['db']);
 
-    /**
-     * @param array $params Request parameters
-     * @return array JSON
-     */
-    public function table(array $params): array
-    {
-        $constrains = $this->dbi->getForeignKeyConstrains(
-            $params['db'],
-            $params['tables']
-        );
-
-        return ['foreignKeyConstrains' => $constrains];
+        $this->response->addHTML($queryInstance->getFormHtml());
     }
 }

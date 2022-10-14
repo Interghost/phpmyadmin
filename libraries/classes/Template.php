@@ -1,86 +1,107 @@
 <?php
-/* vim: set expandtab sw=4 ts=4 sts=4: */
-/**
- * hold PhpMyAdmin\Template class
- *
- * @package PhpMyAdmin
- */
+
 declare(strict_types=1);
 
 namespace PhpMyAdmin;
 
-use PhpMyAdmin\Twig\CharsetsExtension;
+use PhpMyAdmin\Twig\AssetExtension;
 use PhpMyAdmin\Twig\CoreExtension;
+use PhpMyAdmin\Twig\Extensions\Node\TransNode;
+use PhpMyAdmin\Twig\FlashMessagesExtension;
 use PhpMyAdmin\Twig\I18nExtension;
 use PhpMyAdmin\Twig\MessageExtension;
-use PhpMyAdmin\Twig\PluginsExtension;
-use PhpMyAdmin\Twig\RelationExtension;
 use PhpMyAdmin\Twig\SanitizeExtension;
-use PhpMyAdmin\Twig\ServerPrivilegesExtension;
-use PhpMyAdmin\Twig\StorageEngineExtension;
 use PhpMyAdmin\Twig\TableExtension;
 use PhpMyAdmin\Twig\TrackerExtension;
 use PhpMyAdmin\Twig\TransformationsExtension;
 use PhpMyAdmin\Twig\UrlExtension;
 use PhpMyAdmin\Twig\UtilExtension;
+use RuntimeException;
+use Throwable;
 use Twig\Environment;
+use Twig\Error\LoaderError;
+use Twig\Error\RuntimeError;
+use Twig\Error\SyntaxError;
+use Twig\Extension\DebugExtension;
 use Twig\Loader\FilesystemLoader;
+use Twig\RuntimeLoader\ContainerRuntimeLoader;
+use Twig\TemplateWrapper;
+
+use function __;
+use function is_array;
+use function sprintf;
+use function trigger_error;
+
+use const E_USER_WARNING;
 
 /**
- * Class Template
- *
  * Handle front end templating
- *
- * @package PhpMyAdmin
  */
 class Template
 {
     /**
      * Twig environment
+     *
      * @var Environment
      */
     protected static $twig;
 
-    /**
-     * @var string
-     */
-    public const BASE_PATH = 'templates/';
+    public const TEMPLATES_FOLDER = ROOT_PATH . 'templates';
 
-    /**
-     * Template constructor
-     */
     public function __construct()
     {
-        /* @var \PhpMyAdmin\Config $config */
-        $config = $GLOBALS['PMA_Config'];
-        if (is_null($this::$twig)) {
-            $loader = new FilesystemLoader(static::BASE_PATH);
-            $cache_dir = $config->getTempDir('twig');
-            /* Twig expects false when cache is not configured */
-            if (is_null($cache_dir)) {
-                $cache_dir = false;
-            }
-            $twig = new Environment($loader, [
-                'auto_reload' => true,
-                'cache' => $cache_dir,
-                'debug' => false,
-            ]);
-            $twig->addExtension(new CharsetsExtension());
-            $twig->addExtension(new CoreExtension());
-            $twig->addExtension(new I18nExtension());
-            $twig->addExtension(new MessageExtension());
-            $twig->addExtension(new PluginsExtension());
-            $twig->addExtension(new RelationExtension());
-            $twig->addExtension(new SanitizeExtension());
-            $twig->addExtension(new ServerPrivilegesExtension());
-            $twig->addExtension(new StorageEngineExtension());
-            $twig->addExtension(new TableExtension());
-            $twig->addExtension(new TrackerExtension());
-            $twig->addExtension(new TransformationsExtension());
-            $twig->addExtension(new UrlExtension());
-            $twig->addExtension(new UtilExtension());
-            $this::$twig = $twig;
+        if (static::$twig !== null) {
+            return;
         }
+
+        /** @var Config|null $config */
+        $config = $GLOBALS['config'];
+        $cacheDir = $config !== null ? $config->getTempDir('twig') : null;
+
+        static::$twig = self::getTwigEnvironment($cacheDir);
+    }
+
+    public static function getTwigEnvironment(?string $cacheDir): Environment
+    {
+        /* Twig expects false when cache is not configured */
+        if ($cacheDir === null) {
+            $cacheDir = false;
+        }
+
+        $loader = new FilesystemLoader(self::TEMPLATES_FOLDER);
+        $twig = new Environment($loader, [
+            'auto_reload' => true,
+            'cache' => $cacheDir,
+        ]);
+
+        $twig->addRuntimeLoader(new ContainerRuntimeLoader(Core::getContainerBuilder()));
+
+        if (is_array($GLOBALS['cfg']) && ($GLOBALS['cfg']['environment'] ?? '') === 'development') {
+            $twig->enableDebug();
+            $twig->addExtension(new DebugExtension());
+            // This will enable debug for the extension to print lines
+            // It is used in po file lines re-mapping
+            TransNode::$enableAddDebugInfo = true;
+        }
+
+        if ($GLOBALS['cfg']['environment'] === 'production') {
+            $twig->disableDebug();
+            TransNode::$enableAddDebugInfo = false;
+        }
+
+        $twig->addExtension(new AssetExtension());
+        $twig->addExtension(new CoreExtension());
+        $twig->addExtension(new FlashMessagesExtension());
+        $twig->addExtension(new I18nExtension());
+        $twig->addExtension(new MessageExtension());
+        $twig->addExtension(new SanitizeExtension());
+        $twig->addExtension(new TableExtension());
+        $twig->addExtension(new TrackerExtension());
+        $twig->addExtension(new TransformationsExtension());
+        $twig->addExtension(new UrlExtension());
+        $twig->addExtension(new UtilExtension());
+
+        return $twig;
     }
 
     /**
@@ -88,19 +109,18 @@ class Template
      *
      * @param string $templateName Template path name
      *
-     * @return \Twig_TemplateWrapper
-     * @throws \Twig_Error_Loader
-     * @throws \Twig_Error_Runtime
-     * @throws \Twig_Error_Syntax
+     * @throws LoaderError
+     * @throws RuntimeError
+     * @throws SyntaxError
      */
-    public function load(string $templateName): \Twig_TemplateWrapper
+    private function load(string $templateName): TemplateWrapper
     {
         try {
-            $template = $this::$twig->load($templateName . '.twig');
-        } catch (\RuntimeException $e) {
+            $template = static::$twig->load($templateName . '.twig');
+        } catch (RuntimeException $e) {
             /* Retry with disabled cache */
-            $this::$twig->setCache(false);
-            $template = $this::$twig->load($templateName . '.twig');
+            static::$twig->setCache(false);
+            $template = static::$twig->load($templateName . '.twig');
             /*
              * The trigger error is intentionally after second load
              * to avoid triggering error when disabling cache does not
@@ -122,11 +142,10 @@ class Template
      * @param string $template Template path name
      * @param array  $data     Associative array of template variables
      *
-     * @return string
-     * @throws \Throwable
-     * @throws \Twig_Error_Loader
-     * @throws \Twig_Error_Runtime
-     * @throws \Twig_Error_Syntax
+     * @throws Throwable
+     * @throws LoaderError
+     * @throws RuntimeError
+     * @throws SyntaxError
      */
     public function render(string $template, array $data = []): string
     {

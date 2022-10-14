@@ -1,51 +1,41 @@
 <?php
-/* vim: set expandtab sw=4 ts=4 sts=4: */
-/**
- * Tests for PhpMyAdmin\Navigation\Nodes\NodeEventContainer class
- *
- * @package PhpMyAdmin-test
- */
+
 declare(strict_types=1);
 
 namespace PhpMyAdmin\Tests\Navigation\Nodes;
 
 use PhpMyAdmin\Navigation\NodeFactory;
-use PhpMyAdmin\Tests\PmaTestCase;
-use PhpMyAdmin\Theme;
+use PhpMyAdmin\Tests\AbstractTestCase;
 
 /**
- * Tests for PhpMyAdmin\Navigation\Nodes\NodeEventContainer class
- *
- * @package PhpMyAdmin-test
+ * @covers \PhpMyAdmin\Navigation\Nodes\NodeEventContainer
  */
-class NodeEventContainerTest extends PmaTestCase
+class NodeEventContainerTest extends AbstractTestCase
 {
     /**
      * SetUp for test cases
-     *
-     * @return void
      */
     protected function setUp(): void
     {
+        parent::setUp();
+        $GLOBALS['dbi'] = $this->createDatabaseInterface();
         $GLOBALS['server'] = 0;
     }
 
     /**
      * Test for __construct
-     *
-     * @return void
      */
-    public function testConstructor()
+    public function testConstructor(): void
     {
         $parent = NodeFactory::getInstance('NodeEventContainer');
-        $this->assertArrayHasKey(
-            'text',
+        $this->assertIsArray($parent->links);
+        $this->assertEquals(
+            [
+                'text' => ['route' => '/database/events', 'params' => ['db' => null]],
+                'icon' => ['route' => '/database/events', 'params' => ['db' => null]],
+            ],
             $parent->links
         );
-        $this->assertStringContainsString(
-            'db_events.php',
-            $parent->links['text']
-        );
-        $this->assertEquals('events', $parent->real_name);
+        $this->assertEquals('events', $parent->realName);
     }
 }

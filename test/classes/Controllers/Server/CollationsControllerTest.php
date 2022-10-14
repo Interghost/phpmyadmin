@@ -1,36 +1,40 @@
 <?php
-/* vim: set expandtab sw=4 ts=4 sts=4: */
-/**
- * Holds CollationsControllerTest class
- *
- * @package PhpMyAdmin-test
- */
+
 declare(strict_types=1);
 
 namespace PhpMyAdmin\Tests\Controllers\Server;
 
-use PhpMyAdmin\Charsets;
-use PhpMyAdmin\Config;
 use PhpMyAdmin\Controllers\Server\CollationsController;
-use PhpMyAdmin\Response;
-use PHPUnit\Framework\TestCase;
+use PhpMyAdmin\DatabaseInterface;
+use PhpMyAdmin\Http\ServerRequest;
+use PhpMyAdmin\Template;
+use PhpMyAdmin\Tests\AbstractTestCase;
+use PhpMyAdmin\Tests\Stubs\DbiDummy;
+use PhpMyAdmin\Tests\Stubs\ResponseRenderer;
 
 /**
- * Tests for CollationsController class
- *
- * @package PhpMyAdmin-test
+ * @covers \PhpMyAdmin\Controllers\Server\CollationsController
  */
-class CollationsControllerTest extends TestCase
+class CollationsControllerTest extends AbstractTestCase
 {
+    /** @var DatabaseInterface */
+    protected $dbi;
+
+    /** @var DbiDummy */
+    protected $dummyDbi;
+
     /**
      * Prepares environment for the test.
-     *
-     * @return void
      */
     protected function setUp(): void
     {
-        $GLOBALS['PMA_Config'] = new Config();
-        $GLOBALS['PMA_Config']->enableBc();
+        parent::setUp();
+        $GLOBALS['text_dir'] = 'ltr';
+        parent::setGlobalConfig();
+        parent::setTheme();
+        $this->dummyDbi = $this->createDbiDummy();
+        $this->dbi = $this->createDatabaseInterface($this->dummyDbi);
+        $GLOBALS['dbi'] = $this->dbi;
 
         $GLOBALS['server'] = 1;
         $GLOBALS['db'] = 'db';
@@ -39,86 +43,27 @@ class CollationsControllerTest extends TestCase
         $GLOBALS['cfg']['Server']['DisableIS'] = false;
     }
 
-    /**
-     * @return void
-     */
     public function testIndexAction(): void
     {
-        $charsets = [
-            'armscii8',
-            'ascii',
-            'big5',
-            'binary',
-        ];
-        $charsetsDescriptions = [
-            'armscii8' => 'PMA_armscii8_general_ci',
-            'ascii' => 'PMA_ascii_general_ci',
-            'big5' => 'PMA_big5_general_ci',
-            'binary' => 'PMA_binary_general_ci',
-        ];
-        $collations = [
-            'armscii8' => ['armscii8'],
-            'ascii' => ['ascii'],
-            'big5' => ['big5'],
-            'binary' => ['binary'],
-        ];
-        $defaultCollations = [
-            'armscii8' => 'armscii8',
-            'ascii' => 'ascii',
-            'big5' => 'big5',
-            'binary' => 'binary',
-        ];
+        $response = new ResponseRenderer();
 
-        $controller = new CollationsController(
-            Response::getInstance(),
-            $GLOBALS['dbi'],
-            $charsets,
-            $charsetsDescriptions,
-            $collations,
-            $defaultCollations
-        );
+        $controller = new CollationsController($response, new Template(), $GLOBALS['dbi']);
 
-        $actual = $controller->indexAction();
+        $this->dummyDbi->addSelectDb('mysql');
+        $controller($this->createStub(ServerRequest::class));
+        $this->dummyDbi->assertAllSelectsConsumed();
+        $actual = $response->getHTMLResult();
 
-        $this->assertStringContainsString(
-            '<div id="div_mysql_charset_collations">',
-            $actual
-        );
-        $this->assertStringContainsString(
-            __('Collation'),
-            $actual
-        );
-        $this->assertStringContainsString(
-            __('Description'),
-            $actual
-        );
-        $this->assertStringContainsString(
-            '<em>PMA_armscii8_general_ci</em>',
-            $actual
-        );
-        $this->assertStringContainsString(
-            '<td>armscii8</td>',
-            $actual
-        );
-        $this->assertStringContainsString(
-            '<td>' . Charsets::getCollationDescr('armscii8') . '</td>',
-            $actual
-        );
-        $this->assertStringContainsString(
-            '<em>PMA_ascii_general_ci</em>',
-            $actual
-        );
-        $this->assertStringContainsString(
-            '<td>ascii</td>',
-            $actual
-        );
-        $this->assertStringContainsString(
-            '<em>PMA_big5_general_ci</em>',
-            $actual
-        );
-        $this->assertStringContainsString(
-            '<td>big5</td>',
-            $actual
-        );
+        $this->assertStringContainsString('<div><strong>latin1</strong></div>', $actual);
+        $this->assertStringContainsString('<div>cp1252 West European</div>', $actual);
+        $this->assertStringContainsString('<div><strong>latin1_swedish_ci</strong></div>', $actual);
+        $this->assertStringContainsString('<div>Swedish, case-insensitive</div>', $actual);
+        $this->assertStringContainsString('<span class="badge bg-secondary text-dark">default</span>', $actual);
+        $this->assertStringContainsString('<div><strong>utf8</strong></div>', $actual);
+        $this->assertStringContainsString('<div>UTF-8 Unicode</div>', $actual);
+        $this->assertStringContainsString('<div><strong>utf8_bin</strong></div>', $actual);
+        $this->assertStringContainsString('<div>Unicode, binary</div>', $actual);
+        $this->assertStringContainsString('<div><strong>utf8_general_ci</strong></div>', $actual);
+        $this->assertStringContainsString('<div>Unicode, case-insensitive</div>', $actual);
     }
 }

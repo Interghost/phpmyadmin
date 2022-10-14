@@ -1,64 +1,122 @@
 <?php
-/* vim: set expandtab sw=4 ts=4 sts=4: */
 /**
  * Server replications
- * @package PhpMyAdmin\Controllers\Server
  */
+
 declare(strict_types=1);
 
 namespace PhpMyAdmin\Controllers\Server;
 
 use PhpMyAdmin\Controllers\AbstractController;
+use PhpMyAdmin\DatabaseInterface;
+use PhpMyAdmin\Http\ServerRequest;
 use PhpMyAdmin\ReplicationGui;
+use PhpMyAdmin\ReplicationInfo;
+use PhpMyAdmin\ResponseRenderer;
+use PhpMyAdmin\Template;
+use PhpMyAdmin\Url;
+
+use function is_array;
 
 /**
  * Server replications
- * @package PhpMyAdmin\Controllers\Server
  */
 class ReplicationController extends AbstractController
 {
-    /**
-     * @param array $params Request parameters
-     * @return string HTML
-     */
-    public function index(array $params): string
+    /** @var ReplicationGui */
+    private $replicationGui;
+
+    /** @var DatabaseInterface */
+    private $dbi;
+
+    public function __construct(
+        ResponseRenderer $response,
+        Template $template,
+        ReplicationGui $replicationGui,
+        DatabaseInterface $dbi
+    ) {
+        parent::__construct($response, $template);
+        $this->replicationGui = $replicationGui;
+        $this->dbi = $dbi;
+    }
+
+    public function __invoke(ServerRequest $request): void
     {
-        global $replication_info, $server_slave_replication, $url_params;
+        $GLOBALS['urlParams'] = $GLOBALS['urlParams'] ?? null;
+        $GLOBALS['errorUrl'] = $GLOBALS['errorUrl'] ?? null;
 
-        $replicationGui = new ReplicationGui();
+        $params = [
+            'url_params' => $_POST['url_params'] ?? null,
+            'primary_configure' => $_POST['primary_configure'] ?? null,
+            'replica_configure' => $_POST['replica_configure'] ?? null,
+            'repl_clear_scr' => $_POST['repl_clear_scr'] ?? null,
+        ];
+        $GLOBALS['errorUrl'] = Url::getFromRoute('/');
 
-        $errorMessages = $replicationGui->getHtmlForErrorMessage();
-
-        if ($replication_info['master']['status']) {
-            $masterReplicationHtml = $replicationGui->getHtmlForMasterReplication();
+        if ($this->dbi->isSuperUser()) {
+            $this->dbi->selectDb('mysql');
         }
 
-        if (isset($params['mr_configure'])) {
-            $masterConfigurationHtml = $replicationGui->getHtmlForMasterConfiguration();
+        $replicationInfo = new ReplicationInfo($this->dbi);
+        $replicationInfo->load($_POST['primary_connection'] ?? null);
+
+        $primaryInfo = $replicationInfo->getPrimaryInfo();
+        $replicaInfo = $replicationInfo->getReplicaInfo();
+
+        $this->addScriptFiles(['server/privileges.js', 'replication.js', 'vendor/zxcvbn-ts.js']);
+
+        if (isset($params['url_params']) && is_array($params['url_params'])) {
+            $GLOBALS['urlParams'] = $params['url_params'];
+        }
+
+        if ($this->dbi->isSuperUser()) {
+            $this->replicationGui->handleControlRequest(
+                isset($_POST['sr_take_action']),
+                isset($_POST['replica_changeprimary']),
+                isset($_POST['sr_replica_server_control']),
+                $_POST['sr_replica_action'] ?? null,
+                isset($_POST['sr_replica_skip_error'])
+            );
+        }
+
+        $errorMessages = $this->replicationGui->getHtmlForErrorMessage();
+
+        if ($primaryInfo['status']) {
+            $primaryReplicationHtml = $this->replicationGui->getHtmlForPrimaryReplication(
+                $_POST['primary_connection'] ?? null,
+                $params['repl_clear_scr'],
+                $_POST['primary_add_user'] ?? null
+            );
+        }
+
+        if (isset($params['primary_configure'])) {
+            $primaryConfigurationHtml = $this->replicationGui->getHtmlForPrimaryConfiguration();
         } else {
             if (! isset($params['repl_clear_scr'])) {
-                $slaveConfigurationHtml = $replicationGui->getHtmlForSlaveConfiguration(
-                    $replication_info['slave']['status'],
-                    $server_slave_replication
+                $replicaConfigurationHtml = $this->replicationGui->getHtmlForReplicaConfiguration(
+                    $_POST['primary_connection'] ?? null,
+                    $replicaInfo['status'],
+                    $replicationInfo->getReplicaStatus()
                 );
             }
-            if (isset($params['sl_configure'])) {
-                $changeMasterHtml = $replicationGui->getHtmlForReplicationChangeMaster('slave_changemaster');
+
+            if (isset($params['replica_configure'])) {
+                $changePrimaryHtml = $this->replicationGui->getHtmlForReplicationChangePrimary('replica_changeprimary');
             }
         }
 
-        return $this->template->render('server/replication/index', [
-            'url_params' => $url_params,
-            'is_super_user' => $this->dbi->isSuperuser(),
+        $this->render('server/replication/index', [
+            'url_params' => $GLOBALS['urlParams'],
+            'is_super_user' => $this->dbi->isSuperUser(),
             'error_messages' => $errorMessages,
-            'is_master' => $replication_info['master']['status'],
-            'master_configure' => $params['mr_configure'],
-            'slave_configure' => $params['sl_configure'],
+            'is_primary' => $primaryInfo['status'],
+            'primary_configure' => $params['primary_configure'],
+            'replica_configure' => $params['replica_configure'],
             'clear_screen' => $params['repl_clear_scr'],
-            'master_replication_html' => $masterReplicationHtml ?? '',
-            'master_configuration_html' => $masterConfigurationHtml ?? '',
-            'slave_configuration_html' => $slaveConfigurationHtml ?? '',
-            'change_master_html' => $changeMasterHtml ?? '',
+            'primary_replication_html' => $primaryReplicationHtml ?? '',
+            'primary_configuration_html' => $primaryConfigurationHtml ?? '',
+            'replica_configuration_html' => $replicaConfigurationHtml ?? '',
+            'change_primary_html' => $changePrimaryHtml ?? '',
         ]);
     }
 }

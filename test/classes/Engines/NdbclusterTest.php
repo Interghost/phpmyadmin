@@ -1,37 +1,28 @@
 <?php
-/**
- * Tests for PMA_StorageEngine_ndbcluster
- *
- * @package PhpMyAdmin-test
- */
+
 declare(strict_types=1);
 
 namespace PhpMyAdmin\Tests\Engines;
 
 use PhpMyAdmin\Engines\Ndbcluster;
-use PhpMyAdmin\Tests\PmaTestCase;
+use PhpMyAdmin\Tests\AbstractTestCase;
 
 /**
- * Tests for PhpMyAdmin\Engines\Ndbcluster
- *
- * @package PhpMyAdmin-test
+ * @covers \PhpMyAdmin\Engines\Ndbcluster
  */
-class NdbclusterTest extends PmaTestCase
+class NdbclusterTest extends AbstractTestCase
 {
-    /**
-     * @access protected
-     */
+    /** @var Ndbcluster */
     protected $object;
 
     /**
      * Sets up the fixture, for example, opens a network connection.
      * This method is called before a test is executed.
-     *
-     * @access protected
-     * @return void
      */
     protected function setUp(): void
     {
+        parent::setUp();
+        $GLOBALS['dbi'] = $this->createDatabaseInterface();
         $GLOBALS['server'] = 0;
         $this->object = new Ndbcluster('nbdcluster');
     }
@@ -39,21 +30,17 @@ class NdbclusterTest extends PmaTestCase
     /**
      * Tears down the fixture, for example, closes a network connection.
      * This method is called after a test is executed.
-     *
-     * @access protected
-     * @return void
      */
     protected function tearDown(): void
     {
+        parent::tearDown();
         unset($this->object);
     }
 
     /**
      * Test for getVariables
-     *
-     * @return void
      */
-    public function testGetVariables()
+    public function testGetVariables(): void
     {
         $this->assertEquals(
             $this->object->getVariables(),
@@ -65,10 +52,8 @@ class NdbclusterTest extends PmaTestCase
 
     /**
      * Test for getVariablesLikePattern
-     *
-     * @return void
      */
-    public function testGetVariablesLikePattern()
+    public function testGetVariablesLikePattern(): void
     {
         $this->assertEquals(
             $this->object->getVariablesLikePattern(),
@@ -78,10 +63,8 @@ class NdbclusterTest extends PmaTestCase
 
     /**
      * Test for getMysqlHelpPage
-     *
-     * @return void
      */
-    public function testGetMysqlHelpPage()
+    public function testGetMysqlHelpPage(): void
     {
         $this->assertEquals(
             $this->object->getMysqlHelpPage(),

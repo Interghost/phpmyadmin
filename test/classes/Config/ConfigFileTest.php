@@ -1,67 +1,58 @@
 <?php
-/* vim: set expandtab sw=4 ts=4 sts=4: */
-/**
- * Tests for Config File Management
- *
- * @package PhpMyAdmin-test
- */
+
 declare(strict_types=1);
 
 namespace PhpMyAdmin\Tests\Config;
 
 use PhpMyAdmin\Config\ConfigFile;
-use PhpMyAdmin\Tests\PmaTestCase;
+use PhpMyAdmin\Config\Settings;
+use PhpMyAdmin\Tests\AbstractTestCase;
 use stdClass;
 
+use function array_keys;
+use function count;
+
 /**
- * Tests for Config File Management
- *
- * @package PhpMyAdmin-test
+ * @covers \PhpMyAdmin\Config\ConfigFile
  */
-class ConfigFileTest extends PmaTestCase
+class ConfigFileTest extends AbstractTestCase
 {
     /**
-     * Any valid key that exists in config.default.php and isn't empty
-     * @var string
+     * Any valid key that exists in {@see \PhpMyAdmin\Config\Settings} and isn't empty
      */
     public const SIMPLE_KEY_WITH_DEFAULT_VALUE = 'DefaultQueryTable';
 
     /**
      * Object under test
+     *
      * @var ConfigFile
      */
     protected $object;
 
     /**
      * Setup function for test cases
-     *
-     * @access protected
-     * @return void
      */
     protected function setUp(): void
     {
+        parent::setUp();
         $GLOBALS['server'] = 1;
         $this->object = new ConfigFile();
     }
 
     /**
      * TearDown function for test cases
-     *
-     * @return void
      */
     protected function tearDown(): void
     {
-        unset($_SESSION[$this->readAttribute($this->object, "_id")]);
+        parent::tearDown();
+        $this->object->setConfigData([]);
         unset($this->object);
     }
 
     /**
      * Test for new ConfigFile()
-     *
-     * @return void
-     * @test
      */
-    public function testNewObjectState()
+    public function testNewObjectState(): void
     {
         // Check default dynamic values
         $this->assertEquals(
@@ -72,41 +63,31 @@ class ConfigFileTest extends PmaTestCase
         // Check environment state
         $this->assertEquals(
             [],
-            $_SESSION["ConfigFile1"]
+            $_SESSION['ConfigFile1']
         );
 
         // Validate default value used in tests
-        $default_value = $this->object->getDefault(
-            self::SIMPLE_KEY_WITH_DEFAULT_VALUE
-        );
+        $default_value = $this->object->getDefault(self::SIMPLE_KEY_WITH_DEFAULT_VALUE);
         $this->assertNotNull($default_value);
     }
 
     /**
      * Test for ConfigFile::setPersistKeys()
-     *
-     * @return void
-     * @test
      */
-    public function testPersistentKeys()
+    public function testPersistentKeys(): void
     {
-        $default_simple_value = $this->object->getDefault(
-            self::SIMPLE_KEY_WITH_DEFAULT_VALUE
-        );
+        $default_simple_value = $this->object->getDefault(self::SIMPLE_KEY_WITH_DEFAULT_VALUE);
         $default_host = $this->object->getDefault('Servers/1/host');
         $default_config = [
             self::SIMPLE_KEY_WITH_DEFAULT_VALUE => $default_simple_value,
             'Servers/1/host' => $default_host,
-            'Servers/2/host' => $default_host
+            'Servers/2/host' => $default_host,
         ];
 
         /**
          * Case 1: set default value, key should not be persisted
          */
-        $this->object->set(
-            self::SIMPLE_KEY_WITH_DEFAULT_VALUE,
-            $default_simple_value
-        );
+        $this->object->set(self::SIMPLE_KEY_WITH_DEFAULT_VALUE, $default_simple_value);
         $this->object->set('Servers/1/host', $default_host);
         $this->object->set('Servers/2/host', $default_host);
         $this->assertEmpty($this->object->getConfig());
@@ -136,11 +117,8 @@ class ConfigFileTest extends PmaTestCase
 
     /**
      * Test for ConfigFile::setAllowedKeys
-     *
-     * @return void
-     * @test
      */
-    public function testAllowedKeys()
+    public function testAllowedKeys(): void
     {
         /**
          * Case 1: filter should not allow to set b
@@ -176,11 +154,8 @@ class ConfigFileTest extends PmaTestCase
 
     /**
      * Test for ConfigFile::setCfgUpdateReadMapping
-     *
-     * @return void
-     * @test
      */
-    public function testConfigReadMapping()
+    public function testConfigReadMapping(): void
     {
         $this->object->setCfgUpdateReadMapping(
             [
@@ -198,7 +173,7 @@ class ConfigFileTest extends PmaTestCase
                     1 => [
                         'passthrough1' => 1,
                         'passthrough2' => 2,
-                        'value1' => 3
+                        'value1' => 3,
                     ],
                 ],
             ],
@@ -212,11 +187,8 @@ class ConfigFileTest extends PmaTestCase
 
     /**
      * Test for ConfigFile::resetConfigData
-     *
-     * @return void
-     * @test
      */
-    public function testResetConfigData()
+    public function testResetConfigData(): void
     {
         $this->object->set('key', 'value');
 
@@ -228,11 +200,8 @@ class ConfigFileTest extends PmaTestCase
 
     /**
      * Test for ConfigFile::setConfigData
-     *
-     * @return void
-     * @test
      */
-    public function testSetConfigData()
+    public function testSetConfigData(): void
     {
         $this->object->set('abc', 'should be deleted by setConfigData');
         $this->object->setConfigData(['a' => 'b']);
@@ -249,11 +218,8 @@ class ConfigFileTest extends PmaTestCase
 
     /**
      * Test for ConfigFile::set and ConfigFile::get
-     *
-     * @return void
-     * @test
      */
-    public function testBasicSetUsage()
+    public function testBasicSetUsage(): void
     {
         $default_host = $this->object->getDefault('Servers/1/host');
         $nondefault_host = $default_host . '.abc';
@@ -284,22 +250,17 @@ class ConfigFileTest extends PmaTestCase
         );
         $default = new stdClass();
         $this->assertInstanceOf(
-            'stdClass',
+            stdClass::class,
             $this->object->get('key not excist', $default)
         );
     }
 
     /**
      * Test for ConfigFile::set - in PMA Setup
-     *
-     * @return void
-     * @test
      */
-    public function testConfigFileSetInSetup()
+    public function testConfigFileSetInSetup(): void
     {
-        $default_value = $this->object->getDefault(
-            self::SIMPLE_KEY_WITH_DEFAULT_VALUE
-        );
+        $default_value = $this->object->getDefault(self::SIMPLE_KEY_WITH_DEFAULT_VALUE);
 
         // default values are not written
         $this->object->set(self::SIMPLE_KEY_WITH_DEFAULT_VALUE, $default_value);
@@ -308,15 +269,10 @@ class ConfigFileTest extends PmaTestCase
 
     /**
      * Test for ConfigFile::set - in user preferences
-     *
-     * @return void
-     * @test
      */
-    public function testConfigFileSetInUserPreferences()
+    public function testConfigFileSetInUserPreferences(): void
     {
-        $default_value = $this->object->getDefault(
-            self::SIMPLE_KEY_WITH_DEFAULT_VALUE
-        );
+        $default_value = $this->object->getDefault(self::SIMPLE_KEY_WITH_DEFAULT_VALUE);
 
         // values are not written when they are the same as in config.inc.php
         $this->object = new ConfigFile(
@@ -325,8 +281,8 @@ class ConfigFileTest extends PmaTestCase
         $this->object->set(self::SIMPLE_KEY_WITH_DEFAULT_VALUE, $default_value);
         $this->assertEmpty($this->object->getConfig());
 
-        // but if config.inc.php differs from config.default.php,
-        // allow to overwrite with value from config.default.php
+        // but if config.inc.php differs from the default values,
+        // allow to overwrite with value from the default values
         $config_inc_php_value = $default_value . 'suffix';
         $this->object = new ConfigFile(
             [self::SIMPLE_KEY_WITH_DEFAULT_VALUE => $config_inc_php_value]
@@ -341,42 +297,29 @@ class ConfigFileTest extends PmaTestCase
     /**
      * Test for ConfigFile::getFlatDefaultConfig
      *
-     * @return void
-     * @test
      * @group medium
      */
-    public function testGetFlatDefaultConfig()
+    public function testGetFlatDefaultConfig(): void
     {
         $flat_default_config = $this->object->getFlatDefaultConfig();
 
-        $default_value = $this->object->getDefault(
-            self::SIMPLE_KEY_WITH_DEFAULT_VALUE
-        );
-        $this->assertEquals(
-            $default_value,
-            $flat_default_config[self::SIMPLE_KEY_WITH_DEFAULT_VALUE]
-        );
+        $default_value = $this->object->getDefault(self::SIMPLE_KEY_WITH_DEFAULT_VALUE);
+        $this->assertEquals($default_value, $flat_default_config[self::SIMPLE_KEY_WITH_DEFAULT_VALUE]);
 
         $localhost_value = $this->object->getDefault('Servers/1/host');
-        $this->assertEquals(
-            $localhost_value,
-            $flat_default_config['Servers/1/host']
-        );
+        $this->assertEquals($localhost_value, $flat_default_config['Servers/1/host']);
 
-        $cfg = [];
-        include ROOT_PATH . 'libraries/config.default.php';
-        // verify that $cfg read from config.default.php is valid
+        $settings = new Settings([]);
+        $cfg = $settings->toArray();
+
         $this->assertGreaterThanOrEqual(100, count($cfg));
         $this->assertGreaterThanOrEqual(count($cfg), count($flat_default_config));
     }
 
     /**
      * Test for ConfigFile::updateWithGlobalConfig
-     *
-     * @return void
-     * @test
      */
-    public function testUpdateWithGlobalConfig()
+    public function testUpdateWithGlobalConfig(): void
     {
         $this->object->set('key', 'value');
         $this->object->set('key2', 'value');
@@ -393,30 +336,24 @@ class ConfigFileTest extends PmaTestCase
 
     /**
      * Test for ConfigFile::getCanonicalPath
-     *
-     * @return void
-     * @test
      */
-    public function testGetCanonicalPath()
+    public function testGetCanonicalPath(): void
     {
         $this->assertEquals(
-            "Servers/1/abcd",
-            $this->object->getCanonicalPath("Servers/2/abcd")
+            'Servers/1/abcd',
+            $this->object->getCanonicalPath('Servers/2/abcd')
         );
 
         $this->assertEquals(
-            "Servers/foo/bar",
-            $this->object->getCanonicalPath("Servers/foo/bar")
+            'Servers/foo/bar',
+            $this->object->getCanonicalPath('Servers/foo/bar')
         );
     }
 
     /**
      * Test for ConfigFile::getDbEntry
-     *
-     * @return void
-     * @test
      */
-    public function testGetDbEntry()
+    public function testGetDbEntry(): void
     {
         $cfg_db = include ROOT_PATH . 'libraries/config.values.php';
         // verify that $cfg_db read from config.values.php is valid
@@ -435,11 +372,8 @@ class ConfigFileTest extends PmaTestCase
 
     /**
      * Test for ConfigFile::getServerCount
-     *
-     * @return void
-     * @test
      */
-    public function testGetServerCount()
+    public function testGetServerCount(): void
     {
         $this->object->set('Servers/1/x', 1);
         $this->object->set('Servers/2/x', 2);
@@ -484,11 +418,8 @@ class ConfigFileTest extends PmaTestCase
 
     /**
      * Test for ConfigFile::getServers
-     *
-     * @return void
-     * @test
      */
-    public function testGetServers()
+    public function testGetServers(): void
     {
         $this->object->set('Servers/1/x', 'a');
         $this->object->set('Servers/2/x', 'b');
@@ -504,11 +435,8 @@ class ConfigFileTest extends PmaTestCase
 
     /**
      * Test for ConfigFile::getServerDSN
-     *
-     * @return void
-     * @test
      */
-    public function testGetServerDSN()
+    public function testGetServerDSN(): void
     {
         $this->assertEquals(
             '',
@@ -519,16 +447,16 @@ class ConfigFileTest extends PmaTestCase
             [
                 'Servers' => [
                     1 => [
-                        "auth_type" => "config",
-                        "user" => "testUser",
-                        "host" => "example.com",
-                        "port" => "21"
+                        'auth_type' => 'config',
+                        'user' => 'testUser',
+                        'host' => 'example.com',
+                        'port' => '21',
                     ],
                 ],
             ]
         );
         $this->assertEquals(
-            "mysqli://testUser@example.com:21",
+            'mysqli://testUser@example.com:21',
             $this->object->getServerDSN(1)
         );
 
@@ -536,18 +464,18 @@ class ConfigFileTest extends PmaTestCase
             [
                 'Servers' => [
                     1 => [
-                        "auth_type" => "config",
-                        "user" => "testUser",
-                        "host" => "localhost",
-                        "port" => "21",
-                        "socket" => "123",
-                        "password" => "",
+                        'auth_type' => 'config',
+                        'user' => 'testUser',
+                        'host' => 'localhost',
+                        'port' => '21',
+                        'socket' => '123',
+                        'password' => '',
                     ],
                 ],
             ]
         );
         $this->assertEquals(
-            "mysqli://testUser@123",
+            'mysqli://testUser@123',
             $this->object->getServerDSN(1)
         );
 
@@ -555,28 +483,25 @@ class ConfigFileTest extends PmaTestCase
             [
                 'Servers' => [
                     1 => [
-                        "auth_type" => "config",
-                        "user" => "testUser",
-                        "host" => "example.com",
-                        "port" => "21",
-                        "password" => "testPass"
+                        'auth_type' => 'config',
+                        'user' => 'testUser',
+                        'host' => 'example.com',
+                        'port' => '21',
+                        'password' => 'testPass',
                     ],
                 ],
             ]
         );
         $this->assertEquals(
-            "mysqli://testUser:***@example.com:21",
+            'mysqli://testUser:***@example.com:21',
             $this->object->getServerDSN(1)
         );
     }
 
     /**
      * Test for ConfigFile::getServerName
-     *
-     * @return void
-     * @test
      */
-    public function testGetServerName()
+    public function testGetServerName(): void
     {
         $this->assertEquals(
             '',
@@ -598,17 +523,12 @@ class ConfigFileTest extends PmaTestCase
 
     /**
      * Test for ConfigFile::getConfigArray
-     *
-     * @return void
-     * @test
      */
-    public function testGetConfigArray()
+    public function testGetConfigArray(): void
     {
         $this->object->setPersistKeys([self::SIMPLE_KEY_WITH_DEFAULT_VALUE]);
         $this->object->set('Array/test', ['x', 'y']);
-        $default_value = $this->object->getDefault(
-            self::SIMPLE_KEY_WITH_DEFAULT_VALUE
-        );
+        $default_value = $this->object->getDefault(self::SIMPLE_KEY_WITH_DEFAULT_VALUE);
 
         $this->assertEquals(
             [
@@ -616,7 +536,7 @@ class ConfigFileTest extends PmaTestCase
                 'Array/test' => [
                     'x',
                     'y',
-                ]
+                ],
             ],
             $this->object->getConfigArray()
         );

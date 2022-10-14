@@ -1,51 +1,44 @@
 <?php
-/* vim: set expandtab sw=4 ts=4 sts=4: */
-/**
- * Test for PhpMyAdmin\Gis\GisGeometry
- *
- * @package PhpMyAdmin-test
- */
+
 declare(strict_types=1);
 
 namespace PhpMyAdmin\Tests\Gis;
 
 use PhpMyAdmin\Gis\GisGeometryCollection;
-use PHPUnit\Framework\TestCase;
+use PhpMyAdmin\Image\ImageWrapper;
+use PhpMyAdmin\Tests\AbstractTestCase;
 use TCPDF;
 
+use function method_exists;
+use function preg_match;
+
 /**
- * Tests for PhpMyAdmin\Gis\GisGeometryCollection class
- *
- * @package PhpMyAdmin-test
+ * @covers \PhpMyAdmin\Gis\GisGeometryCollection
+ * @runTestsInSeparateProcesses
+ * @preserveGlobalState disabled
  */
-class GisGeometryCollectionTest extends TestCase
+class GisGeometryCollectionTest extends AbstractTestCase
 {
-    /**
-     * @access protected
-     */
+    /** @var GisGeometryCollection */
     protected $object;
 
     /**
      * Sets up the fixture, for example, opens a network connection.
      * This method is called before a test is executed.
-     *
-     * @access protected
-     * @return void
      */
     protected function setUp(): void
     {
+        parent::setUp();
         $this->object = GisGeometryCollection::singleton();
     }
 
     /**
      * Tears down the fixture, for example, closes a network connection.
      * This method is called after a test is executed.
-     *
-     * @access protected
-     * @return void
      */
     protected function tearDown(): void
     {
+        parent::tearDown();
         unset($this->object);
     }
 
@@ -55,11 +48,9 @@ class GisGeometryCollectionTest extends TestCase
      * @param string $spatial string to parse
      * @param array  $output  expected parsed output
      *
-     * @return void
-     *
      * @dataProvider providerForScaleRow
      */
-    public function testScaleRow($spatial, $output): void
+    public function testScaleRow(string $spatial, array $output): void
     {
         $this->assertEquals($output, $this->object->scaleRow($spatial));
     }
@@ -69,12 +60,11 @@ class GisGeometryCollectionTest extends TestCase
      *
      * @return array test data for testScaleRow() test case
      */
-    public function providerForScaleRow()
+    public function providerForScaleRow(): array
     {
         return [
             [
-                'GEOMETRYCOLLECTION(POLYGON((35 10,10 20,15 40,45 45,35 10),'
-                    . '(20 30,35 32,30 20,20 30)))',
+                'GEOMETRYCOLLECTION(POLYGON((35 10,10 20,15 40,45 45,35 10),(20 30,35 32,30 20,20 30)))',
                 [
                     'maxX' => 45.0,
                     'minX' => 10.0,
@@ -88,16 +78,14 @@ class GisGeometryCollectionTest extends TestCase
     /**
      * Test for generateWkt
      *
-     * @param array   $gis_data array of GIS data
-     * @param integer $index    index in $gis_data
-     * @param string  $empty    empty parameter
-     * @param string  $output   expected output
-     *
-     * @return void
+     * @param array       $gis_data array of GIS data
+     * @param int         $index    index in $gis_data
+     * @param string|null $empty    empty parameter
+     * @param string      $output   expected output
      *
      * @dataProvider providerForGenerateWkt
      */
-    public function testGenerateWkt($gis_data, $index, $empty, $output): void
+    public function testGenerateWkt(array $gis_data, int $index, ?string $empty, string $output): void
     {
         $this->assertEquals(
             $output,
@@ -110,7 +98,7 @@ class GisGeometryCollectionTest extends TestCase
      *
      * @return array test data for testGenerateWkt() test case
      */
-    public function providerForGenerateWkt()
+    public function providerForGenerateWkt(): array
     {
         $temp1 = [
             0 => [
@@ -124,7 +112,7 @@ class GisGeometryCollectionTest extends TestCase
                     1 => [
                         'x' => 6.14,
                         'y' => 0.15,
-                    ]
+                    ],
                 ],
             ],
         ];
@@ -145,11 +133,9 @@ class GisGeometryCollectionTest extends TestCase
      * @param string $value  string to parse
      * @param array  $output expected parsed output
      *
-     * @return void
-     *
      * @dataProvider providerForGenerateParams
      */
-    public function testGenerateParams($value, $output): void
+    public function testGenerateParams(string $value, array $output): void
     {
         $this->assertEquals($output, $this->object->generateParams($value));
     }
@@ -159,7 +145,7 @@ class GisGeometryCollectionTest extends TestCase
      *
      * @return array test data for testGenerateParams() test case
      */
-    public function providerForGenerateParams()
+    public function providerForGenerateParams(): array
     {
         return [
             [
@@ -178,70 +164,30 @@ class GisGeometryCollectionTest extends TestCase
                             '1' => [
                                 'x' => 6.14,
                                 'y' => 0.15,
-                            ]
+                            ],
                         ],
-                    ]
+                    ],
                 ],
             ],
         ];
     }
 
     /**
-     * Test for prepareRowAsPng
-     *
-     * @param string   $spatial    string to parse
-     * @param string   $label      field label
-     * @param string   $line_color line color
-     * @param array    $scale_data scaling parameters
-     * @param resource $image      initial image
-     *
-     * @return void
-     *
-     * @dataProvider providerForPrepareRowAsPng
+     * @requires extension gd
      */
-    public function testPrepareRowAsPng(
-        $spatial,
-        $label,
-        $line_color,
-        $scale_data,
-        $image
-    ) {
+    public function testPrepareRowAsPng(): void
+    {
+        $image = ImageWrapper::create(120, 150);
+        $this->assertNotNull($image);
         $return = $this->object->prepareRowAsPng(
-            $spatial,
-            $label,
-            $line_color,
-            $scale_data,
+            'GEOMETRYCOLLECTION(POLYGON((35 10,10 20,15 40,45 45,35 10),(20 30,35 32,30 20,20 30)))',
+            'image',
+            '#B02EE0',
+            ['x' => 12, 'y' => 69, 'scale' => 2, 'height' => 150],
             $image
         );
-        $this->assertEquals(120, imagesx($return));
-        $this->assertEquals(150, imagesy($return));
-    }
-
-    /**
-     * Data provider for testPrepareRowAsPng() test case
-     *
-     * @return array test data for testPrepareRowAsPng() test case
-     */
-    public function providerForPrepareRowAsPng()
-    {
-        if (! function_exists('imagecreatetruecolor')) {
-            $this->markTestSkipped('GD extension missing!');
-        }
-        return [
-            [
-                'GEOMETRYCOLLECTION(POLYGON((35 10,10 20,15 40,45 45,35 10),'
-                    . '(20 30,35 32,30 20,20 30)))',
-                'image',
-                '#B02EE0',
-                [
-                    'x' => 12,
-                    'y' => 69,
-                    'scale' => 2,
-                    'height' => 150,
-                ],
-                imagecreatetruecolor(120, 150),
-            ],
-        ];
+        $this->assertEquals(120, $return->width());
+        $this->assertEquals(150, $return->height());
     }
 
     /**
@@ -251,27 +197,19 @@ class GisGeometryCollectionTest extends TestCase
      * @param string $label      field label
      * @param string $line_color line color
      * @param array  $scale_data scaling parameters
-     * @param string $pdf        expected output
-     *
-     * @return void
+     * @param TCPDF  $pdf        expected output
      *
      * @dataProvider providerForPrepareRowAsPdf
      */
     public function testPrepareRowAsPdf(
-        $spatial,
-        $label,
-        $line_color,
-        $scale_data,
-        $pdf
-    ) {
-        $return = $this->object->prepareRowAsPdf(
-            $spatial,
-            $label,
-            $line_color,
-            $scale_data,
-            $pdf
-        );
-        $this->assertInstanceOf('TCPDF', $return);
+        string $spatial,
+        string $label,
+        string $line_color,
+        array $scale_data,
+        TCPDF $pdf
+    ): void {
+        $return = $this->object->prepareRowAsPdf($spatial, $label, $line_color, $scale_data, $pdf);
+        $this->assertInstanceOf(TCPDF::class, $return);
     }
 
     /**
@@ -279,12 +217,11 @@ class GisGeometryCollectionTest extends TestCase
      *
      * @return array test data for testPrepareRowAsPdf() test case
      */
-    public function providerForPrepareRowAsPdf()
+    public function providerForPrepareRowAsPdf(): array
     {
         return [
             [
-                'GEOMETRYCOLLECTION(POLYGON((35 10,10 20,15 40,45 45,35 10),'
-                    . '(20 30,35 32,30 20,20 30)))',
+                'GEOMETRYCOLLECTION(POLYGON((35 10,10 20,15 40,45 45,35 10),(20 30,35 32,30 20,20 30)))',
                 'pdf',
                 '#B02EE0',
                 [
@@ -301,39 +238,36 @@ class GisGeometryCollectionTest extends TestCase
     /**
      * Test for prepareRowAsSvg
      *
-     * @param string $spatial    string to parse
-     * @param string $label      field label
-     * @param string $line_color line color
-     * @param array  $scale_data scaling parameters
-     * @param string $output     expected output
-     *
-     * @return void
+     * @param string $spatial   string to parse
+     * @param string $label     field label
+     * @param string $lineColor line color
+     * @param array  $scaleData scaling parameters
+     * @param string $output    expected output
      *
      * @dataProvider providerForPrepareRowAsSvg
      */
     public function testPrepareRowAsSvg(
-        $spatial,
-        $label,
-        $line_color,
-        $scale_data,
-        $output
-    ) {
-        $string = $this->object->prepareRowAsSvg(
-            $spatial,
-            $label,
-            $line_color,
-            $scale_data
-        );
+        string $spatial,
+        string $label,
+        string $lineColor,
+        array $scaleData,
+        string $output
+    ): void {
+        $string = $this->object->prepareRowAsSvg($spatial, $label, $lineColor, $scaleData);
         $this->assertEquals(1, preg_match($output, $string));
-        $this->assertRegExp(
-            $output,
-            $this->object->prepareRowAsSvg(
-                $spatial,
-                $label,
-                $line_color,
-                $scale_data
-            )
-        );
+
+        if (method_exists($this, 'assertMatchesRegularExpression')) {
+            $this->assertMatchesRegularExpression(
+                $output,
+                $this->object->prepareRowAsSvg($spatial, $label, $lineColor, $scaleData)
+            );
+        } else {
+            /** @psalm-suppress DeprecatedMethod */
+            $this->assertRegExp(
+                $output,
+                $this->object->prepareRowAsSvg($spatial, $label, $lineColor, $scaleData)
+            );
+        }
     }
 
     /**
@@ -341,12 +275,11 @@ class GisGeometryCollectionTest extends TestCase
      *
      * @return array test data for testPrepareRowAsSvg() test case
      */
-    public function providerForPrepareRowAsSvg()
+    public function providerForPrepareRowAsSvg(): array
     {
         return [
             [
-                'GEOMETRYCOLLECTION(POLYGON((35 10,10 20,15 40,45 45,35 10),'
-                    . '(20 30,35 32,30 20,20 30)))',
+                'GEOMETRYCOLLECTION(POLYGON((35 10,10 20,15 40,45 45,35 10),(20 30,35 32,30 20,20 30)))',
                 'svg',
                 '#B02EE0',
                 [
@@ -366,25 +299,23 @@ class GisGeometryCollectionTest extends TestCase
     /**
      * Test for prepareRowAsOl
      *
-     * @param string  $spatial    string to parse
-     * @param integer $srid       SRID
-     * @param string  $label      field label
-     * @param string  $line_color line color
-     * @param array   $scale_data scaling parameters
-     * @param string  $output     expected output
-     *
-     * @return void
+     * @param string $spatial    string to parse
+     * @param int    $srid       SRID
+     * @param string $label      field label
+     * @param array  $line_color line color
+     * @param array  $scale_data scaling parameters
+     * @param string $output     expected output
      *
      * @dataProvider providerForPrepareRowAsOl
      */
     public function testPrepareRowAsOl(
-        $spatial,
-        $srid,
-        $label,
-        $line_color,
-        $scale_data,
-        $output
-    ) {
+        string $spatial,
+        int $srid,
+        string $label,
+        array $line_color,
+        array $scale_data,
+        string $output
+    ): void {
         $this->assertEquals(
             $output,
             $this->object->prepareRowAsOl(
@@ -402,49 +333,53 @@ class GisGeometryCollectionTest extends TestCase
      *
      * @return array test data for testPrepareRowAsOl() test case
      */
-    public function providerForPrepareRowAsOl()
+    public function providerForPrepareRowAsOl(): array
     {
         return [
             [
-                'GEOMETRYCOLLECTION(POLYGON((35 10,10 20,15 40,45 45,35 10),'
-                    . '(20 30,35 32,30 20,20 30)))',
+                'GEOMETRYCOLLECTION(POLYGON((35 10,10 20,15 40,45 45,35 10),(20 30,35 32,30 20,20 30)))',
                 4326,
                 'Ol',
-                '#B02EE0',
+                [176, 46, 224],
                 [
                     'minX' => '0',
                     'minY' => '0',
                     'maxX' => '1',
                     'maxY' => '1',
                 ],
-                'bound = new OpenLayers.Bounds(); bound.extend(new OpenLayers.'
-                . 'LonLat(0, 0).transform(new OpenLayers.Projection("EPSG:4326'
-                . '"), map.getProjectionObject())); bound.extend(new OpenLayer'
-                . 's.LonLat(1, 1).transform(new OpenLayers.Projection("EPSG:43'
-                . '26"), map.getProjectionObject()));vectorLayer.addFeatures(n'
-                . 'ew OpenLayers.Feature.Vector(new OpenLayers.Geometry.Polygo'
-                . 'n(new Array(new OpenLayers.Geometry.LinearRing(new Array((n'
-                . 'ew OpenLayers.Geometry.Point(35,10)).transform(new OpenLaye'
-                . 'rs.Projection("EPSG:4326"), map.getProjectionObject()), (ne'
-                . 'w OpenLayers.Geometry.Point(10,20)).transform(new OpenLayer'
-                . 's.Projection("EPSG:4326"), map.getProjectionObject()), (new'
-                . ' OpenLayers.Geometry.Point(15,40)).transform(new OpenLayers.'
-                . 'Projection("EPSG:4326"), map.getProjectionObject()), (new O'
-                . 'penLayers.Geometry.Point(45,45)).transform(new OpenLayers.P'
-                . 'rojection("EPSG:4326"), map.getProjectionObject()), (new Op'
-                . 'enLayers.Geometry.Point(35,10)).transform(new OpenLayers.Pr'
-                . 'ojection("EPSG:4326"), map.getProjectionObject()))), new Op'
-                . 'enLayers.Geometry.LinearRing(new Array((new OpenLayers.Geom'
-                . 'etry.Point(20,30)).transform(new OpenLayers.Projection("EPS'
-                . 'G:4326"), map.getProjectionObject()), (new OpenLayers.Geome'
-                . 'try.Point(35,32)).transform(new OpenLayers.Projection("EPSG'
-                . ':4326"), map.getProjectionObject()), (new OpenLayers.Geomet'
-                . 'ry.Point(30,20)).transform(new OpenLayers.Projection("EPSG:'
-                . '4326"), map.getProjectionObject()), (new OpenLayers.Geometry'
-                . '.Point(20,30)).transform(new OpenLayers.Projection("EPSG:43'
-                . '26"), map.getProjectionObject()))))), null, {"strokeColor":'
-                . '"#000000","strokeWidth":0.5,"fillColor":"#B02EE0","fillOpac'
-                . 'ity":0.8,"label":"Ol","fontSize":10}));',
+                'var style = new ol.style.Style({fill: new ol.style.Fill({"c'
+                . 'olor":[176,46,224,0.8]}),stroke: new ol.style.Stroke({"co'
+                . 'lor":[0,0,0],"width":0.5}),text: new ol.style.Text({"text'
+                . '":"Ol"})});var minLoc = [0, 0];var maxLoc = [1, 1];var ex'
+                . 't = ol.extent.boundingExtent([minLoc, maxLoc]);ext = ol.p'
+                . 'roj.transformExtent(ext, ol.proj.get("EPSG:4326"), ol.pro'
+                . 'j.get(\'EPSG:3857\'));map.getView().fit(ext, map.getSize('
+                . '));var arr = [];var lineArr = [];var line = new ol.geom.L'
+                . 'inearRing(new Array((new ol.geom.Point([35,10]).transform'
+                . '(ol.proj.get("EPSG:4326"), ol.proj.get(\'EPSG:3857\'))).g'
+                . 'etCoordinates(), (new ol.geom.Point([10,20]).transform(ol'
+                . '.proj.get("EPSG:4326"), ol.proj.get(\'EPSG:3857\'))).getC'
+                . 'oordinates(), (new ol.geom.Point([15,40]).transform(ol.pr'
+                . 'oj.get("EPSG:4326"), ol.proj.get(\'EPSG:3857\'))).getCoor'
+                . 'dinates(), (new ol.geom.Point([45,45]).transform(ol.proj.'
+                . 'get("EPSG:4326"), ol.proj.get(\'EPSG:3857\'))).getCoordin'
+                . 'ates(), (new ol.geom.Point([35,10]).transform(ol.proj.get'
+                . '("EPSG:4326"), ol.proj.get(\'EPSG:3857\'))).getCoordinate'
+                . 's()));var coord = line.getCoordinates();for (var i = 0; i < coord.length; '
+                . 'i++) lineArr.push(coord[i]);arr.push(lineArr);var lineArr = '
+                . '[];var line = new ol.geom.LinearRing(new Array((new ol.ge'
+                . 'om.Point([20,30]).transform(ol.proj.get("EPSG:4326"), ol.'
+                . 'proj.get(\'EPSG:3857\'))).getCoordinates(), (new ol.geom.'
+                . 'Point([35,32]).transform(ol.proj.get("EPSG:4326"), ol.pro'
+                . 'j.get(\'EPSG:3857\'))).getCoordinates(), (new ol.geom.Poi'
+                . 'nt([30,20]).transform(ol.proj.get("EPSG:4326"), ol.proj.g'
+                . 'et(\'EPSG:3857\'))).getCoordinates(), (new ol.geom.Point('
+                . '[20,30]).transform(ol.proj.get("EPSG:4326"), ol.proj.get('
+                . '\'EPSG:3857\'))).getCoordinates()));var coord = line.getC'
+                . 'oordinates();for (var i = 0; i < coord.length; i++) lineArr.push(coord[i]);ar'
+                . 'r.push(lineArr);var polygon = new ol.geom.Polygon(arr);va'
+                . 'r feature = new ol.Feature({geometry: polygon});feature.s'
+                . 'etStyle(style);vectorLayer.addFeature(feature);',
             ],
         ];
     }

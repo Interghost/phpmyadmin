@@ -1,39 +1,40 @@
 <?php
-/* vim: set expandtab sw=4 ts=4 sts=4: */
-/**
- * Holds EnginesControllerTest class
- *
- * @package PhpMyAdmin-test
- */
+
 declare(strict_types=1);
 
 namespace PhpMyAdmin\Tests\Controllers\Server;
 
-use PhpMyAdmin\Config;
 use PhpMyAdmin\Controllers\Server\EnginesController;
 use PhpMyAdmin\DatabaseInterface;
-use PhpMyAdmin\Response;
-use PhpMyAdmin\StorageEngine;
-use PhpMyAdmin\Url;
-use PhpMyAdmin\Util;
-use PHPStan\Testing\TestCase;
+use PhpMyAdmin\Http\ServerRequest;
+use PhpMyAdmin\Template;
+use PhpMyAdmin\Tests\AbstractTestCase;
+use PhpMyAdmin\Tests\Stubs\DbiDummy;
+use PhpMyAdmin\Tests\Stubs\ResponseRenderer;
 
 /**
- * Tests for EnginesController class
- *
- * @package PhpMyAdmin-test
+ * @covers \PhpMyAdmin\Controllers\Server\EnginesController
  */
-class EnginesControllerTest extends TestCase
+class EnginesControllerTest extends AbstractTestCase
 {
+    /** @var DatabaseInterface */
+    protected $dbi;
+
+    /** @var DbiDummy */
+    protected $dummyDbi;
+
     /**
      * Prepares environment for the test.
-     *
-     * @return void
      */
     protected function setUp(): void
     {
-        $GLOBALS['PMA_Config'] = new Config();
-        $GLOBALS['PMA_Config']->enableBc();
+        parent::setUp();
+        $GLOBALS['text_dir'] = 'ltr';
+        parent::setGlobalConfig();
+        parent::setTheme();
+        $this->dummyDbi = $this->createDbiDummy();
+        $this->dbi = $this->createDatabaseInterface($this->dummyDbi);
+        $GLOBALS['dbi'] = $this->dbi;
 
         $GLOBALS['server'] = 1;
         $GLOBALS['db'] = 'db';
@@ -42,115 +43,27 @@ class EnginesControllerTest extends TestCase
         $GLOBALS['cfg']['Server']['DisableIS'] = false;
     }
 
-    /**
-     * @return void
-     */
     public function testIndex(): void
     {
-        $controller = new EnginesController(
-            Response::getInstance(),
-            $GLOBALS['dbi']
-        );
+        $response = new ResponseRenderer();
 
-        $actual = $controller->index();
+        $controller = new EnginesController($response, new Template(), $GLOBALS['dbi']);
 
-        $this->assertStringContainsString(
-            '<th>Storage Engine</th>',
-            $actual
-        );
-        $this->assertStringContainsString(
-            '<th>Description</th>',
-            $actual
-        );
+        $this->dummyDbi->addSelectDb('mysql');
+        $controller->__invoke($this->createStub(ServerRequest::class));
+        $this->dummyDbi->assertAllSelectsConsumed();
 
-        $this->assertStringContainsString(
-            '<td>Federated MySQL storage engine</td>',
-            $actual
-        );
-        $this->assertStringContainsString(
-            'FEDERATED',
-            $actual
-        );
-        $this->assertStringContainsString(
-            'server_engines.php?engine=FEDERATED',
-            $actual
-        );
+        $actual = $response->getHTMLResult();
 
-        $this->assertStringContainsString(
-            '<td>dummy comment</td>',
-            $actual
-        );
-        $this->assertStringContainsString(
-            'dummy',
-            $actual
-        );
-        $this->assertStringContainsString(
-            'server_engines.php?engine=dummy',
-            $actual
-        );
-    }
+        $this->assertStringContainsString('<th scope="col">Storage Engine</th>', $actual);
+        $this->assertStringContainsString('<th scope="col">Description</th>', $actual);
 
-    /**
-     * @return void
-     */
-    public function testShow(): void
-    {
-        $dbi = $this->getMockBuilder(DatabaseInterface::class)
-            ->disableOriginalConstructor()
-            ->getMock();
-        $GLOBALS['dbi'] = $dbi;
+        $this->assertStringContainsString('<td>Federated MySQL storage engine</td>', $actual);
+        $this->assertStringContainsString('FEDERATED', $actual);
+        $this->assertStringContainsString('index.php?route=/server/engines/FEDERATED', $actual);
 
-        $controller = new EnginesController(
-            Response::getInstance(),
-            $GLOBALS['dbi']
-        );
-
-        $actual = $controller->show([
-            'engine' => 'Pbxt',
-            'page' => 'page',
-        ]);
-
-        $enginePlugin = StorageEngine::getEngine('Pbxt');
-
-        $this->assertStringContainsString(
-            htmlspecialchars($enginePlugin->getTitle()),
-            $actual
-        );
-
-        $this->assertStringContainsString(
-            Util::showMySQLDocu($enginePlugin->getMysqlHelpPage()),
-            $actual
-        );
-
-        $this->assertStringContainsString(
-            htmlspecialchars($enginePlugin->getComment()),
-            $actual
-        );
-
-        $this->assertStringContainsString(
-            __('Variables'),
-            $actual
-        );
-        $this->assertStringContainsString(
-            Url::getCommon([
-                'engine' => 'Pbxt',
-                'page' => 'Documentation'
-            ]),
-            $actual
-        );
-
-        $this->assertStringContainsString(
-            Url::getCommon(['engine' => 'Pbxt']),
-            $actual
-        );
-        $this->assertStringContainsString(
-            $enginePlugin->getSupportInformationMessage(),
-            $actual
-        );
-        $this->assertStringContainsString(
-            'There is no detailed status information available for this '
-            . 'storage engine.',
-            $actual
-        );
+        $this->assertStringContainsString('<td>dummy comment</td>', $actual);
+        $this->assertStringContainsString('dummy', $actual);
+        $this->assertStringContainsString('index.php?route=/server/engines/dummy', $actual);
     }
 }

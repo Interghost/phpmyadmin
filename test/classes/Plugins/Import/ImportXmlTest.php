@@ -1,39 +1,47 @@
 <?php
-/**
- * Tests for PhpMyAdmin\Plugins\Import\ImportXml class
- *
- * @package PhpMyAdmin-test
- */
+
 declare(strict_types=1);
 
 namespace PhpMyAdmin\Tests\Plugins\Import;
 
+use PhpMyAdmin\DatabaseInterface;
 use PhpMyAdmin\File;
 use PhpMyAdmin\Plugins\Import\ImportXml;
-use PhpMyAdmin\Tests\PmaTestCase;
+use PhpMyAdmin\Tests\AbstractTestCase;
+
+use function __;
 
 /**
- * Tests for PhpMyAdmin\Plugins\Import\ImportXml class
- *
- * @package PhpMyAdmin-test
+ * @covers \PhpMyAdmin\Plugins\Import\ImportXml
+ * @requires extension xml
+ * @requires extension xmlwriter
  */
-class ImportXmlTest extends PmaTestCase
+class ImportXmlTest extends AbstractTestCase
 {
-    /**
-     * @access protected
-     */
+    /** @var ImportXml */
     protected $object;
 
     /**
      * Sets up the fixture, for example, opens a network connection.
      * This method is called before a test is executed.
-     *
-     * @access protected
-     * @return void
      */
     protected function setUp(): void
     {
+        parent::setUp();
+        $GLOBALS['dbi'] = $this->createDatabaseInterface();
         $GLOBALS['server'] = 0;
+        $GLOBALS['error'] = null;
+        $GLOBALS['timeout_passed'] = null;
+        $GLOBALS['maximum_time'] = null;
+        $GLOBALS['charset_conversion'] = null;
+        $GLOBALS['db'] = '';
+        $GLOBALS['skip_queries'] = null;
+        $GLOBALS['max_sql_len'] = null;
+        $GLOBALS['sql_query_disabled'] = null;
+        $GLOBALS['sql_query'] = '';
+        $GLOBALS['executed_queries'] = null;
+        $GLOBALS['run_query'] = null;
+        $GLOBALS['go_sql'] = null;
 
         $this->object = new ImportXml();
 
@@ -43,36 +51,29 @@ class ImportXmlTest extends PmaTestCase
         $GLOBALS['offset'] = 0;
         $GLOBALS['cfg']['Server']['DisableIS'] = false;
 
-        $GLOBALS['import_file'] = 'test/test_data/phpmyadmin_importXML_'
-            . 'For_Testing.xml';
+        $GLOBALS['import_file'] = 'test/test_data/phpmyadmin_importXML_For_Testing.xml';
         $GLOBALS['import_text'] = 'ImportXml_Test';
         $GLOBALS['compression'] = 'none';
         $GLOBALS['read_multiply'] = 10;
         $GLOBALS['import_type'] = 'Xml';
-        $GLOBALS['import_handle'] = new File($GLOBALS['import_file']);
-        $GLOBALS['import_handle']->open();
     }
 
     /**
      * Tears down the fixture, for example, closes a network connection.
      * This method is called after a test is executed.
-     *
-     * @access protected
-     * @return void
      */
     protected function tearDown(): void
     {
+        parent::tearDown();
         unset($this->object);
     }
 
     /**
      * Test for getProperties
      *
-     * @return void
-     *
      * @group medium
      */
-    public function testGetProperties()
+    public function testGetProperties(): void
     {
         $properties = $this->object->getProperties();
         $this->assertEquals(
@@ -87,10 +88,7 @@ class ImportXmlTest extends PmaTestCase
             'text/xml',
             $properties->getMimeType()
         );
-        $this->assertEquals(
-            [],
-            $properties->getOptions()
-        );
+        $this->assertNull($properties->getOptions());
         $this->assertEquals(
             __('Options'),
             $properties->getOptionsText()
@@ -100,23 +98,24 @@ class ImportXmlTest extends PmaTestCase
     /**
      * Test for doImport
      *
-     * @return void
-     *
      * @group medium
+     * @requires extension simplexml
      */
-    public function testDoImport()
+    public function testDoImport(): void
     {
         //$import_notice will show the import detail result
-        global $import_notice;
 
         //Mock DBI
-        $dbi = $this->getMockBuilder('PhpMyAdmin\DatabaseInterface')
+        $dbi = $this->getMockBuilder(DatabaseInterface::class)
             ->disableOriginalConstructor()
             ->getMock();
         $GLOBALS['dbi'] = $dbi;
 
+        $importHandle = new File($GLOBALS['import_file']);
+        $importHandle->open();
+
         //Test function called
-        $this->object->doImport();
+        $this->object->doImport($importHandle);
 
         // If import successfully, PMA will show all databases and tables
         // imported as following HTML Page
@@ -134,27 +133,12 @@ class ImportXmlTest extends PmaTestCase
         //asset that all databases and tables are imported
         $this->assertStringContainsString(
             'The following structures have either been created or altered.',
-            $import_notice
+            $GLOBALS['import_notice']
         );
-        $this->assertStringContainsString(
-            'Go to database: `phpmyadmintest`',
-            $import_notice
-        );
-        $this->assertStringContainsString(
-            'Edit settings for `phpmyadmintest`',
-            $import_notice
-        );
-        $this->assertStringContainsString(
-            'Go to table: `pma_bookmarktest`',
-            $import_notice
-        );
-        $this->assertStringContainsString(
-            'Edit settings for `pma_bookmarktest`',
-            $import_notice
-        );
-        $this->assertEquals(
-            true,
-            $GLOBALS['finished']
-        );
+        $this->assertStringContainsString('Go to database: `phpmyadmintest`', $GLOBALS['import_notice']);
+        $this->assertStringContainsString('Edit settings for `phpmyadmintest`', $GLOBALS['import_notice']);
+        $this->assertStringContainsString('Go to table: `pma_bookmarktest`', $GLOBALS['import_notice']);
+        $this->assertStringContainsString('Edit settings for `pma_bookmarktest`', $GLOBALS['import_notice']);
+        $this->assertTrue($GLOBALS['finished']);
     }
 }

@@ -1,45 +1,34 @@
 <?php
-/**
- * Tests for Types.php
- *
- * @package PhpMyAdmin-test
- */
+
 declare(strict_types=1);
 
 namespace PhpMyAdmin\Tests;
 
-use PhpMyAdmin\Tests\PmaTestCase;
 use PhpMyAdmin\Types;
 
 /**
- * Testcase for MySQL types handling.
- *
- * @package PhpMyAdmin-test
+ * @covers \PhpMyAdmin\Types
  */
-class TypesTest extends PmaTestCase
+class TypesTest extends AbstractTestCase
 {
-    /**
-     * @var Types
-     */
+    /** @var Types */
     protected $object;
 
     /**
      * Sets up the fixture, for example, opens a network connection.
      * This method is called before a test is executed.
-     *
-     * @return void
      */
     protected function setUp(): void
     {
+        parent::setUp();
+        $GLOBALS['dbi'] = $this->createDatabaseInterface();
         $this->object = new Types($GLOBALS['dbi']);
     }
 
     /**
      * Test for isUnaryOperator
-     *
-     * @return void
      */
-    public function testUnary()
+    public function testUnary(): void
     {
         $this->assertTrue($this->object->isUnaryOperator('IS NULL'));
         $this->assertFalse($this->object->isUnaryOperator('='));
@@ -47,10 +36,8 @@ class TypesTest extends PmaTestCase
 
     /**
      * Test for getUnaryOperators
-     *
-     * @return void
      */
-    public function testGetUnaryOperators()
+    public function testGetUnaryOperators(): void
     {
         $this->assertEquals(
             [
@@ -65,10 +52,8 @@ class TypesTest extends PmaTestCase
 
     /**
      * Test for getNullOperators
-     *
-     * @return void
      */
-    public function testGetNullOperators()
+    public function testGetNullOperators(): void
     {
         $this->assertEquals(
             [
@@ -81,10 +66,8 @@ class TypesTest extends PmaTestCase
 
     /**
      * Test for getEnumOperators
-     *
-     * @return void
      */
-    public function testGetEnumOperators()
+    public function testGetEnumOperators(): void
     {
         $this->assertEquals(
             [
@@ -97,16 +80,15 @@ class TypesTest extends PmaTestCase
 
     /**
      * Test for getTextOperators
-     *
-     * @return void
      */
-    public function testgetTextOperators()
+    public function testgetTextOperators(): void
     {
         $this->assertEquals(
             [
                 'LIKE',
                 'LIKE %...%',
                 'NOT LIKE',
+                'NOT LIKE %...%',
                 '=',
                 '!=',
                 'REGEXP',
@@ -125,10 +107,8 @@ class TypesTest extends PmaTestCase
 
     /**
      * Test for getNumberOperators
-     *
-     * @return void
      */
-    public function testGetNumberOperators()
+    public function testGetNumberOperators(): void
     {
         $this->assertEquals(
             [
@@ -141,6 +121,7 @@ class TypesTest extends PmaTestCase
                 'LIKE',
                 'LIKE %...%',
                 'NOT LIKE',
+                'NOT LIKE %...%',
                 'IN (...)',
                 'NOT IN (...)',
                 'BETWEEN',
@@ -153,15 +134,13 @@ class TypesTest extends PmaTestCase
     /**
      * Test for getting type operators
      *
-     * @param string  $type   Type of field
-     * @param boolean $null   Whether field can be NULL
-     * @param string  $output Expected output
-     *
-     * @return void
+     * @param string       $type   Type of field
+     * @param bool         $null   Whether field can be NULL
+     * @param string|array $output Expected output
      *
      * @dataProvider providerForGetTypeOperators
      */
-    public function testGetTypeOperators($type, $null, $output): void
+    public function testGetTypeOperators(string $type, bool $null, $output): void
     {
         $this->assertEquals(
             $output,
@@ -174,7 +153,7 @@ class TypesTest extends PmaTestCase
      *
      * @return array data for testGetTypeOperators
      */
-    public function providerForGetTypeOperators()
+    public function providerForGetTypeOperators(): array
     {
         return [
             [
@@ -192,6 +171,7 @@ class TypesTest extends PmaTestCase
                     'LIKE',
                     'LIKE %...%',
                     'NOT LIKE',
+                    'NOT LIKE %...%',
                     '=',
                     '!=',
                     'REGEXP',
@@ -221,21 +201,19 @@ class TypesTest extends PmaTestCase
     /**
      * Test for getTypeOperatorsHtml
      *
-     * @param string  $type             Type of field
-     * @param boolean $null             Whether field can be NULL
-     * @param string  $selectedOperator Option to be selected
-     * @param string  $output           Expected output
-     *
-     * @return void
+     * @param string $type             Type of field
+     * @param bool   $null             Whether field can be NULL
+     * @param string $selectedOperator Option to be selected
+     * @param string $output           Expected output
      *
      * @dataProvider providerForTestGetTypeOperatorsHtml
      */
     public function testGetTypeOperatorsHtml(
-        $type,
-        $null,
-        $selectedOperator,
-        $output
-    ) {
+        string $type,
+        bool $null,
+        string $selectedOperator,
+        string $output
+    ): void {
         $this->assertEquals(
             $output,
             $this->object->getTypeOperatorsHtml($type, $null, $selectedOperator)
@@ -247,15 +225,14 @@ class TypesTest extends PmaTestCase
      *
      * @return array test data for getTypeOperatorsHtml
      */
-    public function providerForTestGetTypeOperatorsHtml()
+    public function providerForTestGetTypeOperatorsHtml(): array
     {
         return [
             [
                 'enum',
                 false,
                 '=',
-                '<option value="=" selected="selected">=</option>'
-                . '<option value="!=">!=</option>',
+                '<option value="=" selected="selected">=</option><option value="!=">!=</option>',
             ],
         ];
     }
@@ -265,11 +242,9 @@ class TypesTest extends PmaTestCase
      *
      * @param string $type The data type to get a description.
      *
-     * @return void
-     *
      * @dataProvider providerForTestGetTypeDescription
      */
-    public function testGetTypeDescription($type): void
+    public function testGetTypeDescription(string $type): void
     {
         $this->assertNotEquals(
             '',
@@ -279,10 +254,8 @@ class TypesTest extends PmaTestCase
 
     /**
      * Test for getTypeDescription with unknown value
-     *
-     * @return void
      */
-    public function testGetUnknownTypeDescription()
+    public function testGetUnknownTypeDescription(): void
     {
         $this->assertEquals(
             '',
@@ -295,7 +268,7 @@ class TypesTest extends PmaTestCase
      *
      * @return array
      */
-    public function providerForTestGetTypeDescription()
+    public function providerForTestGetTypeDescription(): array
     {
         return [
             ['TINYINT'],
@@ -337,20 +310,19 @@ class TypesTest extends PmaTestCase
             ['MULTILINESTRING'],
             ['MULTIPOLYGON'],
             ['GEOMETRYCOLLECTION'],
+            ['JSON'],
+            ['INET6'],
+            ['UUID'],
         ];
     }
 
     /**
-     * Test for getFunctionsClass
-     *
      * @param string $class  The class to get function list.
      * @param array  $output Expected function list
      *
-     * @return void
-     *
      * @dataProvider providerFortTestGetFunctionsClass
      */
-    public function testGetFunctionsClass($class, $output): void
+    public function testGetFunctionsClass(string $class, array $output): void
     {
         $this->assertEquals(
             $output,
@@ -360,10 +332,8 @@ class TypesTest extends PmaTestCase
 
     /**
      * Data provider for testing function lists
-     *
-     * @return array with test data
      */
-    public function providerFortTestGetFunctionsClass()
+    public function providerFortTestGetFunctionsClass(): array
     {
         return [
             [
@@ -401,7 +371,6 @@ class TypesTest extends PmaTestCase
                     'UNHEX',
                     'UPPER',
                     'USER',
-                    'UUID',
                     'VERSION',
                 ],
             ],
@@ -428,81 +397,80 @@ class TypesTest extends PmaTestCase
             [
                 'SPATIAL',
                 [
-                    'GeomFromText',
-                    'GeomFromWKB',
+                    'ST_GeomFromText',
+                    'ST_GeomFromWKB',
 
-                    'GeomCollFromText',
-                    'LineFromText',
-                    'MLineFromText',
-                    'PointFromText',
-                    'MPointFromText',
-                    'PolyFromText',
-                    'MPolyFromText',
+                    'ST_GeomCollFromText',
+                    'ST_LineFromText',
+                    'ST_MLineFromText',
+                    'ST_PointFromText',
+                    'ST_MPointFromText',
+                    'ST_PolyFromText',
+                    'ST_MPolyFromText',
 
-                    'GeomCollFromWKB',
-                    'LineFromWKB',
-                    'MLineFromWKB',
-                    'PointFromWKB',
-                    'MPointFromWKB',
-                    'PolyFromWKB',
-                    'MPolyFromWKB',
+                    'ST_GeomCollFromWKB',
+                    'ST_LineFromWKB',
+                    'ST_MLineFromWKB',
+                    'ST_PointFromWKB',
+                    'ST_MPointFromWKB',
+                    'ST_PolyFromWKB',
+                    'ST_MPolyFromWKB',
                 ],
             ],
             [
                 'NUMBER',
                 [
-                    '0' => 'ABS',
-                    '1' => 'ACOS',
-                    '2' => 'ASCII',
-                    '3' => 'ASIN',
-                    '4' => 'ATAN',
-                    '5' => 'BIT_LENGTH',
-                    '6' => 'BIT_COUNT',
-                    '7' => 'CEILING',
-                    '8' => 'CHAR_LENGTH',
-                    '9' => 'CONNECTION_ID',
-                    '10' => 'COS',
-                    '11' => 'COT',
-                    '12' => 'CRC32',
-                    '13' => 'DAYOFMONTH',
-                    '14' => 'DAYOFWEEK',
-                    '15' => 'DAYOFYEAR',
-                    '16' => 'DEGREES',
-                    '17' => 'EXP',
-                    '18' => 'FLOOR',
-                    '19' => 'HOUR',
-                    '20' => 'INET6_ATON',
-                    '21' => 'INET_ATON',
-                    '22' => 'LENGTH',
-                    '23' => 'LN',
-                    '24' => 'LOG',
-                    '25' => 'LOG2',
-                    '26' => 'LOG10',
-                    '27' => 'MICROSECOND',
-                    '28' => 'MINUTE',
-                    '29' => 'MONTH',
-                    '30' => 'OCT',
-                    '31' => 'ORD',
-                    '32' => 'PI',
-                    '33' => 'QUARTER',
-                    '34' => 'RADIANS',
-                    '35' => 'RAND',
-                    '36' => 'ROUND',
-                    '37' => 'SECOND',
-                    '38' => 'SIGN',
-                    '39' => 'SIN',
-                    '40' => 'SQRT',
-                    '41' => 'TAN',
-                    '42' => 'TO_DAYS',
-                    '43' => 'TO_SECONDS',
-                    '44' => 'TIME_TO_SEC',
-                    '45' => 'UNCOMPRESSED_LENGTH',
-                    '46' => 'UNIX_TIMESTAMP',
-                    '47' => 'UUID_SHORT',
-                    '48' => 'WEEK',
-                    '49' => 'WEEKDAY',
-                    '50' => 'WEEKOFYEAR',
-                    '51' => 'YEARWEEK',
+                    'ABS',
+                    'ACOS',
+                    'ASCII',
+                    'ASIN',
+                    'ATAN',
+                    'BIT_LENGTH',
+                    'BIT_COUNT',
+                    'CEILING',
+                    'CHAR_LENGTH',
+                    'CONNECTION_ID',
+                    'COS',
+                    'COT',
+                    'CRC32',
+                    'DAYOFMONTH',
+                    'DAYOFWEEK',
+                    'DAYOFYEAR',
+                    'DEGREES',
+                    'EXP',
+                    'FLOOR',
+                    'HOUR',
+                    'INET6_ATON',
+                    'INET_ATON',
+                    'LENGTH',
+                    'LN',
+                    'LOG',
+                    'LOG2',
+                    'LOG10',
+                    'MICROSECOND',
+                    'MINUTE',
+                    'MONTH',
+                    'OCT',
+                    'ORD',
+                    'PI',
+                    'QUARTER',
+                    'RADIANS',
+                    'RAND',
+                    'ROUND',
+                    'SECOND',
+                    'SIGN',
+                    'SIN',
+                    'SQRT',
+                    'TAN',
+                    'TO_DAYS',
+                    'TO_SECONDS',
+                    'TIME_TO_SEC',
+                    'UNCOMPRESSED_LENGTH',
+                    'UNIX_TIMESTAMP',
+                    'WEEK',
+                    'WEEKDAY',
+                    'WEEKOFYEAR',
+                    'YEARWEEK',
                 ],
             ],
             [
@@ -514,10 +482,8 @@ class TypesTest extends PmaTestCase
 
     /**
      * Test for getFunctions
-     *
-     * @return void
      */
-    public function testGetFunctions()
+    public function testGetFunctions(): void
     {
         $this->assertEquals(
             [
@@ -553,7 +519,6 @@ class TypesTest extends PmaTestCase
                 'UNHEX',
                 'UPPER',
                 'USER',
-                'UUID',
                 'VERSION',
             ],
             $this->object->getFunctions('enum')
@@ -562,10 +527,8 @@ class TypesTest extends PmaTestCase
 
     /**
      * Test for getAllFunctions
-     *
-     * @return void
      */
-    public function testGetAllFunctions()
+    public function testGetAllFunctions(): void
     {
         $this->assertEquals(
             [
@@ -645,6 +608,22 @@ class TypesTest extends PmaTestCase
                 'SOUNDEX',
                 'SPACE',
                 'SQRT',
+                'ST_GeomCollFromText',
+                'ST_GeomCollFromWKB',
+                'ST_GeomFromText',
+                'ST_GeomFromWKB',
+                'ST_LineFromText',
+                'ST_LineFromWKB',
+                'ST_MLineFromText',
+                'ST_MLineFromWKB',
+                'ST_MPointFromText',
+                'ST_MPointFromWKB',
+                'ST_MPolyFromText',
+                'ST_MPolyFromWKB',
+                'ST_PointFromText',
+                'ST_PointFromWKB',
+                'ST_PolyFromText',
+                'ST_PolyFromWKB',
                 'SYSDATE',
                 'TAN',
                 'TIME',
@@ -662,8 +641,6 @@ class TypesTest extends PmaTestCase
                 'UTC_DATE',
                 'UTC_TIME',
                 'UTC_TIMESTAMP',
-                'UUID',
-                'UUID_SHORT',
                 'VERSION',
                 'WEEK',
                 'WEEKDAY',
@@ -677,10 +654,8 @@ class TypesTest extends PmaTestCase
 
     /**
      * Test for getAttributes
-     *
-     * @return void
      */
-    public function testGetAttributes()
+    public function testGetAttributes(): void
     {
         $this->assertEquals(
             [
@@ -696,10 +671,8 @@ class TypesTest extends PmaTestCase
 
     /**
      * Test for getColumns
-     *
-     * @return void
      */
-    public function testGetColumns()
+    public function testGetColumns(): void
     {
         $this->assertEquals(
             [
@@ -707,7 +680,7 @@ class TypesTest extends PmaTestCase
                 1 => 'VARCHAR',
                 2 => 'TEXT',
                 3 => 'DATE',
-                'Numeric' =>  [
+                'Numeric' => [
                     'TINYINT',
                     'SMALLINT',
                     'MEDIUMINT',
@@ -723,14 +696,14 @@ class TypesTest extends PmaTestCase
                     'BOOLEAN',
                     'SERIAL',
                 ],
-                'Date and time' =>  [
+                'Date and time' => [
                     'DATE',
                     'DATETIME',
                     'TIMESTAMP',
                     'TIME',
                     'YEAR',
                 ],
-                'String' =>  [
+                'String' => [
                     'CHAR',
                     'VARCHAR',
                     '-',
@@ -750,7 +723,7 @@ class TypesTest extends PmaTestCase
                     'ENUM',
                     'SET',
                 ],
-                'Spatial' =>  [
+                'Spatial' => [
                     'GEOMETRY',
                     'POINT',
                     'LINESTRING',
@@ -760,25 +733,19 @@ class TypesTest extends PmaTestCase
                     'MULTIPOLYGON',
                     'GEOMETRYCOLLECTION',
                 ],
-                'JSON' => [
-                    'JSON'
-                ]
+                'JSON' => ['JSON'],
             ],
             $this->object->getColumns()
         );
     }
 
     /**
-     * Test for getTypeClass
-     *
      * @param string $type   Type to check
      * @param string $output Expected result
      *
-     * @return void
-     *
      * @dataProvider providerFortTestGetTypeClass
      */
-    public function testGetTypeClass($type, $output): void
+    public function testGetTypeClass(string $type, string $output): void
     {
         $this->assertEquals(
             $output,
@@ -791,7 +758,7 @@ class TypesTest extends PmaTestCase
      *
      * @return array for testing type detection
      */
-    public function providerFortTestGetTypeClass()
+    public function providerFortTestGetTypeClass(): array
     {
         return [
             [
@@ -809,6 +776,14 @@ class TypesTest extends PmaTestCase
             [
                 'SET',
                 'CHAR',
+            ],
+            [
+                'JSON',
+                'JSON',
+            ],
+            [
+                'UUID',
+                'UUID',
             ],
             [
                 'UNKNOWN',

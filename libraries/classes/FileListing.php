@@ -1,18 +1,22 @@
 <?php
-/* vim: set expandtab sw=4 ts=4 sts=4: */
-/**
- * Holds the PhpMyAdmin\FileListing class
- *
- * @package PhpMyAdmin
- */
+
 declare(strict_types=1);
 
 namespace PhpMyAdmin;
 
+use function asort;
+use function closedir;
+use function file_exists;
+use function function_exists;
+use function is_file;
+use function is_link;
+use function opendir;
+use function preg_match;
+use function readdir;
+use function substr;
+
 /**
  * Functions for listing directories
- *
- * @package PhpMyAdmin
  */
 class FileListing
 {
@@ -26,24 +30,36 @@ class FileListing
      */
     public function getDirContent(string $dir, string $expression = '')
     {
-        if (! @file_exists($dir) || ! ($handle = @opendir($dir))) {
+        if (! @file_exists($dir)) {
+            return false;
+        }
+
+        $handle = @opendir($dir);
+
+        if ($handle === false) {
             return false;
         }
 
         $result = [];
-        if (substr($dir, -1) != '/') {
+        if (substr($dir, -1) !== '/') {
             $dir .= '/';
         }
+
         while ($file = @readdir($handle)) {
-            if (@is_file($dir . $file)
-                && ! @is_link($dir . $file)
-                && ($expression == '' || preg_match($expression, $file))
+            if (
+                ! @is_file($dir . $file)
+                || @is_link($dir . $file)
+                || ($expression != '' && ! preg_match($expression, $file))
             ) {
-                $result[] = $file;
+                continue;
             }
+
+            $result[] = $file;
         }
+
         closedir($handle);
         asort($result);
+
         return $result;
     }
 
@@ -54,7 +70,7 @@ class FileListing
      * @param string $extensions regular expression to match files
      * @param string $active     currently active choice
      *
-     * @return array|bool sorted file list on success, false on failure
+     * @return string|false Html <option> field, false if not files in dir
      */
     public function getFileSelectOptions(
         string $dir,
@@ -65,15 +81,13 @@ class FileListing
         if ($list === false) {
             return false;
         }
-        $result = '';
-        foreach ($list as $val) {
-            $result .= '<option value="' . htmlspecialchars($val) . '"';
-            if ($val == $active) {
-                $result .= ' selected="selected"';
-            }
-            $result .= '>' . htmlspecialchars($val) . '</option>' . "\n";
-        }
-        return $result;
+
+        $template = new Template();
+
+        return $template->render('file_select_options', [
+            'filesList' => $list,
+            'active' => $active,
+        ]);
     }
 
     /**
@@ -83,23 +97,25 @@ class FileListing
      */
     public function supportedDecompressions(): string
     {
-        global $cfg;
-
         $compressions = '';
 
-        if ($cfg['GZipDump'] && function_exists('gzopen')) {
+        if ($GLOBALS['cfg']['GZipDump'] && function_exists('gzopen')) {
             $compressions = 'gz';
         }
-        if ($cfg['BZipDump'] && function_exists('bzopen')) {
+
+        if ($GLOBALS['cfg']['BZipDump'] && function_exists('bzopen')) {
             if (! empty($compressions)) {
                 $compressions .= '|';
             }
+
             $compressions .= 'bz2';
         }
-        if ($cfg['ZipDump'] && function_exists('gzinflate')) {
+
+        if ($GLOBALS['cfg']['ZipDump'] && function_exists('gzinflate')) {
             if (! empty($compressions)) {
                 $compressions .= '|';
             }
+
             $compressions .= 'zip';
         }
 

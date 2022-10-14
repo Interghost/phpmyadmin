@@ -1,9 +1,12 @@
-<form class="ajax" id="changeUserGroupForm" action="server_privileges.php" method="post">
-    {{ get_hidden_inputs(params) }}
-    <fieldset id="fieldset_user_group_selection">
-        <legend>{% trans 'User group' %}</legend>
-        {% trans 'User group' %}:
-        {{ get_dropdown('userGroup', all_user_groups, user_group, 'userGroup_select') }}
-        <input type="hidden" name="changeUserGroup" value="1">
-    </fieldset>
+<form class="ajax" id="changeUserGroupForm" action="{{ url('/server/privileges') }}" method="post">
+  {{ get_hidden_inputs(params) }}
+  <input type="hidden" name="changeUserGroup" value="1">
+
+  <label class="form-label" for="userGroupSelect">{% trans 'User group:' %}</label>
+  <select class="form-select" name="userGroup" id="userGroupSelect">
+    <option value=""></option>
+    {% for option in all_user_groups %}
+      <option value="{{ option }}"{{ user_group == option ? ' selected' }}>{{ option }}</option>
+    {% endfor %}
+  </select>
 </form>

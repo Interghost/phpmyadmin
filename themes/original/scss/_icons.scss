@@ -1,6 +1,6 @@
 .icon {
   margin: 0;
-  margin-#{$left}: 0.3em;
+  margin-left: 0.3em;
   padding: 0 !important;
   width: 16px;
   height: 16px;
@@ -131,12 +131,6 @@
   background-image: url('../img/b_index_add.png');
 }
 
-.ic_b_info {
-  background-image: url('../../pmahomme/img/b_info.png');
-  width: 11px;
-  height: 11px;
-}
-
 .ic_b_inline_edit {
   background-image: url('../img/b_inline_edit.png');
 }
@@ -163,6 +157,10 @@
 
 .ic_b_newdb {
   background-image: url('../img/b_newdb.png');
+}
+
+.ic_db_drop {
+  background-image: url('../img/b_deltbl.png');
 }
 
 .ic_b_newtbl {
@@ -211,6 +209,10 @@
 
 .ic_b_report {
   background-image: url('../img/b_report.png');
+}
+
+.ic_b_rename {
+  background-image: url('../img/b_rename.svg');
 }
 
 .ic_b_routine_add {
@@ -588,6 +590,10 @@
 
 .ic_s_lock {
   background-image: url('../img/s_lock.png');
+}
+
+.ic_s_unlock {
+  background-image: url('../../pmahomme/img/lock_open.png');
 }
 
 .ic_s_loggoff {

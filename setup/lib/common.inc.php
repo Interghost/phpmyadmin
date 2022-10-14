@@ -1,33 +1,47 @@
 <?php
-/* vim: set expandtab sw=4 ts=4 sts=4: */
-/**
- * Loads libraries/common.inc.php and preforms some additional actions
- *
- * @package PhpMyAdmin-Setup
- */
+
 declare(strict_types=1);
 
+use PhpMyAdmin\Common;
 use PhpMyAdmin\Config\ConfigFile;
+use PhpMyAdmin\DatabaseInterface;
 
-/**
- * Do not include full common.
- * @ignore
- */
-define('PMA_MINIMUM_COMMON', true);
-chdir('..');
-
-if (! file_exists(ROOT_PATH . 'libraries/common.inc.php')) {
-    die('Bad invocation!');
+if (PHP_VERSION_ID < 70205) {
+    die('<p>PHP 7.2.5+ is required.</p><p>Currently installed version is: ' . PHP_VERSION . '</p>');
 }
 
-require_once ROOT_PATH . 'libraries/common.inc.php';
+if (! defined('PHPMYADMIN')) {
+    exit;
+}
+
+require_once ROOT_PATH . 'libraries/constants.php';
+
+/**
+ * Activate autoloader
+ */
+if (! @is_readable(AUTOLOAD_FILE)) {
+    die(
+        '<p>File <samp>' . AUTOLOAD_FILE . '</samp> missing or not readable.</p>'
+        . '<p>Most likely you did not run Composer to '
+        . '<a href="https://docs.phpmyadmin.net/en/latest/setup.html#installing-from-git">'
+        . 'install library files</a>.</p>'
+    );
+}
+
+require AUTOLOAD_FILE;
+
+chdir('..');
+
+$GLOBALS['isMinimumCommon'] = true;
+
+Common::run();
 
 // use default error handler
 restore_error_handler();
 
-// Save current language in a cookie, required since we use PMA_MINIMUM_COMMON
-$GLOBALS['PMA_Config']->setCookie('pma_lang', $GLOBALS['lang']);
-$GLOBALS['PMA_Config']->set('is_setup', true);
+// Save current language in a cookie, required since we set $GLOBALS['isMinimumCommon']
+$GLOBALS['config']->setCookie('pma_lang', (string) $GLOBALS['lang']);
+$GLOBALS['config']->set('is_setup', true);
 
 $GLOBALS['ConfigFile'] = new ConfigFile();
 $GLOBALS['ConfigFile']->setPersistKeys(
@@ -45,6 +59,8 @@ $GLOBALS['ConfigFile']->setPersistKeys(
         'Servers/1/password',
     ]
 );
+
+$GLOBALS['dbi'] = DatabaseInterface::load();
 
 // allows for redirection even after sending some data
 ob_start();

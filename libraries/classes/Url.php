@@ -1,23 +1,36 @@
 <?php
-/* vim: set expandtab sw=4 ts=4 sts=4: */
 /**
  * Static methods for URL/hidden inputs generating
- *
- * @package PhpMyAdmin
  */
+
 declare(strict_types=1);
 
 namespace PhpMyAdmin;
 
+use PhpMyAdmin\Crypto\Crypto;
+
+use function base64_decode;
+use function base64_encode;
+use function htmlentities;
+use function htmlspecialchars;
+use function http_build_query;
+use function in_array;
+use function ini_get;
+use function is_array;
+use function json_encode;
+use function str_contains;
+use function strlen;
+use function strtr;
+
 /**
  * Static methods for URL/hidden inputs generating
- *
- * @package PhpMyAdmin
  */
 class Url
 {
     /**
      * Generates text with hidden inputs.
+     *
+     * @see Url::getCommon()
      *
      * @param string|array $db     optional database name
      *                             (can also be an array of parameters)
@@ -26,11 +39,7 @@ class Url
      * @param string|array $skip   do not generate a hidden field for this parameter
      *                             (can be an array of strings)
      *
-     * @see Url::getCommon()
-     *
      * @return string   string with input fields
-     *
-     * @access  public
      */
     public static function getHiddenInputs(
         $db = '',
@@ -38,28 +47,26 @@ class Url
         $indent = 0,
         $skip = []
     ) {
+        $GLOBALS['config'] = $GLOBALS['config'] ?? null;
+
         if (is_array($db)) {
-            $params  =& $db;
-            $_indent = empty($table) ? $indent : $table;
-            $_skip   = empty($indent) ? $skip : $indent;
-            $indent  =& $_indent;
-            $skip    =& $_skip;
+            $params =& $db;
         } else {
             $params = [];
             if (strlen((string) $db) > 0) {
                 $params['db'] = $db;
             }
+
             if (strlen((string) $table) > 0) {
                 $params['table'] = $table;
             }
         }
 
-        if (! empty($GLOBALS['server'])
-            && $GLOBALS['server'] != $GLOBALS['cfg']['ServerDefault']
-        ) {
+        if (! empty($GLOBALS['server']) && $GLOBALS['server'] != $GLOBALS['cfg']['ServerDefault']) {
             $params['server'] = $GLOBALS['server'];
         }
-        if (empty($_COOKIE['pma_lang']) && ! empty($GLOBALS['lang'])) {
+
+        if (empty($GLOBALS['config']->getCookie('pma_lang')) && ! empty($GLOBALS['lang'])) {
             $params['lang'] = $GLOBALS['lang'];
         }
 
@@ -69,13 +76,15 @@ class Url
             }
         } else {
             foreach ($skip as $skipping) {
-                if (isset($params[$skipping])) {
-                    unset($params[$skipping]);
+                if (! isset($params[$skipping])) {
+                    continue;
                 }
+
+                unset($params[$skipping]);
             }
         }
 
-        return Url::getHiddenFields($params);
+        return self::getHiddenFields($params);
     }
 
     /**
@@ -114,7 +123,7 @@ class Url
         $fields = '';
 
         /* Always include token in plain forms */
-        if ($is_token === false) {
+        if ($is_token === false && isset($_SESSION[' PMA_token '])) {
             $values['token'] = $_SESSION[' PMA_token '];
         }
 
@@ -124,7 +133,7 @@ class Url
             }
 
             if (is_array($value)) {
-                $fields .= Url::getHiddenFields($value, $name, true);
+                $fields .= self::getHiddenFields($value, $name, true);
             } else {
                 // do not generate an ending "\n" because
                 // Url::getHiddenInputs() is sometimes called
@@ -147,30 +156,28 @@ class Url
      * // note the missing ?
      * echo 'script.php' . Url::getCommon($params);
      * // produces with cookies enabled:
-     * // script.php?myparam=myvalue&amp;db=mysql&amp;table=rights
+     * // script.php?myparam=myvalue&db=mysql&table=rights
      * // with cookies disabled:
-     * // script.php?server=1&amp;lang=en&amp;myparam=myvalue&amp;db=mysql
-     * // &amp;table=rights
+     * // script.php?server=1&lang=en&myparam=myvalue&db=mysql
+     * // &table=rights
      *
      * // note the missing ?
      * echo 'script.php' . Url::getCommon();
      * // produces with cookies enabled:
      * // script.php
      * // with cookies disabled:
-     * // script.php?server=1&amp;lang=en
+     * // script.php?server=1&lang=en
      * </code>
      *
-     * @param mixed  $params  optional, Contains an associative array with url params
-     * @param string $divider optional character to use instead of '?'
+     * @param array<string,int|string|bool> $params  optional, Contains an associative array with url params
+     * @param string                        $divider optional character to use instead of '?'
+     * @param bool                          $encrypt whether to encrypt URL params
      *
      * @return string   string with URL parameters
-     * @access  public
      */
-    public static function getCommon($params = [], $divider = '?')
+    public static function getCommon(array $params = [], $divider = '?', $encrypt = true)
     {
-        return htmlspecialchars(
-            Url::getCommonRaw($params, $divider)
-        );
+        return self::getCommonRaw($params, $divider, $encrypt);
     }
 
     /**
@@ -183,45 +190,49 @@ class Url
      * // note the missing ?
      * echo 'script.php' . Url::getCommon($params);
      * // produces with cookies enabled:
-     * // script.php?myparam=myvalue&amp;db=mysql&amp;table=rights
+     * // script.php?myparam=myvalue&db=mysql&table=rights
      * // with cookies disabled:
-     * // script.php?server=1&amp;lang=en&amp;myparam=myvalue&amp;db=mysql
-     * // &amp;table=rights
+     * // script.php?server=1&lang=en&myparam=myvalue&db=mysql
+     * // &table=rights
      *
      * // note the missing ?
      * echo 'script.php' . Url::getCommon();
      * // produces with cookies enabled:
      * // script.php
      * // with cookies disabled:
-     * // script.php?server=1&amp;lang=en
+     * // script.php?server=1&lang=en
      * </code>
      *
-     * @param mixed  $params  optional, Contains an associative array with url params
-     * @param string $divider optional character to use instead of '?'
+     * @param array<string|int,int|string|bool> $params  optional, Contains an associative array with url params
+     * @param string                            $divider optional character to use instead of '?'
+     * @param bool                              $encrypt whether to encrypt URL params
      *
      * @return string   string with URL parameters
-     * @access  public
      */
-    public static function getCommonRaw($params = [], $divider = '?')
+    public static function getCommonRaw(array $params = [], $divider = '?', $encrypt = true)
     {
-        $separator = Url::getArgSeparator();
+        $GLOBALS['config'] = $GLOBALS['config'] ?? null;
 
-        // avoid overwriting when creating navi panel links to servers
-        if (isset($GLOBALS['server'])
+        // avoid overwriting when creating navigation panel links to servers
+        if (
+            isset($GLOBALS['server'])
             && $GLOBALS['server'] != $GLOBALS['cfg']['ServerDefault']
             && ! isset($params['server'])
-            && ! $GLOBALS['PMA_Config']->get('is_setup')
+            && ! $GLOBALS['config']->get('is_setup')
         ) {
             $params['server'] = $GLOBALS['server'];
         }
 
-        if (empty($_COOKIE['pma_lang']) && ! empty($GLOBALS['lang'])) {
+        // Can be null when the user is missing an extension.
+        if (
+            $GLOBALS['config'] !== null && empty($GLOBALS['config']->getCookie('pma_lang')) && ! empty($GLOBALS['lang'])
+        ) {
             $params['lang'] = $GLOBALS['lang'];
         }
 
-        $query = http_build_query($params, '', $separator);
+        $query = self::buildHttpQuery($params, $encrypt);
 
-        if ($divider != '?' || strlen($query) > 0) {
+        if (($divider !== '?' && $divider !== '&') || strlen($query) > 0) {
             return $divider . $query;
         }
 
@@ -229,45 +240,118 @@ class Url
     }
 
     /**
+     * @param array<int|string, mixed> $params
+     * @param bool                     $encrypt whether to encrypt URL params
+     *
+     * @return string
+     */
+    public static function buildHttpQuery($params, $encrypt = true)
+    {
+        $GLOBALS['config'] = $GLOBALS['config'] ?? null;
+
+        $separator = self::getArgSeparator();
+
+        if (! $encrypt || ! $GLOBALS['config']->get('URLQueryEncryption')) {
+            return http_build_query($params, '', $separator);
+        }
+
+        $data = $params;
+        $keys = [
+            'db',
+            'table',
+            'field',
+            'sql_query',
+            'sql_signature',
+            'where_clause',
+            'goto',
+            'back',
+            'message_to_show',
+            'username',
+            'hostname',
+            'dbname',
+            'tablename',
+        ];
+        $paramsToEncrypt = [];
+        foreach ($params as $paramKey => $paramValue) {
+            if (! in_array($paramKey, $keys)) {
+                continue;
+            }
+
+            $paramsToEncrypt[$paramKey] = $paramValue;
+            unset($data[$paramKey]);
+        }
+
+        if ($paramsToEncrypt !== []) {
+            $data['eq'] = self::encryptQuery((string) json_encode($paramsToEncrypt));
+        }
+
+        return http_build_query($data, '', $separator);
+    }
+
+    public static function encryptQuery(string $query): string
+    {
+        $crypto = new Crypto();
+
+        return strtr(base64_encode($crypto->encrypt($query)), '+/', '-_');
+    }
+
+    public static function decryptQuery(string $query): ?string
+    {
+        $crypto = new Crypto();
+
+        return $crypto->decrypt(base64_decode(strtr($query, '-_', '+/')));
+    }
+
+    /**
      * Returns url separator
      *
      * extracted from arg_separator.input as set in php.ini
-     * we do not use arg_separator.output to avoid problems with &amp; and &
+     * we do not use arg_separator.output to avoid problems with & and &
      *
      * @param string $encode whether to encode separator or not,
      *                       currently 'none' or 'html'
      *
      * @return string  character used for separating url parts usually ; or &
-     * @access  public
      */
     public static function getArgSeparator($encode = 'none')
     {
         static $separator = null;
         static $html_separator = null;
 
-        if (null === $separator) {
+        if ($separator === null) {
             // use separators defined by php, but prefer ';'
             // as recommended by W3C
             // (see https://www.w3.org/TR/1999/REC-html401-19991224/appendix
             // /notes.html#h-B.2.2)
-            $arg_separator = ini_get('arg_separator.input');
-            if (mb_strpos($arg_separator, ';') !== false) {
+            $arg_separator = (string) ini_get('arg_separator.input');
+            if (str_contains($arg_separator, ';')) {
                 $separator = ';';
             } elseif (strlen($arg_separator) > 0) {
-                $separator = $arg_separator{0};
+                $separator = $arg_separator[0];
             } else {
                 $separator = '&';
             }
+
             $html_separator = htmlentities($separator);
         }
 
         switch ($encode) {
             case 'html':
                 return $html_separator;
+
             case 'text':
             case 'none':
             default:
                 return $separator;
         }
+    }
+
+    /**
+     * @param string $route                Route to use
+     * @param array  $additionalParameters Additional URL parameters
+     */
+    public static function getFromRoute(string $route, array $additionalParameters = []): string
+    {
+        return 'index.php?route=' . $route . self::getCommon($additionalParameters, '&');
     }
 }

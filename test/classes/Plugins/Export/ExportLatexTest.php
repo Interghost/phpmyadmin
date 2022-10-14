@@ -1,37 +1,46 @@
 <?php
-/* vim: set expandtab sw=4 ts=4 sts=4: */
-/**
- * tests for PhpMyAdmin\Plugins\Export\ExportLatex class
- *
- * @package PhpMyAdmin-test
- */
+
 declare(strict_types=1);
 
 namespace PhpMyAdmin\Tests\Plugins\Export;
 
+use PhpMyAdmin\ConfigStorage\Relation;
+use PhpMyAdmin\ConfigStorage\RelationParameters;
+use PhpMyAdmin\DatabaseInterface;
+use PhpMyAdmin\Export;
 use PhpMyAdmin\Plugins\Export\ExportLatex;
-use PhpMyAdmin\Relation;
-use PhpMyAdmin\Tests\PmaTestCase;
+use PhpMyAdmin\Properties\Options\Groups\OptionsPropertyMainGroup;
+use PhpMyAdmin\Properties\Options\Groups\OptionsPropertyRootGroup;
+use PhpMyAdmin\Properties\Options\Items\BoolPropertyItem;
+use PhpMyAdmin\Properties\Options\Items\RadioPropertyItem;
+use PhpMyAdmin\Properties\Options\Items\TextPropertyItem;
+use PhpMyAdmin\Properties\Plugins\ExportPluginProperties;
+use PhpMyAdmin\Tests\AbstractTestCase;
+use PhpMyAdmin\Tests\Stubs\DummyResult;
+use PhpMyAdmin\Transformations;
 use ReflectionMethod;
-use ReflectionProperty;
+
+use function __;
+use function array_shift;
+use function ob_get_clean;
+use function ob_start;
 
 /**
- * tests for PhpMyAdmin\Plugins\Export\ExportLatex class
- *
- * @package PhpMyAdmin-test
+ * @covers \PhpMyAdmin\Plugins\Export\ExportLatex
  * @group medium
  */
-class ExportLatexTest extends PmaTestCase
+class ExportLatexTest extends AbstractTestCase
 {
+    /** @var ExportLatex */
     protected $object;
 
     /**
      * Configures global environment.
-     *
-     * @return void
      */
     protected function setUp(): void
     {
+        parent::setUp();
+        $GLOBALS['dbi'] = $this->createDatabaseInterface();
         $GLOBALS['server'] = 0;
         $GLOBALS['output_kanji_conversion'] = false;
         $GLOBALS['output_charset_conversion'] = false;
@@ -41,45 +50,43 @@ class ExportLatexTest extends PmaTestCase
         $GLOBALS['plugin_param'] = [];
         $GLOBALS['plugin_param']['export_type'] = 'table';
         $GLOBALS['plugin_param']['single_table'] = false;
-        $GLOBALS['cfgRelation']['relation'] = true;
         $GLOBALS['db'] = 'db';
         $GLOBALS['table'] = 'table';
-        $this->object = new ExportLatex();
+        $this->object = new ExportLatex(
+            new Relation($GLOBALS['dbi']),
+            new Export($GLOBALS['dbi']),
+            new Transformations()
+        );
     }
 
     /**
      * tearDown for test cases
-     *
-     * @return void
      */
     protected function tearDown(): void
     {
+        parent::tearDown();
         unset($this->object);
     }
 
-    /**
-     * Test for PhpMyAdmin\Plugins\Export\ExportLatex::setProperties
-     *
-     * @return void
-     */
-    public function testSetProperties()
+    public function testSetProperties(): void
     {
         $GLOBALS['plugin_param']['export_type'] = '';
         $GLOBALS['plugin_param']['single_table'] = false;
-        $GLOBALS['cfgRelation']['mimework'] = true;
 
-        $method = new ReflectionMethod('PhpMyAdmin\Plugins\Export\ExportLatex', 'setProperties');
+        $relationParameters = RelationParameters::fromArray([
+            'db' => 'db',
+            'relation' => 'relation',
+            'column_info' => 'column_info',
+            'relwork' => true,
+            'mimework' => true,
+        ]);
+        $_SESSION = ['relation' => [$GLOBALS['server'] => $relationParameters->toArray()]];
+
+        $method = new ReflectionMethod(ExportLatex::class, 'setProperties');
         $method->setAccessible(true);
-        $method->invoke($this->object, null);
+        $properties = $method->invoke($this->object, null);
 
-        $attrProperties = new ReflectionProperty('PhpMyAdmin\Plugins\Export\ExportLatex', 'properties');
-        $attrProperties->setAccessible(true);
-        $properties = $attrProperties->getValue($this->object);
-
-        $this->assertInstanceOf(
-            'PhpMyAdmin\Properties\Plugins\ExportPluginProperties',
-            $properties
-        );
+        $this->assertInstanceOf(ExportPluginProperties::class, $properties);
 
         $this->assertEquals(
             'LaTeX',
@@ -103,10 +110,7 @@ class ExportLatexTest extends PmaTestCase
 
         $options = $properties->getOptions();
 
-        $this->assertInstanceOf(
-            'PhpMyAdmin\Properties\Options\Groups\OptionsPropertyRootGroup',
-            $options
-        );
+        $this->assertInstanceOf(OptionsPropertyRootGroup::class, $options);
 
         $this->assertEquals(
             'Format Specific Options',
@@ -117,10 +121,7 @@ class ExportLatexTest extends PmaTestCase
 
         $generalOptions = array_shift($generalOptionsArray);
 
-        $this->assertInstanceOf(
-            'PhpMyAdmin\Properties\Options\Groups\OptionsPropertyMainGroup',
-            $generalOptions
-        );
+        $this->assertInstanceOf(OptionsPropertyMainGroup::class, $generalOptions);
 
         $this->assertEquals(
             'general_opts',
@@ -131,10 +132,7 @@ class ExportLatexTest extends PmaTestCase
 
         $property = array_shift($generalProperties);
 
-        $this->assertInstanceOf(
-            'PhpMyAdmin\Properties\Options\Items\BoolPropertyItem',
-            $property
-        );
+        $this->assertInstanceOf(BoolPropertyItem::class, $property);
 
         $this->assertEquals(
             'caption',
@@ -148,10 +146,7 @@ class ExportLatexTest extends PmaTestCase
 
         $generalOptions = array_shift($generalOptionsArray);
 
-        $this->assertInstanceOf(
-            'PhpMyAdmin\Properties\Options\Groups\OptionsPropertyMainGroup',
-            $generalOptions
-        );
+        $this->assertInstanceOf(OptionsPropertyMainGroup::class, $generalOptions);
 
         $this->assertEquals(
             'dump_what',
@@ -167,10 +162,7 @@ class ExportLatexTest extends PmaTestCase
 
         $property = array_shift($generalProperties);
 
-        $this->assertInstanceOf(
-            'PhpMyAdmin\Properties\Options\Items\RadioPropertyItem',
-            $property
-        );
+        $this->assertInstanceOf(RadioPropertyItem::class, $property);
 
         $this->assertEquals(
             'structure_or_data',
@@ -189,10 +181,7 @@ class ExportLatexTest extends PmaTestCase
         // hide structure
         $generalOptions = array_shift($generalOptionsArray);
 
-        $this->assertInstanceOf(
-            'PhpMyAdmin\Properties\Options\Groups\OptionsPropertyMainGroup',
-            $generalOptions
-        );
+        $this->assertInstanceOf(OptionsPropertyMainGroup::class, $generalOptions);
 
         $this->assertEquals(
             'structure',
@@ -213,10 +202,7 @@ class ExportLatexTest extends PmaTestCase
 
         $property = array_shift($generalProperties);
 
-        $this->assertInstanceOf(
-            'PhpMyAdmin\Properties\Options\Items\TextPropertyItem',
-            $property
-        );
+        $this->assertInstanceOf(TextPropertyItem::class, $property);
 
         $this->assertEquals(
             'structure_caption',
@@ -235,10 +221,7 @@ class ExportLatexTest extends PmaTestCase
 
         $property = array_shift($generalProperties);
 
-        $this->assertInstanceOf(
-            'PhpMyAdmin\Properties\Options\Items\TextPropertyItem',
-            $property
-        );
+        $this->assertInstanceOf(TextPropertyItem::class, $property);
 
         $this->assertEquals(
             'structure_continued_caption',
@@ -257,10 +240,7 @@ class ExportLatexTest extends PmaTestCase
 
         $property = array_shift($generalProperties);
 
-        $this->assertInstanceOf(
-            'PhpMyAdmin\Properties\Options\Items\TextPropertyItem',
-            $property
-        );
+        $this->assertInstanceOf(TextPropertyItem::class, $property);
 
         $this->assertEquals(
             'structure_label',
@@ -279,10 +259,7 @@ class ExportLatexTest extends PmaTestCase
 
         $property = array_shift($generalProperties);
 
-        $this->assertInstanceOf(
-            'PhpMyAdmin\Properties\Options\Items\BoolPropertyItem',
-            $property
-        );
+        $this->assertInstanceOf(BoolPropertyItem::class, $property);
 
         $this->assertEquals(
             'relation',
@@ -296,10 +273,7 @@ class ExportLatexTest extends PmaTestCase
 
         $property = array_shift($generalProperties);
 
-        $this->assertInstanceOf(
-            'PhpMyAdmin\Properties\Options\Items\BoolPropertyItem',
-            $property
-        );
+        $this->assertInstanceOf(BoolPropertyItem::class, $property);
 
         $this->assertEquals(
             'comments',
@@ -313,10 +287,7 @@ class ExportLatexTest extends PmaTestCase
 
         $property = array_shift($generalProperties);
 
-        $this->assertInstanceOf(
-            'PhpMyAdmin\Properties\Options\Items\BoolPropertyItem',
-            $property
-        );
+        $this->assertInstanceOf(BoolPropertyItem::class, $property);
 
         $this->assertEquals(
             'mime',
@@ -324,17 +295,14 @@ class ExportLatexTest extends PmaTestCase
         );
 
         $this->assertEquals(
-            'Display MIME types',
+            'Display media types',
             $property->getText()
         );
 
         // data options
         $generalOptions = array_shift($generalOptionsArray);
 
-        $this->assertInstanceOf(
-            'PhpMyAdmin\Properties\Options\Groups\OptionsPropertyMainGroup',
-            $generalOptions
-        );
+        $this->assertInstanceOf(OptionsPropertyMainGroup::class, $generalOptions);
 
         $this->assertEquals(
             'data',
@@ -355,10 +323,7 @@ class ExportLatexTest extends PmaTestCase
 
         $property = array_shift($generalProperties);
 
-        $this->assertInstanceOf(
-            'PhpMyAdmin\Properties\Options\Items\BoolPropertyItem',
-            $property
-        );
+        $this->assertInstanceOf(BoolPropertyItem::class, $property);
 
         $this->assertEquals(
             'columns',
@@ -372,10 +337,7 @@ class ExportLatexTest extends PmaTestCase
 
         $property = array_shift($generalProperties);
 
-        $this->assertInstanceOf(
-            'PhpMyAdmin\Properties\Options\Items\TextPropertyItem',
-            $property
-        );
+        $this->assertInstanceOf(TextPropertyItem::class, $property);
 
         $this->assertEquals(
             'data_caption',
@@ -394,10 +356,7 @@ class ExportLatexTest extends PmaTestCase
 
         $property = array_shift($generalProperties);
 
-        $this->assertInstanceOf(
-            'PhpMyAdmin\Properties\Options\Items\TextPropertyItem',
-            $property
-        );
+        $this->assertInstanceOf(TextPropertyItem::class, $property);
 
         $this->assertEquals(
             'data_continued_caption',
@@ -416,10 +375,7 @@ class ExportLatexTest extends PmaTestCase
 
         $property = array_shift($generalProperties);
 
-        $this->assertInstanceOf(
-            'PhpMyAdmin\Properties\Options\Items\TextPropertyItem',
-            $property
-        );
+        $this->assertInstanceOf(TextPropertyItem::class, $property);
 
         $this->assertEquals(
             'data_label',
@@ -438,10 +394,7 @@ class ExportLatexTest extends PmaTestCase
 
         $property = array_shift($generalProperties);
 
-        $this->assertInstanceOf(
-            'PhpMyAdmin\Properties\Options\Items\TextPropertyItem',
-            $property
-        );
+        $this->assertInstanceOf(TextPropertyItem::class, $property);
 
         $this->assertEquals(
             'null',
@@ -458,24 +411,14 @@ class ExportLatexTest extends PmaTestCase
         $GLOBALS['plugin_param']['single_table'] = false;
 
         $method->invoke($this->object, null);
-        $properties = $attrProperties->getValue($this->object);
 
         $generalOptionsArray = $options->getProperties();
 
-        $this->assertCount(
-            4,
-            $generalOptionsArray
-        );
+        $this->assertCount(4, $generalOptionsArray);
     }
 
-    /**
-     * Test for PhpMyAdmin\Plugins\Export\ExportLatex::exportHeader
-     *
-     * @return void
-     */
-    public function testExportHeader()
+    public function testExportHeader(): void
     {
-        $GLOBALS['crlf'] = "\n";
         $GLOBALS['cfg']['Server']['port'] = 80;
         $GLOBALS['cfg']['Server']['host'] = 'localhost';
 
@@ -485,72 +428,42 @@ class ExportLatexTest extends PmaTestCase
         );
         $result = ob_get_clean();
 
-        $this->assertStringContainsString(
-            "\n% Host: localhost:80",
-            $result
-        );
+        $this->assertIsString($result);
+
+        $this->assertStringContainsString("\n% Host: localhost:80", $result);
     }
 
-    /**
-     * Test for PhpMyAdmin\Plugins\Export\ExportLatex::exportFooter
-     *
-     * @return void
-     */
-    public function testExportFooter()
+    public function testExportFooter(): void
     {
         $this->assertTrue(
             $this->object->exportFooter()
         );
     }
 
-    /**
-     * Test for PhpMyAdmin\Plugins\Export\ExportLatex::exportDBHeader
-     *
-     * @return void
-     */
-    public function testExportDBHeader()
+    public function testExportDBHeader(): void
     {
-        $GLOBALS['crlf'] = "\n";
-
-        $this->expectOutputString(
-            "% \n% Database: 'testDB'\n% \n"
-        );
+        $this->expectOutputString("% \n% Database: 'testDB'\n% \n");
 
         $this->assertTrue(
             $this->object->exportDBHeader('testDB')
         );
     }
 
-    /**
-     * Test for PhpMyAdmin\Plugins\Export\ExportLatex::exportDBFooter
-     *
-     * @return void
-     */
-    public function testExportDBFooter()
+    public function testExportDBFooter(): void
     {
         $this->assertTrue(
             $this->object->exportDBFooter('testDB')
         );
     }
 
-    /**
-     * Test for PhpMyAdmin\Plugins\Export\ExportLatex::exportDBCreate
-     *
-     * @return void
-     */
-    public function testExportDBCreate()
+    public function testExportDBCreate(): void
     {
         $this->assertTrue(
             $this->object->exportDBCreate('testDB', 'database')
         );
     }
 
-    /**
-     * Test for PhpMyAdmin\Plugins\Export\ExportLatex::exportData
-     *
-     * @return void
-     */
-    public function testExportData()
+    public function testExportData(): void
     {
         $GLOBALS['latex_caption'] = true;
         $GLOBALS['latex_data_caption'] = 'latex data caption';
@@ -560,116 +473,65 @@ class ExportLatexTest extends PmaTestCase
         $GLOBALS['latex_null'] = 'null';
         $GLOBALS['cfg']['Server']['host'] = 'localhost';
         $GLOBALS['cfg']['Server']['verbose'] = 'verb';
-        $dbi = $this->getMockBuilder('PhpMyAdmin\DatabaseInterface')
-            ->disableOriginalConstructor()
-            ->getMock();
-
-        $dbi->expects($this->once())
-            ->method('numFields')
-            ->with(null)
-            ->will($this->returnValue(1));
-
-        $dbi->expects($this->at(2))
-            ->method('fieldName')
-            ->with(null, 0)
-            ->will($this->returnValue('f1'));
-
-        $dbi->expects($this->at(3))
-            ->method('fetchAssoc')
-            ->with(null)
-            ->will($this->returnValue(['f1' => 'foo$%']));
-
-        $dbi->expects($this->at(4))
-            ->method('fetchAssoc')
-            ->with(null)
-            ->will($this->returnValue(['f1' => null]));
-
-        $dbi->expects($this->at(5))
-            ->method('fetchAssoc')
-            ->with(null)
-            ->will($this->returnValue(null));
-
-        $GLOBALS['dbi'] = $dbi;
 
         ob_start();
-        $this->assertTrue(
-            $this->object->exportData('db', 'tbl', "\n", "example.com", "SELECT")
-        );
+        $this->assertTrue($this->object->exportData(
+            'test_db',
+            'test_table',
+            'localhost',
+            'SELECT * FROM `test_db`.`test_table`;'
+        ));
         $result = ob_get_clean();
 
         $this->assertEquals(
             "\n" . '%' . "\n" .
-            '% Data: tbl' . "\n" .
+            '% Data: test_table' . "\n" .
             '%' . "\n" .
-            ' \\begin{longtable}{|l|} ' . "\n" .
-            ' \\hline \\endhead \\hline \\endfoot \\hline ' . "\n" .
-            ' \\caption{latex data caption} \\label{datalabel} ' .
-            '\\\\\\hline \\multicolumn{1}{|c|}{\\textbf{f1}} ' .
-            '\\\\ \\hline \hline  \\endfirsthead ' . "\n" .
-            '\caption{continued caption} \\\\ \hline \multicolumn{1}' .
-            '{|c|}{\textbf{f1}} \\\\ \hline \hline \endhead \endfoot' . "\n" .
-            'foo\$\% \\\\ \hline ' . "\n" .
-            'null \\\\ \hline ' . "\n" .
+            ' \begin{longtable}{|l|l|l|} ' . "\n" .
+            ' \hline \endhead \hline \endfoot \hline ' . "\n" .
+            ' \caption{latex data caption} \label{datalabel} \\\\\hline \multicolumn{1}{|c|}' .
+            '{\textbf{id}} & \multicolumn{1}{|c|}{\textbf{name}} & \multicolumn{1}{|c|}' .
+            '{\textbf{datetimefield}} \\\ \hline \hline  \endfirsthead ' . "\n" .
+            '\caption{continued caption} \\\ \hline \multicolumn{1}{|c|}{\textbf{id}} & \multicolumn{1}' .
+            '{|c|}{\textbf{name}} & \multicolumn{1}{|c|}{\textbf{datetimefield}}' .
+            ' \\\ \hline \hline \endhead \endfoot' . "\n" .
+            '1 & abcd & 2011-01-20 02:00:02 \\\\ \hline ' . "\n" .
+            '2 & foo & 2010-01-20 02:00:02 \\\\ \hline ' . "\n" .
+            '3 & Abcd & 2012-01-20 02:00:02 \\\\ \hline ' . "\n" .
             ' \end{longtable}' . "\n",
             $result
         );
 
         // case 2
         unset($GLOBALS['latex_columns']);
-        $dbi = $this->getMockBuilder('PhpMyAdmin\DatabaseInterface')
-            ->disableOriginalConstructor()
-            ->getMock();
-
-        $dbi->expects($this->once())
-            ->method('numFields')
-            ->with(null)
-            ->will($this->returnValue(1));
-
-        $dbi->expects($this->at(2))
-            ->method('fieldName')
-            ->with(null, 0)
-            ->will($this->returnValue('f1'));
-
-        $dbi->expects($this->at(3))
-            ->method('fetchAssoc')
-            ->with(null)
-            ->will($this->returnValue(['f1' => 'foo$%']));
-
-        $dbi->expects($this->at(4))
-            ->method('fetchAssoc')
-            ->with(null)
-            ->will($this->returnValue(['f1' => null]));
-
-        $dbi->expects($this->at(5))
-            ->method('fetchAssoc')
-            ->with(null)
-            ->will($this->returnValue(null));
-
-        $GLOBALS['dbi'] = $dbi;
 
         ob_start();
-        $this->assertTrue(
-            $this->object->exportData('db', 'tbl', "\n", "example.com", "SELECT")
-        );
+        $this->assertTrue($this->object->exportData(
+            'test_db',
+            'test_table',
+            'localhost',
+            'SELECT * FROM `test_db`.`test_table`;'
+        ));
         $result = ob_get_clean();
 
-        $this->assertStringContainsString(
-            '{datalabel} \\\\\\\\ \hlinefoo',
+        $this->assertIsString($result);
+        $this->assertEquals(
+            "\n" . '%' . "\n" .
+            '% Data: test_table' . "\n" .
+            '%' . "\n" .
+            ' \begin{longtable}{|l|l|l|} ' . "\n" .
+            ' \hline \endhead \hline \endfoot \hline ' . "\n" .
+            ' \caption{latex data caption} \label{datalabel} \\\\\\\\ \hline' .
+            '1 & abcd & 2011-01-20 02:00:02 \\\\ \hline ' . "\n" .
+            '2 & foo & 2010-01-20 02:00:02 \\\\ \hline ' . "\n" .
+            '3 & Abcd & 2012-01-20 02:00:02 \\\\ \hline ' . "\n" .
+            ' \end{longtable}' . "\n",
             $result
         );
     }
 
-    /**
-     * Test for PhpMyAdmin\Plugins\Export\ExportLatex::exportStructure
-     *
-     * @return void
-     */
-    public function testExportStructure()
+    public function testExportStructure(): void
     {
-        // $this->object = $this->getMockBuilder('PhpMyAdmin\Plugins\Export\ExportHtmlword')
-        //     ->setMethods(array('formatOneColumnDefinition'))
-        //     ->getMock();
-
         $keys = [
             [
                 'Non_unique' => 0,
@@ -683,7 +545,9 @@ class ExportLatexTest extends PmaTestCase
 
         // case 1
 
-        $dbi = $this->getMockBuilder('PhpMyAdmin\DatabaseInterface')
+        $resultStub = $this->createMock(DummyResult::class);
+
+        $dbi = $this->getMockBuilder(DatabaseInterface::class)
             ->disableOriginalConstructor()
             ->getMock();
 
@@ -700,7 +564,7 @@ class ExportLatexTest extends PmaTestCase
                     'name1' => [
                         'values' => 'test-',
                         'transformation' => 'testfoo',
-                        'mimetype' => 'testmimetype_'
+                        'mimetype' => 'testmimetype_',
                     ],
                 ]
             );
@@ -710,7 +574,7 @@ class ExportLatexTest extends PmaTestCase
                 'Null' => 'Yes',
                 'Field' => 'name1',
                 'Key' => 'PRI',
-                'Type' => 'set(abc)enum123'
+                'Type' => 'set(abc)enum123',
             ],
             [
                 'Null' => 'NO',
@@ -725,23 +589,17 @@ class ExportLatexTest extends PmaTestCase
             ->with('database', '')
             ->will($this->returnValue($columns));
 
-        $dbi->expects($this->any())
-            ->method('query')
-            ->will($this->returnValue(true));
+        $dbi->expects($this->once())
+            ->method('tryQueryAsControlUser')
+            ->will($this->returnValue($resultStub));
 
-        $dbi->expects($this->any())
+        $resultStub->expects($this->once())
             ->method('numRows')
             ->will($this->returnValue(1));
 
-        $dbi->expects($this->any())
+        $resultStub->expects($this->once())
             ->method('fetchAssoc')
-            ->will(
-                $this->returnValue(
-                    [
-                        'comment' => ['name1' => 'testComment'],
-                    ]
-                )
-            );
+            ->will($this->returnValue(['comment' => 'testComment']));
 
         $GLOBALS['dbi'] = $dbi;
         $this->object->relation = new Relation($dbi);
@@ -749,24 +607,22 @@ class ExportLatexTest extends PmaTestCase
             unset($GLOBALS['latex_caption']);
         }
 
-        $GLOBALS['cfgRelation']['relation'] = true;
-        $_SESSION['relation'][0] = [
-            'PMA_VERSION' => PMA_VERSION,
+        $_SESSION['relation'] = [];
+        $_SESSION['relation'][$GLOBALS['server']] = RelationParameters::fromArray([
             'relwork' => true,
             'commwork' => true,
             'mimework' => true,
             'db' => 'database',
             'relation' => 'rel',
             'column_info' => 'col',
-        ];
+        ])->toArray();
 
         ob_start();
         $this->assertTrue(
             $this->object->exportStructure(
                 'database',
                 '',
-                "\n",
-                "example.com",
+                'example.com',
                 'test',
                 'test',
                 true,
@@ -788,7 +644,7 @@ class ExportLatexTest extends PmaTestCase
             ' \\multicolumn{1}{|c|}{\\textbf{Comments}} & \\multicolumn{1}' .
             '{|c|}{\\textbf{MIME}} \\\\ \\hline \\hline' . "\n" .
             '\\endfirsthead' . "\n" . ' \\hline \\multicolumn{1}{|c|}' .
-            '{\\textbf{Column}} & \\multicolumn{1}' . '{|c|}{\\textbf{Type}}' .
+            '{\\textbf{Column}} & \\multicolumn{1}{|c|}{\\textbf{Type}}' .
             ' & \\multicolumn{1}{|c|}{\\textbf{Null}} & \\multicolumn' .
             '{1}{|c|}{\\textbf{Default}} & \\multicolumn{1}{|c|}{\\textbf' .
             '{Comments}} & \\multicolumn{1}{|c|}{\\textbf{MIME}} \\\\ ' .
@@ -802,7 +658,9 @@ class ExportLatexTest extends PmaTestCase
 
         // case 2
 
-        $dbi = $this->getMockBuilder('PhpMyAdmin\DatabaseInterface')
+        $resultStub = $this->createMock(DummyResult::class);
+
+        $dbi = $this->getMockBuilder(DatabaseInterface::class)
             ->disableOriginalConstructor()
             ->getMock();
 
@@ -820,7 +678,7 @@ class ExportLatexTest extends PmaTestCase
                     'field' => [
                         'values' => 'test-',
                         'transformation' => 'testfoo',
-                        'mimetype' => 'test<'
+                        'mimetype' => 'test<',
                     ],
                 ]
             );
@@ -835,45 +693,37 @@ class ExportLatexTest extends PmaTestCase
             ->with('database', '')
             ->will($this->returnValue($columns));
 
-        $dbi->expects($this->any())
-            ->method('query')
-            ->will($this->returnValue(true));
+        $dbi->expects($this->once())
+            ->method('tryQueryAsControlUser')
+            ->will($this->returnValue($resultStub));
 
-        $dbi->expects($this->any())
+        $resultStub->expects($this->once())
             ->method('numRows')
             ->will($this->returnValue(1));
 
-        $dbi->expects($this->any())
+        $resultStub->expects($this->once())
             ->method('fetchAssoc')
-            ->will(
-                $this->returnValue(
-                    [
-                        'comment' => ['field' => 'testComment'],
-                    ]
-                )
-            );
+            ->will($this->returnValue(['comment' => 'testComment']));
 
         $GLOBALS['dbi'] = $dbi;
         $this->object->relation = new Relation($dbi);
 
-        $GLOBALS['cfgRelation']['relation'] = true;
-        $_SESSION['relation'][0] = [
-            'PMA_VERSION' => PMA_VERSION,
+        $_SESSION['relation'] = [];
+        $_SESSION['relation'][$GLOBALS['server']] = RelationParameters::fromArray([
             'relwork' => true,
             'commwork' => true,
             'mimework' => true,
             'db' => 'database',
             'relation' => 'rel',
             'column_info' => 'col',
-        ];
+        ])->toArray();
 
         ob_start();
         $this->assertTrue(
             $this->object->exportStructure(
                 'database',
                 '',
-                "\n",
-                "example.com",
+                'example.com',
                 'test',
                 'test',
                 true,
@@ -883,6 +733,8 @@ class ExportLatexTest extends PmaTestCase
         );
         $result = ob_get_clean();
 
+        $this->assertIsString($result);
+
         $this->assertStringContainsString(
             '\\textbf{\\textit{name1}} & set(abc) & Yes & NULL & ' .
             'ftable (ffield) &  &  \\\\ \\hline',
@@ -891,7 +743,7 @@ class ExportLatexTest extends PmaTestCase
 
         // case 3
 
-        $dbi = $this->getMockBuilder('PhpMyAdmin\DatabaseInterface')
+        $dbi = $this->getMockBuilder(DatabaseInterface::class)
             ->disableOriginalConstructor()
             ->getMock();
 
@@ -905,27 +757,11 @@ class ExportLatexTest extends PmaTestCase
             ->with('database', '')
             ->will($this->returnValue($columns));
 
-        $dbi->expects($this->any())
-            ->method('query')
-            ->will($this->returnValue(true));
-
-        $dbi->expects($this->any())
-            ->method('numRows')
-            ->will($this->returnValue(1));
-
-        $dbi->expects($this->any())
-            ->method('fetchAssoc')
-            ->will(
-                $this->returnValue(
-                    [
-                        'comment' => ['field' => 'testComment'],
-                    ]
-                )
-            );
+        $dbi->expects($this->never())
+            ->method('tryQuery');
 
         $GLOBALS['dbi'] = $dbi;
 
-        $GLOBALS['cfgRelation']['relation'] = true;
         $GLOBALS['latex_caption'] = true;
         $GLOBALS['latex_structure_caption'] = 'latexstructure';
         $GLOBALS['latex_structure_label'] = 'latexlabel';
@@ -933,58 +769,44 @@ class ExportLatexTest extends PmaTestCase
         $GLOBALS['cfg']['Server']['host'] = 'localhost';
         $GLOBALS['cfg']['Server']['verbose'] = 'verb';
 
-        $_SESSION['relation'][0] = [
-            'PMA_VERSION' => PMA_VERSION,
-            'relwork' => false,
-            'commwork' => false,
-            'mimework' => false,
+        $_SESSION['relation'] = [];
+        $_SESSION['relation'][$GLOBALS['server']] = RelationParameters::fromArray([
             'db' => 'database',
             'relation' => 'rel',
             'column_info' => 'col',
-        ];
+        ])->toArray();
 
         ob_start();
         $this->assertTrue(
             $this->object->exportStructure(
                 'database',
                 '',
-                "\n",
-                "example.com",
+                'example.com',
                 'test',
                 'test'
             )
         );
         $result = ob_get_clean();
 
-        $this->assertStringContainsString(
-            '\\caption{latexstructure} \\label{latexlabel}',
-            $result
-        );
+        $this->assertIsString($result);
 
-        $this->assertStringContainsString(
-            'caption{latexcontinued}',
-            $result
-        );
+        $this->assertStringContainsString('\\caption{latexstructure} \\label{latexlabel}', $result);
+
+        $this->assertStringContainsString('caption{latexcontinued}', $result);
 
         // case 4
         $this->assertTrue(
             $this->object->exportStructure(
                 'database',
                 '',
-                "\n",
-                "example.com",
+                'example.com',
                 'triggers',
                 'test'
             )
         );
     }
 
-    /**
-     * Test for PhpMyAdmin\Plugins\Export\ExportLatex::texEscape
-     *
-     * @return void
-     */
-    public function testTexEscape()
+    public function testTexEscape(): void
     {
         $this->assertEquals(
             '\\$\\%\\{foo\\&bar\\}\\#\\_\\^',

@@ -1,34 +1,55 @@
 <?php
-/* vim: set expandtab sw=4 ts=4 sts=4: */
-/**
- * Holds the PhpMyAdmin\Controllers\Server\SqlController
- * @package PhpMyAdmin\Controllers\Server
- */
+
 declare(strict_types=1);
 
 namespace PhpMyAdmin\Controllers\Server;
 
 use PhpMyAdmin\Config\PageSettings;
 use PhpMyAdmin\Controllers\AbstractController;
+use PhpMyAdmin\DatabaseInterface;
+use PhpMyAdmin\Http\ServerRequest;
+use PhpMyAdmin\ResponseRenderer;
 use PhpMyAdmin\SqlQueryForm;
+use PhpMyAdmin\Template;
+use PhpMyAdmin\Url;
 
 /**
  * Server SQL executor
- * @package PhpMyAdmin\Controllers\Server
  */
 class SqlController extends AbstractController
 {
-    /**
-     * @return string HTML
-     */
-    public function index(): string
+    /** @var SqlQueryForm */
+    private $sqlQueryForm;
+
+    /** @var DatabaseInterface */
+    private $dbi;
+
+    public function __construct(
+        ResponseRenderer $response,
+        Template $template,
+        SqlQueryForm $sqlQueryForm,
+        DatabaseInterface $dbi
+    ) {
+        parent::__construct($response, $template);
+        $this->sqlQueryForm = $sqlQueryForm;
+        $this->dbi = $dbi;
+    }
+
+    public function __invoke(ServerRequest $request): void
     {
-        PageSettings::showGroup('Sql');
+        $GLOBALS['errorUrl'] = $GLOBALS['errorUrl'] ?? null;
 
-        require_once ROOT_PATH . 'libraries/server_common.inc.php';
+        $this->addScriptFiles(['makegrid.js', 'vendor/jquery/jquery.uitablefilter.js', 'sql.js']);
 
-        $sqlQueryForm = new SqlQueryForm();
+        $pageSettings = new PageSettings('Sql');
+        $this->response->addHTML($pageSettings->getErrorHTML());
+        $this->response->addHTML($pageSettings->getHTML());
+        $GLOBALS['errorUrl'] = Url::getFromRoute('/');
 
-        return $sqlQueryForm->getHtml();
+        if ($this->dbi->isSuperUser()) {
+            $this->dbi->selectDb('mysql');
+        }
+
+        $this->response->addHTML($this->sqlQueryForm->getHtml('', ''));
     }
 }

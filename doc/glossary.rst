@@ -13,10 +13,10 @@ From Wikipedia, the free encyclopedia
       .. seealso:: <https://en.wikipedia.org/wiki/.htaccess>
 
     ACL
-      Access Contol List
+      Access Control List
 
     Blowfish
-      a keyed, symmetric block cipher, designed in 1993 by Bruce Schneier.
+      a keyed, symmetric block cipher, designed in 1993 by `Bruce Schneier <https://en.wikipedia.org/wiki/Bruce_Schneier>`_.
 
       .. seealso:: <https://en.wikipedia.org/wiki/Blowfish_(cipher)>
 
@@ -26,14 +26,14 @@ From Wikipedia, the free encyclopedia
       .. seealso:: <https://en.wikipedia.org/wiki/Web_browser>
 
     bzip2
-      a free software/open source data compression algorithm and program developed by Julian Seward.
+      a free software/open-source data compression algorithm and program developed by Julian Seward.
 
       .. seealso:: <https://en.wikipedia.org/wiki/Bzip2>
 
     CGI
       Common Gateway Interface is an important World Wide Web technology that
       enables a client web browser to request data from a program executed on
-      the Web server.
+      the web server.
 
       .. seealso:: <https://en.wikipedia.org/wiki/Common_Gateway_Interface>
 
@@ -48,7 +48,7 @@ From Wikipedia, the free encyclopedia
       .. seealso:: <https://en.wikipedia.org/wiki/Client_(computing)>
 
     column
-      a set of data values of a particular simple type, one for each row of the table.
+      a set of data values of a particularly simple type, one for each row of the table.
 
       .. seealso:: <https://en.wikipedia.org/wiki/Column_(database)>
 
@@ -58,28 +58,28 @@ From Wikipedia, the free encyclopedia
       .. seealso:: <https://en.wikipedia.org/wiki/HTTP_cookie>
 
     CSV
-      Comma- separated values
+      Comma-separated values
 
       .. seealso:: <https://en.wikipedia.org/wiki/Comma-separated_values>
 
     DB
-      look at :term:`database`
+      look at :term:`Database`
 
-    database
+    Database
       an organized collection of data.
 
       .. seealso:: <https://en.wikipedia.org/wiki/Database>
 
     Engine
-      look at :term:`storage engines`
+      look at :term:`Storage Engines`
 
-    extension
+    PHP extension
       a PHP module that extends PHP with additional functionality.
 
       .. seealso:: <https://en.wikipedia.org/wiki/Software_extension>
 
     FAQ
-      Frequently Asked Questions is a list of commonly asked question and there
+      Frequently Asked Questions is a list of commonly asked question and their
       answers.
 
       .. seealso:: <https://en.wikipedia.org/wiki/FAQ>
@@ -89,8 +89,8 @@ From Wikipedia, the free encyclopedia
 
       .. seealso:: <https://en.wikipedia.org/wiki/Field_(computer_science)>
 
-    foreign key
-      a column or group of columns in a database row that point to a key column
+    Foreign key
+      a column or group of columns in a database row that points to a key column
       or group of columns forming a key of another database row in some
       (usually different) table.
 
@@ -102,39 +102,39 @@ From Wikipedia, the free encyclopedia
       .. seealso:: <https://en.wikipedia.org/wiki/GD_Graphics_Library>
 
     GD2
-      look at :term:`gd`
+      look at :term:`GD`
 
-    gzip
-      gzip is short for GNU zip, a GNU free software file compression program.
+    GZip
+      GZip is short for GNU zip, a GNU free software file compression program.
 
       .. seealso:: <https://en.wikipedia.org/wiki/Gzip>
 
     host
       any machine connected to a computer network, a node that has a hostname.
 
-      .. seealso:: <https://en.wikipedia.org/wiki/Host>
+      .. seealso:: <https://en.wikipedia.org/wiki/Host_(network)>
 
     hostname
-      the unique name by which a network attached device is known on a network.
+      the unique name by which a network-attached device is known on a network.
 
       .. seealso:: <https://en.wikipedia.org/wiki/Hostname>
 
     HTTP
-      HyperText Transfer Protocol is the primary method used to transfer or
+      Hypertext Transfer Protocol is the primary method used to transfer or
       convey information on the World Wide Web.
 
       .. seealso:: <https://en.wikipedia.org/wiki/HyperText_Transfer_Protocol>
 
-    https
+    HTTPS
       a :term:`HTTP`-connection with additional security measures.
 
-      .. seealso:: <https://en.wikipedia.org/wiki/Https:_URI_scheme>
+      .. seealso:: <https://en.wikipedia.org/wiki/HTTPS>
 
     IEC
       International Electrotechnical Commission
 
     IIS
-      Internet Information Services is a set of Internet-based services for
+      Internet Information Services is a set of internet-based services for
       servers using Microsoft Windows.
 
       .. seealso:: <https://en.wikipedia.org/wiki/Internet_Information_Services>
@@ -142,10 +142,10 @@ From Wikipedia, the free encyclopedia
     Index
       a feature that allows quick access to the rows in a table.
 
-      .. seealso:: <https://en.wikipedia.org/wiki/Index_(database)>
+      .. seealso:: <https://en.wikipedia.org/wiki/Database_index>
 
     IP
-      Internet Protocol is a data-oriented protocol used by source and
+      "Internet Protocol" is a data-oriented protocol used by source and
       destination hosts for communicating data across a packet-switched
       internetwork.
 
@@ -159,23 +159,26 @@ From Wikipedia, the free encyclopedia
     IPv6
       IPv6 (Internet Protocol version 6) is the latest revision of the
       Internet Protocol (:term:`IP`), designed to deal with the
-      long-anticipated problem of its precedessor IPv4 running out of addresses.
+      long-anticipated problem of its predecessor IPv4 running out of addresses.
 
       .. seealso:: <https://en.wikipedia.org/wiki/IPv6>
 
     ISAPI
       Internet Server Application Programming Interface is the API of Internet Information Services (IIS).
 
-      .. seealso:: <https://en.wikipedia.org/wiki/ISAPI>
+      .. seealso:: <https://en.wikipedia.org/wiki/Internet_Server_Application_Programming_Interface>
 
     ISP
-      Internet service provider is a business or organization that offers users
+      An Internet service provider is a business or organization that offers users
       access to the Internet and related services.
 
-      .. seealso:: <https://en.wikipedia.org/wiki/ISP>
+      .. seealso:: <https://en.wikipedia.org/wiki/Internet_service_provider>
 
     ISO
-      International Standards Organisation
+      International Standards Organization
+
+      .. seealso:: `ISO organization website <https://www.iso.org/about-us.html>`_
+      .. seealso:: <https://en.wikipedia.org/wiki/International_Organization_for_Standardization>
 
     JPEG
       a most commonly used standard method of lossy compression for photographic images.
@@ -183,42 +186,38 @@ From Wikipedia, the free encyclopedia
       .. seealso:: <https://en.wikipedia.org/wiki/JPEG>
 
     JPG
-      look at :term:`jpeg`
+      look at :term:`JPEG`
 
     Key
-      look at :term:`index`
+      look at :term:`Index`
 
     LATEX
-      a document preparation system for the TEX typesetting program.
+      a document preparation system for the TeX typesetting program.
 
       .. seealso:: <https://en.wikipedia.org/wiki/LaTeX>
 
     Mac
-       Apple Macintosh is line of personal computers is designed, developed, manufactured, and marketed by Apple Computer.
+       Apple Macintosh is a line of personal computers designed, developed, manufactured, and marketed by Apple Inc.
 
-      .. seealso:: <https://en.wikipedia.org/wiki/Mac>
+       .. seealso:: <https://en.wikipedia.org/wiki/Macintosh>
 
-    Mac OS X
+    macOS
       the operating system which is included with all currently shipping Apple Macintosh computers in the consumer and professional markets.
 
-      .. seealso:: <https://en.wikipedia.org/wiki/Mac_OS_X>
+      .. seealso:: <https://en.wikipedia.org/wiki/MacOS>
 
     mbstring
        The PHP `mbstring` functions provide support for languages represented by multi-byte character sets, most notably UTF-8.
 
        If you have troubles installing this extension, please follow :ref:`faqmysql`, it provides useful hints.
 
-       .. seealso:: <https://secure.php.net/manual/en/book.mbstring.php>
+       .. seealso:: <https://www.php.net/manual/en/book.mbstring.php>
 
-    MCrypt
-      a cryptographic library.
+    Media type
+      A media type (formerly known as MIME type) is a two-part identifier
+      for file formats and format contents transmitted on the Internet.
 
-      .. seealso:: <https://en.wikipedia.org/wiki/MCrypt>
-
-    mcrypt
-      the MCrypt PHP extension.
-
-      .. seealso:: <https://secure.php.net/mcrypt>
+      .. seealso:: <https://en.wikipedia.org/wiki/Media_type>
 
     MIME
       Multipurpose Internet Mail Extensions is
@@ -227,56 +226,62 @@ From Wikipedia, the free encyclopedia
       .. seealso:: <https://en.wikipedia.org/wiki/MIME>
 
     module
-      some sort of extension for the Apache Webserver.
+      modular extension for the Apache HTTP Server httpd.
 
       .. seealso:: <https://en.wikipedia.org/wiki/Apache_HTTP_Server>
 
     mod_proxy_fcgi
-      an Apache module implmenting a Fast CGI interface; PHP can be run as a CGI module, FastCGI, or
+      an Apache module implementing a Fast CGI interface; PHP can be run as a CGI module, FastCGI, or
       directly as an Apache module.
+
+      .. seealso:: <https://en.wikipedia.org/wiki/Mod_proxy>
 
     MySQL
       a multithreaded, multi-user, SQL (Structured Query Language) Database Management System (DBMS).
 
       .. seealso:: <https://en.wikipedia.org/wiki/MySQL>
 
-    mysqli
+    MySQLi
       the improved MySQL client PHP extension.
 
-      .. seealso:: <https://secure.php.net/manual/en/book.mysqli.php>
+      .. seealso:: `PHP manual for MySQL Improved Extension <https://www.php.net/manual/en/book.mysqli.php>`_
+      .. seealso:: <https://en.wikipedia.org/wiki/MySQLi>
 
     mysql
       the MySQL client PHP extension.
 
-      .. seealso:: <https://secure.php.net/manual/en/book.mysql.php>
+      .. seealso:: <https://www.php.net/manual/en/book.mysql.php>
 
     OpenDocument
-      open standard for office documents.
+      an open standard for office documents.
 
       .. seealso:: <https://en.wikipedia.org/wiki/OpenDocument>
 
     OS X
-      look at :term:`Mac OS X`.
+      look at :term:`macOS`.
 
-      .. seealso:: <https://en.wikipedia.org/wiki/OS_X>
+      .. seealso:: <https://en.wikipedia.org/wiki/MacOS>
 
     PDF
       Portable Document Format is a file format developed by Adobe Systems for
-      representing two dimensional documents in a device independent and
-      resolution independent format.
+      representing two-dimensional documents in a device-independent and
+      resolution-independent format.
 
-      .. seealso:: <https://en.wikipedia.org/wiki/Portable_Document_Format>
+      .. seealso:: <https://en.wikipedia.org/wiki/PDF>
 
     PEAR
       the PHP Extension and Application Repository.
 
-      .. seealso:: <https://pear.php.net/>
+      .. seealso:: `PEAR website <https://pear.php.net/>`_
+      .. seealso:: `Wikipedia page for PEAR <https://en.wikipedia.org/wiki/PEAR>`_
 
     PCRE
-      Perl Compatible Regular Expressions is the perl-compatible regular
+      Perl-Compatible Regular Expressions is the Perl-compatible regular
       expression functions for PHP
 
-      .. seealso:: <https://secure.php.net/pcre>
+      .. seealso:: <https://www.php.net/pcre>
+      .. seealso:: `PHP manual for Perl-Compatible Regular Expressions <https://www.php.net/pcre>`_
+      .. seealso:: <https://en.wikipedia.org/wiki/Perl_Compatible_Regular_Expressions>
 
     PHP
       short for "PHP: Hypertext Preprocessor", is an open-source, reflective
@@ -289,15 +294,15 @@ From Wikipedia, the free encyclopedia
     port
       a connection through which data is sent and received.
 
-      .. seealso:: <https://en.wikipedia.org/wiki/Port_(computing)>
+      .. seealso:: <https://en.wikipedia.org/wiki/Port_(computer_networking)>
 
     primary key
       A primary key is an index over one or more fields in a table with
-      unique values for each single row in this table. Every table should have
-      a primary key for easier accessing/identifying data in this table.  There
+      unique values for every single row in this table. Every table should have
+      a primary key for easier accessing/identifying data in this table. There
       can only be one primary key per table and it is named always **PRIMARY**.
-      In fact a primary key is just an :term:`unique key` with the name
-      **PRIMARY**.  If no primary key is defined MySQL will use first *unique
+      In fact, a primary key is just an :term:`unique key` with the name
+      **PRIMARY**. If no primary key is defined MySQL will use first *unique
       key* as primary key if there is one.
 
       You can create the primary key when creating the table (in phpMyAdmin
@@ -330,6 +335,11 @@ From Wikipedia, the free encyclopedia
 
       .. seealso:: <https://en.wikipedia.org/wiki/Server_(computing)>
 
+    Sodium
+      The Sodium PHP extension.
+
+      .. seealso:: `PHP manual for Sodium extension <https://www.php.net/manual/en/book.sodium.php>`_
+
     Storage Engines
       MySQL can use several different formats for storing data on disk, these
       are called storage engines or table types. phpMyAdmin allows a user to
@@ -339,7 +349,8 @@ From Wikipedia, the free encyclopedia
       Common table types are InnoDB and MyISAM, though many others exist and
       may be desirable in some situations.
 
-      .. seealso:: <https://dev.mysql.com/doc/refman/5.7/en/storage-engines.html>
+      .. seealso:: `MySQL doc chapter about Alternative Storage Engines <https://dev.mysql.com/doc/refman/8.0/en/storage-engines.html>`_
+      .. seealso:: <https://en.wikipedia.org/wiki/Database_engine>
 
     socket
       a form of inter-process communication.
@@ -347,10 +358,10 @@ From Wikipedia, the free encyclopedia
       .. seealso:: <https://en.wikipedia.org/wiki/Unix_domain_socket>
 
     SSL
-      Secure Sockets Layer is a cryptographic protocol which provides secure
-      communication on the Internet.
+      Secure Sockets Layer, (now superseded by TLS) is a cryptographic protocol
+      which provides secure communication on the Internet.
 
-      .. seealso:: <https://en.wikipedia.org/wiki/Secure_Sockets_Layer>
+      .. seealso:: <https://en.wikipedia.org/wiki/Transport_Layer_Security>
 
     Stored procedure
       a subroutine available to applications accessing a relational database system
@@ -365,26 +376,27 @@ From Wikipedia, the free encyclopedia
     table
       a set of data elements (cells) that is organized, defined and stored as
       horizontal rows and vertical columns where each item can be uniquely
-      identified by a label or key or by it?s position in relation to other
+      identified by a label or key or by its position in relation to other
       items.
 
       .. seealso:: <https://en.wikipedia.org/wiki/Table_(database)>
 
     tar
-      a type of archive file format: the Tape ARchive format.
+      a type of archive file format, from "Tape Archive".
 
-      .. seealso:: <https://en.wikipedia.org/wiki/Tar_(file_format)>
+      .. seealso:: <https://en.wikipedia.org/wiki/Tar_(computing)>
 
     TCP
       Transmission Control Protocol is one of the core protocols of the
       Internet protocol suite.
 
-      .. seealso:: <https://en.wikipedia.org/wiki/TCP>
+      .. seealso:: <https://en.wikipedia.org/wiki/Internet_protocol_suite>
 
     TCPDF
       PHP library to generate PDF files.
 
       .. seealso:: <https://tcpdf.org/>
+      .. seealso:: <https://en.wikipedia.org/wiki/TCPDF>
 
     trigger
       a procedural code that is automatically executed in response to certain events on a particular table or view in a database
@@ -392,7 +404,7 @@ From Wikipedia, the free encyclopedia
       .. seealso:: <https://en.wikipedia.org/wiki/Database_trigger>
 
     unique key
-      An unique key is an index over one or more fields in a table which has a
+      A unique key is an index over one or more fields in a table which has a
       unique value for each row.  The first unique key will be treated as
       :term:`primary key` if there is no *primary key* defined.
 
@@ -403,13 +415,13 @@ From Wikipedia, the free encyclopedia
 
       .. seealso:: <https://en.wikipedia.org/wiki/URL>
 
-    Webserver
-      A computer (program) that is responsible for accepting HTTP requests from clients and serving them Web pages.
+    Web server
+      A computer (program) that is responsible for accepting HTTP requests from clients and serving them web pages.
 
-      .. seealso:: <https://en.wikipedia.org/wiki/Webserver>
+      .. seealso:: <https://en.wikipedia.org/wiki/Web_server>
 
     XML
-      Extensible Markup Language is a W3C-recommended general- purpose markup
+      Extensible Markup Language is a W3C-recommended general-purpose markup
       language for creating special-purpose markup languages, capable of
       describing many different kinds of data.
 
@@ -418,9 +430,16 @@ From Wikipedia, the free encyclopedia
     ZIP
       a popular data compression and archival format.
 
-      .. seealso:: <https://en.wikipedia.org/wiki/ZIP_(file_format)>
+      .. seealso:: <https://en.wikipedia.org/wiki/Zip_(file_format)>
 
-    zlib
-      an open-source, cross- platform data compression library by Jean-loup Gailly and Mark Adler.
+    Zlib
+      an open-source, cross-platform data compression library by `Jean-loup Gailly <https://en.wikipedia.org/wiki/Jean-Loup_Gailly>`_ and `Mark Adler <https://en.wikipedia.org/wiki/Mark_Adler>`_.
 
       .. seealso:: <https://en.wikipedia.org/wiki/Zlib>
+
+    Content Security Policy
+      The HTTP `Content-Security-Policy` response header allows web site administrators
+      to control resources the user agent is allowed to load for a given page.
+
+      .. seealso:: <https://en.wikipedia.org/wiki/Content_Security_Policy>
+      .. seealso:: <https://developer.mozilla.org/en/docs/Web/HTTP/CSP>

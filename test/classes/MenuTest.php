@@ -1,39 +1,39 @@
 <?php
-/* vim: set expandtab sw=4 ts=4 sts=4: */
-/**
- * Test for Menu class
- *
- * @package PhpMyAdmin-test
- */
+
 declare(strict_types=1);
 
 namespace PhpMyAdmin\Tests;
 
 use PhpMyAdmin\Core;
+use PhpMyAdmin\DatabaseInterface;
 use PhpMyAdmin\Menu;
-use PhpMyAdmin\Tests\PmaTestCase;
+use PhpMyAdmin\Tests\Stubs\DbiDummy;
 
 /**
- * Test for Menu class
- *
- * @package PhpMyAdmin-test
+ * @covers \PhpMyAdmin\Menu
  */
-class MenuTest extends PmaTestCase
+class MenuTest extends AbstractTestCase
 {
+    /** @var DatabaseInterface */
+    protected $dbi;
+
+    /** @var DbiDummy */
+    protected $dummyDbi;
+
     /**
      * Configures global environment.
-     *
-     * @return void
      */
     protected function setUp(): void
     {
-        if (! defined('PMA_IS_WINDOWS')) {
-            define('PMA_IS_WINDOWS', false);
-        }
+        parent::setUp();
+        parent::setTheme();
+        $this->dummyDbi = $this->createDbiDummy();
+        $this->dbi = $this->createDatabaseInterface($this->dummyDbi);
+        $GLOBALS['dbi'] = $this->dbi;
+
         $GLOBALS['cfg']['Server']['DisableIS'] = false;
         $GLOBALS['server'] = 0;
         $GLOBALS['cfg']['Server']['verbose'] = 'verbose host';
-        $GLOBALS['pmaThemePath'] = $GLOBALS['PMA_Theme']->getPath();
         $GLOBALS['PMA_PHP_SELF'] = Core::getenv('PHP_SELF');
         $GLOBALS['server'] = 'server';
         $GLOBALS['db'] = 'pma_test';
@@ -42,12 +42,10 @@ class MenuTest extends PmaTestCase
 
     /**
      * Server menu test
-     *
-     * @return void
      */
-    public function testServer()
+    public function testServer(): void
     {
-        $menu = new Menu('server', '', '');
+        $menu = new Menu($this->dbi, '', '');
         $this->assertStringContainsString(
             'floating_menubar',
             $menu->getDisplay()
@@ -56,12 +54,10 @@ class MenuTest extends PmaTestCase
 
     /**
      * Database menu test
-     *
-     * @return void
      */
-    public function testDatabase()
+    public function testDatabase(): void
     {
-        $menu = new Menu('server', 'pma_test', '');
+        $menu = new Menu($this->dbi, 'pma_test', '');
         $this->assertStringContainsString(
             'floating_menubar',
             $menu->getDisplay()
@@ -70,12 +66,10 @@ class MenuTest extends PmaTestCase
 
     /**
      * Table menu test
-     *
-     * @return void
      */
-    public function testTable()
+    public function testTable(): void
     {
-        $menu = new Menu('server', 'pma_test', 'table1');
+        $menu = new Menu($this->dbi, 'pma_test', 'table1');
         $this->assertStringContainsString(
             'floating_menubar',
             $menu->getDisplay()
@@ -83,28 +77,11 @@ class MenuTest extends PmaTestCase
     }
 
     /**
-     * Table menu display test
-     *
-     * @return void
-     */
-    public function testTableDisplay()
-    {
-        $menu = new Menu('server', 'pma_test', '');
-        $this->expectOutputString(
-            $menu->getDisplay()
-        );
-        $menu->display();
-    }
-
-
-    /**
      * Table menu setTable test
-     *
-     * @return void
      */
-    public function testSetTable()
+    public function testSetTable(): void
     {
-        $menu = new Menu('server', 'pma_test', '');
+        $menu = new Menu($this->dbi, 'pma_test', '');
         $menu->setTable('table1');
         $this->assertStringContainsString(
             'table1',

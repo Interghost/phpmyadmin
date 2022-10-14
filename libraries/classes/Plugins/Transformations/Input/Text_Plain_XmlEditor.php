@@ -1,36 +1,27 @@
 <?php
-/* vim: set expandtab sw=4 ts=4 sts=4: */
 /**
  * XML (and HTML) editing with syntax highlighted CodeMirror editor
- *
- * @package    PhpMyAdmin-Transformations
- * @subpackage XML
  */
+
 declare(strict_types=1);
 
 namespace PhpMyAdmin\Plugins\Transformations\Input;
 
 use PhpMyAdmin\Plugins\Transformations\Abs\CodeMirrorEditorTransformationPlugin;
 
+use function __;
+
 /**
  * XML (and HTML) editing with syntax highlighted CodeMirror editor
- *
- * @package    PhpMyAdmin-Transformations
- * @subpackage XML
  */
-// @codingStandardsIgnoreLine
 class Text_Plain_XmlEditor extends CodeMirrorEditorTransformationPlugin
 {
     /**
      * Gets the transformation description of the specific plugin
-     *
-     * @return string
      */
-    public static function getInfo()
+    public static function getInfo(): string
     {
-        return __(
-            'Syntax highlighted CodeMirror editor for XML (and HTML).'
-        );
+        return __('Syntax highlighted CodeMirror editor for XML (and HTML).');
     }
 
     /**
@@ -55,31 +46,25 @@ class Text_Plain_XmlEditor extends CodeMirrorEditorTransformationPlugin
 
     /**
      * Gets the transformation name of the specific plugin
-     *
-     * @return string
      */
-    public static function getName()
+    public static function getName(): string
     {
-        return "XML";
+        return 'XML';
     }
 
     /**
      * Gets the plugin`s MIME type
-     *
-     * @return string
      */
-    public static function getMIMEType()
+    public static function getMIMEType(): string
     {
-        return "Text";
+        return 'Text';
     }
 
     /**
      * Gets the plugin`s MIME subtype
-     *
-     * @return string
      */
-    public static function getMIMESubtype()
+    public static function getMIMESubtype(): string
     {
-        return "Plain";
+        return 'Plain';
     }
 }

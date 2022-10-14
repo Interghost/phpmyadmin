@@ -1,32 +1,33 @@
 <?php
-/* vim: set expandtab sw=4 ts=4 sts=4: */
 /**
  * Various checks and message functions used on index page.
- *
- * @package PhpMyAdmin-Setup
  */
+
 declare(strict_types=1);
 
 namespace PhpMyAdmin\Setup;
 
-use PhpMyAdmin\VersionInformation;
 use PhpMyAdmin\Sanitize;
+use PhpMyAdmin\Version;
+use PhpMyAdmin\VersionInformation;
+
+use function __;
+use function htmlspecialchars;
+use function is_array;
+use function sprintf;
+use function uniqid;
 
 /**
  * PhpMyAdmin\Setup\Index class
  *
  * Various checks and message functions used on index page.
- *
- * @package PhpMyAdmin-Setup
  */
 class Index
 {
     /**
      * Initializes message list
-     *
-     * @return void
      */
-    public static function messagesBegin()
+    public static function messagesBegin(): void
     {
         if (! isset($_SESSION['messages']) || ! is_array($_SESSION['messages'])) {
             $_SESSION['messages'] = [
@@ -51,10 +52,8 @@ class Index
      * @param string $msgId   unique message identifier
      * @param string $title   language string id (in $str array)
      * @param string $message message text
-     *
-     * @return void
      */
-    public static function messagesSet($type, $msgId, $title, $message)
+    public static function messagesSet($type, $msgId, $title, $message): void
     {
         $fresh = ! isset($_SESSION['messages'][$type][$msgId]);
         $_SESSION['messages'][$type][$msgId] = [
@@ -67,18 +66,19 @@ class Index
 
     /**
      * Cleans up message list
-     *
-     * @return void
      */
-    public static function messagesEnd()
+    public static function messagesEnd(): void
     {
         foreach ($_SESSION['messages'] as &$messages) {
             $remove_ids = [];
-            foreach ($messages as $id => &$msg) {
-                if ($msg['active'] == false) {
-                    $remove_ids[] = $id;
+            foreach ($messages as $id => $msg) {
+                if ($msg['active'] != false) {
+                    continue;
                 }
+
+                $remove_ids[] = $id;
             }
+
             foreach ($remove_ids as $id) {
                 unset($messages[$id]);
             }
@@ -104,15 +104,14 @@ class Index
                 ];
             }
         }
+
         return $return;
     }
 
     /**
      * Checks for newest phpMyAdmin version and sets result as a new notice
-     *
-     * @return void
      */
-    public static function versionCheck()
+    public static function versionCheck(): void
     {
         // version check messages should always be visible so let's make
         // a unique message id each time we run it
@@ -128,21 +127,21 @@ class Index
                 $message_id,
                 __('Version check'),
                 __(
-                    'Reading of version failed. '
-                    . 'Maybe you\'re offline or the upgrade server does not respond.'
+                    'Reading of version failed. Maybe you\'re offline or the upgrade server does not respond.'
                 )
             );
+
             return;
         }
 
         $releases = $version_data->releases;
         $latestCompatible = $versionInformation->getLatestCompatibleVersion($releases);
-        if ($latestCompatible != null) {
-            $version = $latestCompatible['version'];
-            $date = $latestCompatible['date'];
-        } else {
+        if ($latestCompatible == null) {
             return;
         }
+
+        $version = $latestCompatible['version'];
+        $date = $latestCompatible['date'];
 
         $version_upstream = $versionInformation->versionToInt($version);
         if ($version_upstream === false) {
@@ -152,12 +151,11 @@ class Index
                 __('Version check'),
                 __('Got invalid version string from server')
             );
+
             return;
         }
 
-        $version_local = $versionInformation->versionToInt(
-            $GLOBALS['PMA_Config']->get('PMA_VERSION')
-        );
+        $version_local = $versionInformation->versionToInt(Version::VERSION);
         if ($version_local === false) {
             self::messagesSet(
                 'error',
@@ -165,6 +163,7 @@ class Index
                 __('Version check'),
                 __('Unparsable version string')
             );
+
             return;
         }
 
@@ -175,7 +174,8 @@ class Index
                 'notice',
                 $message_id,
                 __('Version check'),
-                sprintf(__('A newer version of phpMyAdmin is available and you should consider upgrading. The newest version is %s, released on %s.'), $version, $date)
+                sprintf(__('A newer version of phpMyAdmin is available and you should consider upgrading.'
+                    . ' The newest version is %s, released on %s.'), $version, $date)
             );
         } else {
             if ($version_local % 100 == 0) {
@@ -183,7 +183,8 @@ class Index
                     'notice',
                     $message_id,
                     __('Version check'),
-                    Sanitize::sanitize(sprintf(__('You are using Git version, run [kbd]git pull[/kbd] :-)[br]The latest stable version is %s, released on %s.'), $version, $date))
+                    Sanitize::sanitizeMessage(sprintf(__('You are using Git version, run [kbd]git pull[/kbd]'
+                        . ' :-)[br]The latest stable version is %s, released on %s.'), $version, $date))
                 );
             } else {
                 self::messagesSet(

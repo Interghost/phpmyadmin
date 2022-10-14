@@ -1,106 +1,407 @@
 <?php
-/* vim: set expandtab sw=4 ts=4 sts=4: */
-/**
- * Test for PhpMyAdmin\Util class
- *
- * @package PhpMyAdmin-test
- */
+
 declare(strict_types=1);
 
 namespace PhpMyAdmin\Tests;
 
-use PhpMyAdmin\Config;
-use PhpMyAdmin\Core;
+use PhpMyAdmin\DatabaseInterface;
+use PhpMyAdmin\FieldMetadata;
 use PhpMyAdmin\MoTranslator\Loader;
 use PhpMyAdmin\SqlParser\Context;
 use PhpMyAdmin\SqlParser\Token;
-use PhpMyAdmin\Tests\PmaTestCase;
 use PhpMyAdmin\Util;
+use PhpMyAdmin\Utils\SessionCache;
+use PhpMyAdmin\Version;
+
+use function __;
+use function _setlocale;
+use function count;
+use function date_default_timezone_get;
+use function date_default_timezone_set;
+use function file_exists;
+use function floatval;
+use function htmlspecialchars;
+use function ini_get;
+use function ini_set;
+use function str_repeat;
+use function str_replace;
+use function strlen;
+use function trim;
+
+use const LC_ALL;
+use const MYSQLI_NUM_FLAG;
+use const MYSQLI_PRI_KEY_FLAG;
+use const MYSQLI_TYPE_BIT;
+use const MYSQLI_TYPE_GEOMETRY;
+use const MYSQLI_TYPE_LONG;
+use const MYSQLI_TYPE_SHORT;
+use const MYSQLI_TYPE_STRING;
+use const MYSQLI_UNIQUE_KEY_FLAG;
+
+const FIELD_TYPE_INTEGER = 1;
+const FIELD_TYPE_VARCHAR = 253;
+const FIELD_TYPE_UNKNOWN = -1;
 
 /**
- * Test for PhpMyAdmin\Util class
- *
- * @package PhpMyAdmin-test
+ * @covers \PhpMyAdmin\Util
  */
-class UtilTest extends PmaTestCase
+class UtilTest extends AbstractTestCase
 {
     /**
-     * Test for createGISData
+     * Test for listPHPExtensions
      *
-     * @return void
+     * @requires extension mysqli
+     * @requires extension curl
+     * @requires extension mbstring
      */
-    public function testCreateGISData()
+    public function testListPHPExtensions(): void
     {
-        $this->assertEquals(
-            "abc",
-            Util::createGISData("abc")
-        );
-        $this->assertEquals(
-            "GeomFromText('POINT()',10)",
-            Util::createGISData("'POINT()',10")
+        $this->assertSame(
+            [
+                'mysqli',
+                'curl',
+                'mbstring',
+            ],
+            Util::listPHPExtensions()
         );
     }
 
-    /**
-     * Test for getGISFunctions
-     *
-     * @return void
-     */
-    public function testGetGISFunctions()
+    public function testGetUniqueCondition(): void
     {
-        $funcs = Util::getGISFunctions();
-        $this->assertArrayHasKey(
-            'Dimension',
-            $funcs
+        $GLOBALS['db'] = 'db';
+        $GLOBALS['cfg']['Server']['DisableIS'] = false;
+
+        $actual = Util::getUniqueCondition(0, [], []);
+        $this->assertEquals(['', false, []], $actual);
+
+        $actual = Util::getUniqueCondition(0, [], [], true);
+        $this->assertEquals(['', true, []], $actual);
+    }
+
+    public function testGetUniqueConditionWithMultipleFields(): void
+    {
+        $GLOBALS['dbi'] = $this->createDatabaseInterface();
+
+        $meta = [
+            new FieldMetadata(MYSQLI_TYPE_STRING, 0, (object) [
+                'name' => 'field1',
+                'table' => 'table',
+                'orgtable' => 'table',
+            ]),
+            new FieldMetadata(MYSQLI_TYPE_STRING, 0, (object) [
+                'name' => 'field2',
+                'table' => 'table',
+                'orgtable' => 'table',
+            ]),
+            new FieldMetadata(MYSQLI_TYPE_SHORT, MYSQLI_NUM_FLAG, (object) [
+                'name' => 'field3',
+                'table' => 'table',
+                'orgtable' => 'table',
+            ]),
+            new FieldMetadata(MYSQLI_TYPE_LONG, MYSQLI_NUM_FLAG, (object) [
+                'name' => 'field4',
+                'table' => 'table',
+                'orgtable' => 'table',
+            ]),
+            new FieldMetadata(MYSQLI_TYPE_STRING, 0, (object) [
+                'name' => 'field5',
+                'table' => 'table',
+                'orgtable' => 'table',
+                'charsetnr' => 63, // binary
+            ]),
+            new FieldMetadata(MYSQLI_TYPE_STRING, 0, (object) [
+                'name' => 'field6',
+                'table' => 'table',
+                'orgtable' => 'table',
+                'charsetnr' => 63, // binary
+            ]),
+            new FieldMetadata(MYSQLI_TYPE_STRING, 0, (object) [
+                'name' => 'field7',
+                'table' => 'table',
+                'orgtable' => 'table',
+                'numeric' => false,
+                'type' => 'blob',
+                'charsetnr' => 32, // armscii8_general_ci
+            ]),
+            new FieldMetadata(MYSQLI_TYPE_STRING, 0, (object) [
+                'name' => 'field8',
+                'table' => 'table',
+                'orgtable' => 'table',
+                'numeric' => false,
+                'type' => 'blob',
+                'charsetnr' => 48, // latin1_general_ci
+            ]),
+            new FieldMetadata(MYSQLI_TYPE_STRING, 0, (object) [
+                'name' => 'field9',
+                'table' => 'table',
+                'orgtable' => 'table',
+                'numeric' => false,
+                'type' => 'blob',
+                'charsetnr' => 63, // binary
+            ]),
+            new FieldMetadata(MYSQLI_TYPE_GEOMETRY, 0, (object) [
+                'name' => 'field10',
+                'table' => 'table',
+                'orgtable' => 'table',
+            ]),
+            new FieldMetadata(MYSQLI_TYPE_STRING, 0, (object) [
+                'name' => 'field11',
+                'table' => 'table2',
+                'orgtable' => 'table2',
+            ]),
+            new FieldMetadata(MYSQLI_TYPE_BIT, 0, (object) [
+                'name' => 'field12',
+                'table' => 'table',
+                'orgtable' => 'table',
+                'length' => 4,
+            ]),
+        ];
+
+        $actual = Util::getUniqueCondition(count($meta), $meta, [
+            null,
+            'value\'s',
+            123456,
+            123.456,
+            'value',
+            str_repeat('*', 1001),
+            'value',
+            'value',
+            'value',
+            'value',
+            'value',
+            0x1,
+        ], false, 'table');
+        $this->assertEquals(
+            [
+                '`table`.`field1` IS NULL AND `table`.`field2` = \'value\\\'s\' AND `table`.`field3` = 123456'
+                . ' AND `table`.`field4` = 123.456 AND `table`.`field5` = CAST(0x76616c7565 AS BINARY)'
+                . ' AND `table`.`field7` = \'value\' AND `table`.`field8` = \'value\''
+                . ' AND `table`.`field9` = CAST(0x76616c7565 AS BINARY)'
+                . ' AND `table`.`field10` = CAST(0x76616c7565 AS BINARY)'
+                . ' AND `table`.`field12` = b\'0001\'',
+                false,
+                [
+                    '`table`.`field1`' => 'IS NULL',
+                    '`table`.`field2`' => '= \'value\\\'s\'',
+                    '`table`.`field3`' => '= 123456',
+                    '`table`.`field4`' => '= 123.456',
+                    '`table`.`field5`' => '= CAST(0x76616c7565 AS BINARY)',
+                    '`table`.`field7`' => '= \'value\'',
+                    '`table`.`field8`' => '= \'value\'',
+                    '`table`.`field9`' => '= CAST(0x76616c7565 AS BINARY)',
+                    '`table`.`field10`' => '',
+                    '`table`.`field12`' => '= b\'0001\'',
+                ],
+            ],
+            $actual
         );
-        $this->assertArrayHasKey(
-            'GeometryType',
-            $funcs
+    }
+
+    public function testGetUniqueConditionWithSingleBigBinaryField(): void
+    {
+        $meta = [
+            new FieldMetadata(MYSQLI_TYPE_STRING, 0, (object) [
+                'name' => 'field',
+                'table' => 'table',
+                'orgtable' => 'table',
+                'charsetnr' => 63, // binary
+            ]),
+        ];
+
+        $actual = Util::getUniqueCondition(1, $meta, [str_repeat('*', 1001)]);
+        $this->assertEquals(
+            ['CHAR_LENGTH(`table`.`field`)  = 1001', false, ['`table`.`field`' => ' = 1001']],
+            $actual
         );
-        $this->assertArrayHasKey(
-            'MBRDisjoint',
-            $funcs
-        );
+    }
+
+    public function testGetUniqueConditionWithPrimaryKey(): void
+    {
+        $GLOBALS['dbi'] = $this->createDatabaseInterface();
+
+        $meta = [
+            new FieldMetadata(MYSQLI_TYPE_LONG, MYSQLI_PRI_KEY_FLAG | MYSQLI_NUM_FLAG, (object) [
+                'name' => 'id',
+                'table' => 'table',
+                'orgtable' => 'table',
+            ]),
+            new FieldMetadata(MYSQLI_TYPE_STRING, 0, (object) [
+                'name' => 'field',
+                'table' => 'table',
+                'orgtable' => 'table',
+            ]),
+        ];
+
+        $actual = Util::getUniqueCondition(count($meta), $meta, [1, 'value']);
+        $this->assertEquals(['`table`.`id` = 1', true, ['`table`.`id`' => '= 1']], $actual);
+    }
+
+    public function testGetUniqueConditionWithUniqueKey(): void
+    {
+        $GLOBALS['dbi'] = $this->createDatabaseInterface();
+
+        $meta = [
+            new FieldMetadata(MYSQLI_TYPE_STRING, MYSQLI_UNIQUE_KEY_FLAG, (object) [
+                'name' => 'id',
+                'table' => 'table',
+                'orgtable' => 'table',
+            ]),
+            new FieldMetadata(MYSQLI_TYPE_STRING, 0, (object) [
+                'name' => 'field',
+                'table' => 'table',
+                'orgtable' => 'table',
+            ]),
+        ];
+
+        $actual = Util::getUniqueCondition(count($meta), $meta, ['unique', 'value']);
+        $this->assertEquals(['`table`.`id` = \'unique\'', true, ['`table`.`id`' => '= \'unique\'']], $actual);
+    }
+
+    /**
+     * Test for Util::getUniqueCondition
+     * note: GROUP_FLAG = MYSQLI_NUM_FLAG = 32769
+     *
+     * @param FieldMetadata[] $meta     Meta Information for Field
+     * @param array           $row      Current Ddata Row
+     * @param array           $expected Expected Result
+     * @psalm-param array<int, mixed> $row
+     * @psalm-param array{string, bool, array<string, string>} $expected
+     *
+     * @dataProvider providerGetUniqueConditionForGroupFlag
+     */
+    public function testGetUniqueConditionForGroupFlag(array $meta, array $row, array $expected): void
+    {
+        $GLOBALS['dbi'] = $this->createDatabaseInterface();
+
+        $fieldsCount = count($meta);
+        $actual = Util::getUniqueCondition($fieldsCount, $meta, $row);
+
+        $this->assertEquals($expected, $actual);
+    }
+
+    /**
+     * Provider for testGetUniqueConditionForGroupFlag
+     *
+     * @return array<string, array{FieldMetadata[], array<int, mixed>, array{string, bool, array<string, string>}}>
+     */
+    public function providerGetUniqueConditionForGroupFlag(): array
+    {
+        return [
+            'field type is integer, value is number - not escape string' => [
+                [
+                    new FieldMetadata(FIELD_TYPE_INTEGER, MYSQLI_NUM_FLAG, (object) [
+                        'name' => 'col',
+                        'table' => 'table',
+                        'orgtable' => 'table',
+                    ]),
+                ],
+                [123],
+                [
+                    '`table`.`col` = 123',
+                    false,
+                    ['`table`.`col`' => '= 123'],
+                ],
+            ],
+            'field type is unknown, value is string - escape string' => [
+                [
+                    new FieldMetadata(FIELD_TYPE_UNKNOWN, MYSQLI_NUM_FLAG, (object) [
+                        'name' => 'col',
+                        'table' => 'table',
+                        'orgtable' => 'table',
+                    ]),
+                ],
+                ['test'],
+                [
+                    "`table`.`col` = 'test'",
+                    false,
+                    ['`table`.`col`' => "= 'test'"],
+                ],
+            ],
+            'field type is varchar, value is string - escape string' => [
+                [
+                    new FieldMetadata(FIELD_TYPE_VARCHAR, MYSQLI_NUM_FLAG, (object) [
+                        'name' => 'col',
+                        'table' => 'table',
+                        'orgtable' => 'table',
+                    ]),
+                ],
+                ['test'],
+                [
+                    "`table`.`col` = 'test'",
+                    false,
+                    ['`table`.`col`' => "= 'test'"],
+                ],
+            ],
+            'field type is varchar, value is string with double quote - escape string' => [
+                [
+                    new FieldMetadata(FIELD_TYPE_VARCHAR, MYSQLI_NUM_FLAG, (object) [
+                        'name' => 'col',
+                        'table' => 'table',
+                        'orgtable' => 'table',
+                    ]),
+                ],
+                ['"test"'],
+                [
+                    "`table`.`col` = '\\\"test\\\"'",
+                    false,
+                    ['`table`.`col`' => "= '\\\"test\\\"'"],
+                ],
+            ],
+            'field type is varchar, value is string with single quote - escape string' => [
+                [
+                    new FieldMetadata(FIELD_TYPE_VARCHAR, MYSQLI_NUM_FLAG, (object) [
+                        'name' => 'col',
+                        'table' => 'table',
+                        'orgtable' => 'table',
+                    ]),
+                ],
+                ["'test'"],
+                [
+                    "`table`.`col` = '\'test\''",
+                    false,
+                    ['`table`.`col`' => "= '\'test\''"],
+                ],
+            ],
+            'group by multiple columns and field type is mixed' => [
+                [
+                    new FieldMetadata(FIELD_TYPE_VARCHAR, MYSQLI_NUM_FLAG, (object) [
+                        'name' => 'col',
+                        'table' => 'table',
+                        'orgtable' => 'table',
+                    ]),
+                    new FieldMetadata(FIELD_TYPE_INTEGER, MYSQLI_NUM_FLAG, (object) [
+                        'name' => 'status_id',
+                        'table' => 'table',
+                        'orgtable' => 'table',
+                    ]),
+                ],
+                ['test', 2],
+                [
+                    "`table`.`col` = 'test' AND `table`.`status_id` = 2",
+                    false,
+                    [
+                        '`table`.`col`' => "= 'test'",
+                        '`table`.`status_id`' => '= 2',
+                    ],
+                ],
+            ],
+        ];
     }
 
     /**
      * Test for Page Selector
-     *
-     * @return void
      */
-    public function testPageSelector()
+    public function testPageSelector(): void
     {
         $this->assertStringContainsString(
             '<select class="pageselector ajax" name="pma" >',
-            Util::pageselector("pma", 3)
-        );
-    }
-
-    /**
-     * Test for isForeignKeyCheck
-     *
-     * @return void
-     */
-    public function testIsForeignKeyCheck()
-    {
-        $GLOBALS['server'] = 1;
-
-        $GLOBALS['cfg']['DefaultForeignKeyChecks'] = 'enable';
-        $this->assertEquals(
-            true,
-            Util::isForeignKeyCheck()
+            Util::pageselector('pma', 3)
         );
 
-        $GLOBALS['cfg']['DefaultForeignKeyChecks'] = 'disable';
-        $this->assertEquals(
-            false,
-            Util::isForeignKeyCheck()
-        );
-
-        $GLOBALS['cfg']['DefaultForeignKeyChecks'] = 'default';
-        $this->assertEquals(
-            true,
-            Util::isForeignKeyCheck()
+        // If pageNow > nbTotalPage, show the pageNow number to avoid confusion
+        $this->assertStringContainsString(
+            '<option selected="selected" style="font-weight: bold" value="297">100</option>',
+            Util::pageselector('pma', 3, 100, 50)
         );
     }
 
@@ -110,11 +411,9 @@ class UtilTest extends PmaTestCase
      * @param string $collation Collation
      * @param string $expected  Expected Charset Query
      *
-     * @return void
-     * @test
      * @dataProvider charsetQueryData
      */
-    public function testGenerateCharsetQueryPart($collation, $expected): void
+    public function testGenerateCharsetQueryPart(string $collation, string $expected): void
     {
         $this->assertEquals(
             $expected,
@@ -127,318 +426,62 @@ class UtilTest extends PmaTestCase
      *
      * @return array test data
      */
-    public function charsetQueryData()
+    public function charsetQueryData(): array
     {
         return [
             [
-                "a_b_c_d",
-                " CHARSET=a COLLATE a_b_c_d",
+                'a_b_c_d',
+                ' CHARSET=a COLLATE a_b_c_d',
             ],
             [
-                "a_",
-                " CHARSET=a COLLATE a_",
+                'a_',
+                ' CHARSET=a COLLATE a_',
             ],
             [
-                "a",
-                " CHARSET=a",
+                'a',
+                ' CHARSET=a',
             ],
         ];
     }
 
     /**
      * Test for random generation
-     *
-     * @return void
      */
-    public function testGenerateRandom()
+    public function testGenerateRandom(): void
     {
         $this->assertEquals(32, strlen(Util::generateRandom(32)));
         $this->assertEquals(16, strlen(Util::generateRandom(16)));
     }
 
-    /**
-     * Test for PhpMyAdmin\Util::getBrowseUploadFileBlock
-     *
-     * @param int    $size Size
-     * @param string $unit Unit
-     * @param string $res  Result
-     *
-     * @return void
-     *
-     * @covers \PhpMyAdmin\Util::getBrowseUploadFileBlock
-     * @dataProvider providerGetBrowseUploadFileBlock
-     */
-    public function testGetBrowseUploadFileBlock($size, $unit, $res): void
+    public function testClearUserCache(): void
     {
-        $GLOBALS['is_upload'] = false;
+        $GLOBALS['server'] = 'server';
+        SessionCache::set('is_superuser', 'yes');
+        $this->assertEquals('yes', $_SESSION['cache']['server_server']['is_superuser']);
+
+        SessionCache::set('mysql_cur_user', 'mysql');
         $this->assertEquals(
-            Util::getBrowseUploadFileBlock($size),
-            '<label for="input_import_file">' . __("Browse your computer:")
-            . '</label>'
-            . '<div id="upload_form_status" class="hide"></div>'
-            . '<div id="upload_form_status_info" class="hide"></div>'
-            . '<input type="file" name="import_file" id="input_import_file">'
-            . "(" . __('Max: ') . $res . $unit . ")" . "\n"
-            . '<input type="hidden" name="MAX_FILE_SIZE" value="'
-            . $size . '">' . "\n"
-        );
-    }
-
-    /**
-     * Data provider for testGetBrowseUploadFileBlock
-     *
-     * @return array
-     */
-    public function providerGetBrowseUploadFileBlock()
-    {
-        return [
-            [
-                10,
-                __('B'),
-                "10",
-            ],
-            [
-                100,
-                __('B'),
-                "100",
-            ],
-            [
-                1024,
-                __('B'),
-                "1,024",
-            ],
-            [
-                102400,
-                __('KiB'),
-                "100",
-            ],
-            [
-                10240000,
-                __('MiB'),
-                "10",
-            ],
-            [
-                2147483648,
-                __('MiB'),
-                "2,048",
-            ],
-            [
-                21474836480,
-                __('GiB'),
-                "20",
-            ],
-        ];
-    }
-
-    /**
-     * Test for PhpMyAdmin\Util::buildActionTitles
-     *
-     * @covers \PhpMyAdmin\Util::buildActionTitles
-     *
-     * @return void
-     */
-    public function testBuildActionTitles()
-    {
-        $GLOBALS['cfg'] = ['ActionLinksMode' => 'both'];
-
-        $titles = [];
-        $titles['Browse']     = Util::getIcon('b_browse', __('Browse'));
-        $titles['NoBrowse']   = Util::getIcon('bd_browse', __('Browse'));
-        $titles['Search']     = Util::getIcon('b_select', __('Search'));
-        $titles['NoSearch']   = Util::getIcon('bd_select', __('Search'));
-        $titles['Insert']     = Util::getIcon('b_insrow', __('Insert'));
-        $titles['NoInsert']   = Util::getIcon('bd_insrow', __('Insert'));
-        $titles['Structure']  = Util::getIcon('b_props', __('Structure'));
-        $titles['Drop']       = Util::getIcon('b_drop', __('Drop'));
-        $titles['NoDrop']     = Util::getIcon('bd_drop', __('Drop'));
-        $titles['Empty']      = Util::getIcon('b_empty', __('Empty'));
-        $titles['NoEmpty']    = Util::getIcon('bd_empty', __('Empty'));
-        $titles['Edit']       = Util::getIcon('b_edit', __('Edit'));
-        $titles['NoEdit']     = Util::getIcon('bd_edit', __('Edit'));
-        $titles['Export']     = Util::getIcon('b_export', __('Export'));
-        $titles['NoExport']   = Util::getIcon('bd_export', __('Export'));
-        $titles['Execute']    = Util::getIcon('b_nextpage', __('Execute'));
-        $titles['NoExecute']  = Util::getIcon('bd_nextpage', __('Execute'));
-        $titles['Favorite']   = Util::getIcon('b_favorite', '');
-        $titles['NoFavorite'] = Util::getIcon('b_no_favorite', '');
-
-        $this->assertEquals($titles, Util::buildActionTitles());
-    }
-
-    /**
-     * Test if cached data is available after set
-     *
-     * @covers \PhpMyAdmin\Util::cacheExists
-     *
-     * @return void
-     */
-    public function testCacheExists()
-    {
-        $GLOBALS['server'] = 'server';
-        Util::cacheSet('test_data', 5);
-        Util::cacheSet('test_data_2', 5);
-
-        $this->assertTrue(Util::cacheExists('test_data'));
-        $this->assertTrue(Util::cacheExists('test_data_2'));
-        $this->assertFalse(Util::cacheExists('fake_data_2'));
-    }
-
-    /**
-     * Test if PhpMyAdmin\Util::cacheGet does not return data for non existing cache entries
-     *
-     * @covers \PhpMyAdmin\Util::cacheGet
-     *
-     * @return void
-     */
-    public function testCacheGet()
-    {
-        $GLOBALS['server'] = 'server';
-        Util::cacheSet('test_data', 5);
-        Util::cacheSet('test_data_2', 5);
-
-        $this->assertNotNull(Util::cacheGet('test_data'));
-        $this->assertNotNull(Util::cacheGet('test_data_2'));
-        $this->assertNull(Util::cacheGet('fake_data_2'));
-    }
-
-    /**
-     * Test retrieval of cached data
-     *
-     * @covers \PhpMyAdmin\Util::cacheSet
-     *
-     * @return void
-     */
-    public function testCacheSetGet()
-    {
-        $GLOBALS['server'] = 'server';
-        Util::cacheSet('test_data', 25);
-
-        Util::cacheSet('test_data', 5);
-        $this->assertEquals(5, $_SESSION['cache']['server_server']['test_data']);
-        Util::cacheSet('test_data_3', 3);
-        $this->assertEquals(3, $_SESSION['cache']['server_server']['test_data_3']);
-    }
-
-    /**
-     * Test clearing cached values
-     *
-     * @covers \PhpMyAdmin\Util::cacheUnset
-     *
-     * @return void
-     */
-    public function testCacheUnSet()
-    {
-        $GLOBALS['server'] = 'server';
-        Util::cacheSet('test_data', 25);
-        Util::cacheSet('test_data_2', 25);
-
-        Util::cacheUnset('test_data');
-        $this->assertArrayNotHasKey(
-            'test_data',
-            $_SESSION['cache']['server_server']
-        );
-        Util::cacheUnset('test_data_2');
-        $this->assertArrayNotHasKey(
-            'test_data_2',
-            $_SESSION['cache']['server_server']
-        );
-    }
-
-    /**
-     * Test clearing user cache
-     *
-     * @covers \PhpMyAdmin\Util::clearUserCache
-     *
-     * @return void
-     */
-    public function testClearUserCache()
-    {
-        $GLOBALS['server'] = 'server';
-        Util::cacheSet('is_superuser', 'yes');
-        $this->assertEquals(
-            'yes',
-            $_SESSION['cache']['server_server']['is_superuser']
+            'mysql',
+            $_SESSION['cache']['server_server']['mysql_cur_user']
         );
 
         Util::clearUserCache();
+        $this->assertArrayNotHasKey('is_superuser', $_SESSION['cache']['server_server']);
         $this->assertArrayNotHasKey(
-            'is_superuser',
+            'mysql_cur_user',
             $_SESSION['cache']['server_server']
-        );
-    }
-
-    /**
-     * Test for Util::checkParameters
-     *
-     * @covers \PhpMyAdmin\Util::checkParameters
-     *
-     * @return void
-     */
-    public function testCheckParameterMissing()
-    {
-        $GLOBALS['PMA_Config'] = new Config();
-        $GLOBALS['text_dir'] = 'ltr';
-        $GLOBALS['PMA_PHP_SELF'] = Core::getenv('PHP_SELF');
-        $GLOBALS['pmaThemePath'] = $GLOBALS['PMA_Theme']->getPath();
-        $GLOBALS['db'] = 'db';
-        $GLOBALS['table'] = 'table';
-        $GLOBALS['server'] = 1;
-        $GLOBALS['cfg']['ServerDefault'] = 1;
-        $GLOBALS['cfg']['AllowThirdPartyFraming'] = false;
-
-        $this->expectOutputRegex("/Missing parameter: field/");
-
-        Util::checkParameters(
-            [
-                'db',
-                'table',
-                'field',
-            ]
-        );
-    }
-
-    /**
-     * Test for Util::checkParameters
-     *
-     * @covers \PhpMyAdmin\Util::checkParameters
-     *
-     * @return void
-     */
-    public function testCheckParameter()
-    {
-        $GLOBALS['PMA_Config'] = new Config();
-        $GLOBALS['cfg'] = ['ServerDefault' => 1];
-        $GLOBALS['text_dir'] = 'ltr';
-        $GLOBALS['PMA_PHP_SELF'] = Core::getenv('PHP_SELF');
-        $GLOBALS['pmaThemePath'] = $GLOBALS['PMA_Theme']->getPath();
-        $GLOBALS['db'] = "dbDatabase";
-        $GLOBALS['table'] = "tblTable";
-        $GLOBALS['field'] = "test_field";
-        $GLOBALS['sql_query'] = "SELECT * FROM tblTable;";
-
-        $this->expectOutputString("");
-        Util::checkParameters(
-            [
-                'db',
-                'table',
-                'field',
-                'sql_query',
-            ]
         );
     }
 
     /**
      * Test for Util::convertBitDefaultValue
      *
-     * @param string $bit Value
-     * @param string $val Expected value
+     * @param string|null $bit Value
+     * @param string      $val Expected value
      *
-     * @return void
-     *
-     * @covers \PhpMyAdmin\Util::convertBitDefaultValue
      * @dataProvider providerConvertBitDefaultValue
      */
-    public function testConvertBitDefaultValue($bit, $val): void
+    public function testConvertBitDefaultValue(?string $bit, string $val): void
     {
         $this->assertEquals(
             $val,
@@ -451,20 +494,40 @@ class UtilTest extends PmaTestCase
      *
      * @return array
      */
-    public function providerConvertBitDefaultValue()
+    public function providerConvertBitDefaultValue(): array
     {
         return [
             [
+                null,
+                '',
+            ],
+            [
                 "b'",
-                "",
+                '',
             ],
             [
                 "b'01'",
-                "01",
+                '01',
             ],
             [
                 "b'010111010'",
-                "010111010",
+                '010111010',
+            ],
+            'database name starting with b' => [
+                'big database',
+                'big database',
+            ],
+            "database name containing b'" => [
+                "a b'ig database",
+                "a b'ig database",
+            ],
+            'database name in single quotes' => [
+                "'a*database*name'",
+                "'a*database*name'",
+            ],
+            "database name with multiple b'" => [
+                "b'ens datab'ase'",
+                "b'ens datab'ase'",
             ],
         ];
     }
@@ -474,7 +537,7 @@ class UtilTest extends PmaTestCase
      *
      * @return array
      */
-    public function providerUnEscapeMysqlWildcards()
+    public function providerUnEscapeMysqlWildcards(): array
     {
         return [
             [
@@ -518,12 +581,9 @@ class UtilTest extends PmaTestCase
      * @param string $a Expected value
      * @param string $b String to escape
      *
-     * @return void
-     *
-     * @covers \PhpMyAdmin\Util::escapeMysqlWildcards
      * @dataProvider providerUnEscapeMysqlWildcards
      */
-    public function testEscapeMysqlWildcards($a, $b): void
+    public function testEscapeMysqlWildcards(string $a, string $b): void
     {
         $this->assertEquals(
             $a,
@@ -537,12 +597,9 @@ class UtilTest extends PmaTestCase
      * @param string $a String to unescape
      * @param string $b Expected value
      *
-     * @return void
-     *
-     * @covers \PhpMyAdmin\Util::unescapeMysqlWildcards
      * @dataProvider providerUnEscapeMysqlWildcards
      */
-    public function testUnescapeMysqlWildcards($a, $b): void
+    public function testUnescapeMysqlWildcards(string $a, string $b): void
     {
         $this->assertEquals(
             $b,
@@ -556,15 +613,11 @@ class UtilTest extends PmaTestCase
      * @param string $in  string to evaluate
      * @param string $out expected output
      *
-     * @return void
-     *
-     * @covers \PhpMyAdmin\Util::expandUserString
      * @dataProvider providerExpandUserString
      */
-    public function testExpandUserString($in, $out): void
+    public function testExpandUserString(string $in, string $out): void
     {
-        $GLOBALS['PMA_Config'] = new Config();
-        $GLOBALS['PMA_Config']->enableBc();
+        parent::setGlobalConfig();
         $GLOBALS['cfg'] = [
             'Server' => [
                 'host' => 'host&',
@@ -573,8 +626,6 @@ class UtilTest extends PmaTestCase
         ];
         $GLOBALS['db'] = 'database';
         $GLOBALS['table'] = 'table';
-
-        $out = str_replace('PMA_VERSION', PMA_VERSION, $out);
 
         $this->assertEquals(
             $out,
@@ -593,9 +644,9 @@ class UtilTest extends PmaTestCase
     /**
      * Data provider for testExpandUserString
      *
-     * @return array
+     * @return array<int, string[]>
      */
-    public function providerExpandUserString()
+    public function providerExpandUserString(): array
     {
         return [
             [
@@ -620,7 +671,7 @@ class UtilTest extends PmaTestCase
             ],
             [
                 '@PHPMYADMIN@',
-                'phpMyAdmin PMA_VERSION',
+                'phpMyAdmin ' . Version::VERSION,
             ],
         ];
     }
@@ -631,12 +682,9 @@ class UtilTest extends PmaTestCase
      * @param string $in  Column specification
      * @param array  $out Expected value
      *
-     * @return void
-     *
-     * @covers \PhpMyAdmin\Util::extractColumnSpec
      * @dataProvider providerExtractColumnSpec
      */
-    public function testExtractColumnSpec($in, $out): void
+    public function testExtractColumnSpec(string $in, array $out): void
     {
         $GLOBALS['cfg']['LimitChars'] = 1000;
 
@@ -651,7 +699,7 @@ class UtilTest extends PmaTestCase
      *
      * @return array
      */
-    public function providerExtractColumnSpec()
+    public function providerExtractColumnSpec(): array
     {
         return [
             [
@@ -669,7 +717,7 @@ class UtilTest extends PmaTestCase
                     ],
                     'attribute' => ' ',
                     'can_contain_collation' => true,
-                    'displayed_type' => "set('a', 'b')"
+                    'displayed_type' => "set('a', 'b')",
                 ],
             ],
             [
@@ -687,7 +735,7 @@ class UtilTest extends PmaTestCase
                     ],
                     'attribute' => ' ',
                     'can_contain_collation' => true,
-                    'displayed_type' => "set('\'a', 'b')"
+                    'displayed_type' => "set('\'a', 'b')",
                 ],
             ],
             [
@@ -705,7 +753,7 @@ class UtilTest extends PmaTestCase
                     ],
                     'attribute' => ' ',
                     'can_contain_collation' => true,
-                    'displayed_type' => "set('''a', 'b')"
+                    'displayed_type' => "set('''a', 'b')",
                 ],
             ],
             [
@@ -724,11 +772,11 @@ class UtilTest extends PmaTestCase
                     ],
                     'attribute' => ' ',
                     'can_contain_collation' => true,
-                    'displayed_type' => "enum('a&amp;b', 'b''c\\'d', 'e\\\\f')"
+                    'displayed_type' => "enum('a&amp;b', 'b''c\\'d', 'e\\\\f')",
                 ],
             ],
             [
-                "INT UNSIGNED zerofill",
+                'INT UNSIGNED zerofill',
                 [
                     'type' => 'int',
                     'print_type' => 'int',
@@ -739,11 +787,11 @@ class UtilTest extends PmaTestCase
                     'enum_set_values' => [],
                     'attribute' => 'UNSIGNED ZEROFILL',
                     'can_contain_collation' => false,
-                    'displayed_type' => "int"
+                    'displayed_type' => 'int',
                 ],
             ],
             [
-                "VARCHAR(255)",
+                'VARCHAR(255)',
                 [
                     'type' => 'varchar',
                     'print_type' => 'varchar(255)',
@@ -754,11 +802,11 @@ class UtilTest extends PmaTestCase
                     'enum_set_values' => [],
                     'attribute' => ' ',
                     'can_contain_collation' => true,
-                    'displayed_type' => "varchar(255)"
+                    'displayed_type' => 'varchar(255)',
                 ],
             ],
             [
-                "VARBINARY(255)",
+                'VARBINARY(255)',
                 [
                     'type' => 'varbinary',
                     'print_type' => 'varbinary(255)',
@@ -769,7 +817,22 @@ class UtilTest extends PmaTestCase
                     'enum_set_values' => [],
                     'attribute' => ' ',
                     'can_contain_collation' => false,
-                    'displayed_type' => "varbinary(255)"
+                    'displayed_type' => 'varbinary(255)',
+                ],
+            ],
+            [
+                'varchar(11) /*!100301 COMPRESSED*/',
+                [
+                    'type' => 'varchar',
+                    'print_type' => 'varchar(11)',
+                    'binary' => false,
+                    'unsigned' => false,
+                    'zerofill' => false,
+                    'spec_in_brackets' => '11',
+                    'enum_set_values' => [],
+                    'attribute' => 'COMPRESSED=zlib',
+                    'can_contain_collation' => true,
+                    'displayed_type' => 'varchar(11)',
                 ],
             ],
         ];
@@ -779,11 +842,8 @@ class UtilTest extends PmaTestCase
      * Test for Util::extractValueFromFormattedSize
      *
      * @param int|string $size     Size
-     * @param int        $expected Expected value
+     * @param int|float  $expected Expected value (float on some cpu architectures)
      *
-     * @return void
-     *
-     * @covers \PhpMyAdmin\Util::extractValueFromFormattedSize
      * @dataProvider providerExtractValueFromFormattedSize
      */
     public function testExtractValueFromFormattedSize($size, $expected): void
@@ -799,7 +859,7 @@ class UtilTest extends PmaTestCase
      *
      * @return array
      */
-    public function providerExtractValueFromFormattedSize()
+    public function providerExtractValueFromFormattedSize(): array
     {
         return [
             [
@@ -807,110 +867,39 @@ class UtilTest extends PmaTestCase
                 -1,
             ],
             [
-                "10GB",
+                '10GB',
                 10737418240,
             ],
             [
-                "15MB",
+                '15MB',
                 15728640,
             ],
             [
-                "256K",
+                '256K',
                 262144,
             ],
         ];
     }
 
-    /**
-     * foreign key supported test
-     *
-     * @param string $a Engine
-     * @param bool   $e Expected Value
-     *
-     * @return void
-     *
-     * @covers \PhpMyAdmin\Util::isForeignKeySupported
-     * @dataProvider providerIsForeignKeySupported
-     */
-    public function testIsForeignKeySupported($a, $e): void
+    public function testFormatByteDownWithNullValue(): void
     {
-        $GLOBALS['server'] = 1;
-
-        $this->assertEquals(
-            $e,
-            Util::isForeignKeySupported($a)
-        );
-    }
-
-    /**
-     * data provider for foreign key supported test
-     *
-     * @return array
-     */
-    public function providerIsForeignKeySupported()
-    {
-        return [
-            [
-                'MyISAM',
-                false,
-            ],
-            [
-                'innodb',
-                true,
-            ],
-            [
-                'pBxT',
-                true,
-            ],
-            [
-                'ndb',
-                true,
-            ],
-        ];
-    }
-
-    /**
-     * Test for formatSql
-     *
-     * @covers \PhpMyAdmin\Util::formatSql
-     *
-     * @return void
-     */
-    public function testFormatSql()
-    {
-        $this->assertEquals(
-            '<code class="sql"><pre>' . "\n"
-            . 'SELECT 1 &lt; 2' . "\n"
-            . '</pre></code>',
-            Util::formatSql('SELECT 1 < 2')
-        );
-
-        $GLOBALS['cfg']['MaxCharactersInDisplayedSQL'] = 6;
-
-        $this->assertEquals(
-            '<code class="sql"><pre>' . "\n"
-            . 'SELECT[...]' . "\n"
-            . '</pre></code>',
-            Util::formatSql('SELECT 1 < 2', true)
-        );
+        $this->assertNull(Util::formatByteDown(null));
     }
 
     /**
      * format byte test, globals are defined
      *
-     * @param float $a Value to format
-     * @param int   $b Sensitiveness
-     * @param int   $c Number of decimals to retain
-     * @param array $e Expected value
+     * @param float|int|string $a Value to format
+     * @param int              $b Sensitiveness
+     * @param int              $c Number of decimals to retain
+     * @param array            $e Expected value
      *
-     * @return void
-     *
-     * @covers \PhpMyAdmin\Util::formatByteDown
      * @dataProvider providerFormatByteDown
      */
-    public function testFormatByteDown($a, $b, $c, $e): void
+    public function testFormatByteDown($a, int $b, int $c, array $e): void
     {
         $result = Util::formatByteDown($a, $b, $c);
+        $this->assertIsArray($result);
         $result[0] = trim($result[0]);
         $this->assertSame($e, $result);
     }
@@ -920,9 +909,27 @@ class UtilTest extends PmaTestCase
      *
      * @return array
      */
-    public function providerFormatByteDown()
+    public function providerFormatByteDown(): array
     {
         return [
+            [
+                '0',
+                6,
+                0,
+                [
+                    '0',
+                    __('B'),
+                ],
+            ],
+            [
+                'A4',
+                6,
+                0,
+                [
+                    '0',
+                    __('B'),
+                ],
+            ],
             [
                 10,
                 2,
@@ -978,6 +985,60 @@ class UtilTest extends PmaTestCase
                 ],
             ],
             [
+                '100233',
+                3,
+                3,
+                [
+                    '97.884',
+                    __('KiB'),
+                ],
+            ],
+            [
+                '102400K',
+                3,
+                3,
+                [
+                    '100.000',
+                    __('KiB'),
+                ],
+            ],
+            [
+                '102401K',
+                3,
+                3,
+                [
+                    '100.001',
+                    __('KiB'),
+                ],
+            ],
+            [
+                '153600K',
+                3,
+                3,
+                [
+                    '150.000',
+                    __('KiB'),
+                ],
+            ],
+            [
+                '153600K',
+                3,
+                0,
+                [
+                    '150',
+                    __('KiB'),
+                ],
+            ],
+            [
+                102400 * 1024,
+                3,
+                0,
+                [
+                    '100',
+                    __('MiB'),
+                ],
+            ],
+            [
                 2206451,
                 1,
                 2,
@@ -996,7 +1057,16 @@ class UtilTest extends PmaTestCase
                 ],
             ],
             [
-                doubleval(52) + doubleval(2048),
+                floatval(52) + floatval(2048),
+                3,
+                1,
+                [
+                    '2.1',
+                    'KiB',
+                ],
+            ],
+            [
+                '' . (floatval(52) + floatval(2048)),
                 3,
                 1,
                 [
@@ -1010,14 +1080,12 @@ class UtilTest extends PmaTestCase
     /**
      * Core test for formatNumber
      *
-     * @param float $a Value to format
-     * @param int   $b Sensitiveness
-     * @param int   $c Number of decimals to retain
-     * @param array $d Expected value
-     *
-     * @return void
+     * @param float|int|string $a Value to format
+     * @param int              $b Sensitiveness
+     * @param int              $c Number of decimals to retain
+     * @param string           $d Expected value
      */
-    private function assertFormatNumber($a, $b, $c, $d)
+    private function assertFormatNumber($a, int $b, int $c, string $d): void
     {
         $this->assertEquals(
             $d,
@@ -1033,22 +1101,19 @@ class UtilTest extends PmaTestCase
     /**
      * format number test, globals are defined
      *
-     * @param float $a Value to format
-     * @param int   $b Sensitiveness
-     * @param int   $c Number of decimals to retain
-     * @param array $d Expected value
+     * @param float|int|string $a Value to format
+     * @param int              $b Sensitiveness
+     * @param int              $c Number of decimals to retain
+     * @param string           $d Expected value
      *
-     * @return void
-     *
-     * @covers \PhpMyAdmin\Util::formatNumber
      * @dataProvider providerFormatNumber
      */
-    public function testFormatNumber($a, $b, $c, $d): void
+    public function testFormatNumber($a, int $b, int $c, string $d): void
     {
         $this->assertFormatNumber($a, $b, $c, $d);
 
         // Test with various precisions
-        $old_precision = ini_get('precision');
+        $old_precision = (string) ini_get('precision');
         try {
             ini_set('precision', '20');
             $this->assertFormatNumber($a, $b, $c, $d);
@@ -1091,7 +1156,7 @@ class UtilTest extends PmaTestCase
      *
      * @return array
      */
-    public function providerFormatNumber()
+    public function providerFormatNumber(): array
     {
         return [
             [
@@ -1113,7 +1178,19 @@ class UtilTest extends PmaTestCase
                 '100  ',
             ],
             [
+                '100',
+                2,
+                2,
+                '100  ',
+            ],
+            [
                 -1000.454,
+                4,
+                2,
+                '-1,000.45  ',
+            ],
+            [
+                '-1000.454',
                 4,
                 2,
                 '-1,000.45  ',
@@ -1155,6 +1232,12 @@ class UtilTest extends PmaTestCase
                 '1,100 M',
             ],
             [
+                '1100000000',
+                5,
+                0,
+                '1,100 M',
+            ],
+            [
                 20000,
                 2,
                 2,
@@ -1188,324 +1271,18 @@ class UtilTest extends PmaTestCase
     }
 
     /**
-     * Test for Util::generateHiddenMaxFileSize
-     *
-     * @param int $size Size
-     *
-     * @return void
-     *
-     * @covers \PhpMyAdmin\Util::generateHiddenMaxFileSize
-     * @dataProvider providerGenerateHiddenMaxFileSize
-     */
-    public function testGenerateHiddenMaxFileSize($size): void
-    {
-        $this->assertEquals(
-            Util::generateHiddenMaxFileSize($size),
-            '<input type="hidden" name="MAX_FILE_SIZE" value="' . $size . '">'
-        );
-    }
-
-    /**
-     * Data provider for testGenerateHiddenMaxFileSize
-     *
-     * @return array
-     */
-    public function providerGenerateHiddenMaxFileSize()
-    {
-        return [
-            [10],
-            ["100"],
-            [1024],
-            ["1024Mb"],
-            [2147483648],
-            ["some_string"],
-        ];
-    }
-
-    /**
-     * Test for getDbLink
-     *
-     * @return void
-     *
-     * @covers \PhpMyAdmin\Util::getDbLink
-     * @group medium
-     */
-    public function testGetDbLinkEmpty()
-    {
-        $GLOBALS['db'] = null;
-        $this->assertEmpty(Util::getDbLink());
-    }
-
-    /**
-     * Test for getDbLink
-     *
-     * @return void
-     *
-     * @covers \PhpMyAdmin\Util::getDbLink
-     * @group medium
-     */
-    public function testGetDbLinkNull()
-    {
-        global $cfg;
-        $GLOBALS['db'] = 'test_db';
-        $GLOBALS['server'] = 99;
-        $database = $GLOBALS['db'];
-        $this->assertEquals(
-            '<a href="'
-            . Util::getScriptNameForOption(
-                $GLOBALS['cfg']['DefaultTabDatabase'],
-                'database'
-            )
-            . '?db=' . $database
-            . '&amp;server=99&amp;lang=en" '
-            . 'title="Jump to database “'
-            . htmlspecialchars($database) . '”.">'
-            . htmlspecialchars($database) . '</a>',
-            Util::getDbLink()
-        );
-    }
-
-    /**
-     * Test for getDbLink
-     *
-     * @return void
-     *
-     * @covers \PhpMyAdmin\Util::getDbLink
-     */
-    public function testGetDbLink()
-    {
-        global $cfg;
-        $GLOBALS['server'] = 99;
-        $database = 'test_database';
-        $this->assertEquals(
-            '<a href="' . Util::getScriptNameForOption(
-                $GLOBALS['cfg']['DefaultTabDatabase'],
-                'database'
-            )
-            . '?db=' . $database
-            . '&amp;server=99&amp;lang=en" title="Jump to database “'
-            . htmlspecialchars($database) . '”.">'
-            . htmlspecialchars($database) . '</a>',
-            Util::getDbLink($database)
-        );
-    }
-
-    /**
-     * Test for getDbLink
-     *
-     * @return void
-     *
-     * @covers \PhpMyAdmin\Util::getDbLink
-     */
-    public function testGetDbLinkWithSpecialChars()
-    {
-        global $cfg;
-        $GLOBALS['server'] = 99;
-        $database = 'test&data\'base';
-        $this->assertEquals(
-            '<a href="'
-            . Util::getScriptNameForOption(
-                $GLOBALS['cfg']['DefaultTabDatabase'],
-                'database'
-            )
-            . '?db='
-            . htmlspecialchars(urlencode($database))
-            . '&amp;server=99&amp;lang=en" title="Jump to database “'
-            . htmlspecialchars($database) . '”.">'
-            . htmlspecialchars($database) . '</a>',
-            Util::getDbLink($database)
-        );
-    }
-
-    /**
-     * Test for getDivForSliderEffect
-     *
-     * @return void
-     *
-     * @covers \PhpMyAdmin\Util::getDivForSliderEffect
-     */
-    public function testGetDivForSliderEffectTest()
-    {
-        global $cfg;
-        $cfg['InitialSlidersState'] = 'undefined';
-
-        $id = "test_id";
-        $message = "test_message";
-
-        $this->assertXmlStringEqualsXmlString(
-            "<root>" . Util::getDivForSliderEffect($id, $message) . "</div></root>",
-            "<root><div id=\"$id\" class=\"pma_auto_slider\"\ntitle=\""
-            . htmlspecialchars($message) . "\" >\n</div></root>"
-        );
-    }
-
-    /**
-     * Test for getDivForSliderEffect
-     *
-     * @return void
-     *
-     * @covers \PhpMyAdmin\Util::getDivForSliderEffect
-     */
-    public function testGetDivForSliderEffectTestClosed()
-    {
-        global $cfg;
-        $cfg['InitialSlidersState'] = 'closed';
-
-        $id = "test_id";
-        $message = "test_message";
-
-        $this->assertXmlStringEqualsXmlString(
-            "<root>" . Util::getDivForSliderEffect($id, $message) . "</div></root>",
-            "<root><div id=\"$id\" style=\"display: none; overflow:auto;\" class=\"pma_auto_slider\"\ntitle=\""
-            . htmlspecialchars($message) . "\" >\n</div></root>"
-        );
-    }
-
-    /**
-     * Test for getDivForSliderEffect
-     *
-     * @return void
-     *
-     * @covers \PhpMyAdmin\Util::getDivForSliderEffect
-     */
-    public function testGetDivForSliderEffectTestDisabled()
-    {
-        global $cfg;
-        $cfg['InitialSlidersState'] = 'disabled';
-
-        $id = "test_id";
-        $message = "test_message";
-
-        $this->assertXmlStringEqualsXmlString(
-            "<root>" . Util::getDivForSliderEffect($id, $message) . "</div></root>",
-            "<root><div id=\"$id\">\n</div></root>"
-        );
-    }
-
-    /**
-     * Test for getDropdown
-     *
-     * @return void
-     *
-     * @covers \PhpMyAdmin\Util::getDropdown
-     */
-    public function testGetDropdownEmpty()
-    {
-        $name = "test_dropdown_name";
-        $choices = [];
-        $active_choice = null;
-        $id = "test_&lt;dropdown&gt;_name";
-
-        $result = '<select name="' . htmlspecialchars($name) . '" id="'
-            . htmlspecialchars($id) . '">' . "\n" . '</select>' . "\n";
-
-        $this->assertEquals(
-            $result,
-            Util::getDropdown(
-                $name,
-                $choices,
-                $active_choice,
-                $id
-            )
-        );
-    }
-
-    /**
-     * Test for getDropdown
-     *
-     * @return void
-     *
-     * @covers \PhpMyAdmin\Util::getDropdown
-     */
-    public function testGetDropdown()
-    {
-        $name = "&test_dropdown_name";
-        $choices = [
-            "value_1" => "label_1",
-            "value&_2\"" => "label_2",
-        ];
-        $active_choice = null;
-        $id = "test_&lt;dropdown&gt;_name";
-
-        $result = '<select name="' . htmlspecialchars($name) . '" id="'
-            . htmlspecialchars($id) . '">';
-        foreach ($choices as $one_choice_value => $one_choice_label) {
-            $result .= "\n" . '<option value="' . htmlspecialchars($one_choice_value) . '"';
-            if ($one_choice_value == $active_choice) {
-                $result .= ' selected="selected"';
-            }
-            $result .= '>' . htmlspecialchars($one_choice_label) . '</option>';
-        }
-        $result .= "\n" . '</select>' . "\n";
-
-        $this->assertEquals(
-            $result,
-            Util::getDropdown(
-                $name,
-                $choices,
-                $active_choice,
-                $id
-            )
-        );
-    }
-
-    /**
-     * Test for getDropdown
-     *
-     * @return void
-     *
-     * @covers \PhpMyAdmin\Util::getDropdown
-     */
-    public function testGetDropdownWithActive()
-    {
-        $name = "&test_dropdown_name";
-        $choices = [
-            "value_1" => "label_1",
-            "value&_2\"" => "label_2",
-        ];
-        $active_choice = "value&_2\"";
-        $id = "test_&lt;dropdown&gt;_name";
-
-        $result = '<select name="' . htmlspecialchars($name) . '" id="'
-            . htmlspecialchars($id) . '">';
-        foreach ($choices as $one_choice_value => $one_choice_label) {
-            $result .= "\n";
-            $result .= '<option value="' . htmlspecialchars($one_choice_value) . '"';
-            if ($one_choice_value == $active_choice) {
-                $result .= ' selected="selected"';
-            }
-            $result .= '>' . htmlspecialchars($one_choice_label) . '</option>';
-        }
-        $result .= "\n";
-        $result .= '</select>' . "\n";
-
-        $this->assertEquals(
-            $result,
-            Util::getDropdown(
-                $name,
-                $choices,
-                $active_choice,
-                $id
-            )
-        );
-    }
-
-    /**
      * Test for Util::getFormattedMaximumUploadSize
      *
-     * @param int    $size Size
-     * @param string $unit Unit
-     * @param string $res  Result
+     * @param int|float $size Size (float on some cpu architectures)
+     * @param string    $unit Unit
+     * @param string    $res  Result
      *
-     * @return void
-     *
-     * @covers \PhpMyAdmin\Util::getFormattedMaximumUploadSize
      * @dataProvider providerGetFormattedMaximumUploadSize
      */
-    public function testGetFormattedMaximumUploadSize($size, $unit, $res): void
+    public function testGetFormattedMaximumUploadSize($size, string $unit, string $res): void
     {
         $this->assertEquals(
-            "(" . __('Max: ') . $res . $unit . ")",
+            '(' . __('Max: ') . $res . $unit . ')',
             Util::getFormattedMaximumUploadSize($size)
         );
     }
@@ -1515,458 +1292,73 @@ class UtilTest extends PmaTestCase
      *
      * @return array
      */
-    public function providerGetFormattedMaximumUploadSize()
+    public function providerGetFormattedMaximumUploadSize(): array
     {
         return [
             [
                 10,
                 __('B'),
-                "10",
+                '10',
             ],
             [
                 100,
                 __('B'),
-                "100",
+                '100',
             ],
             [
                 1024,
                 __('B'),
-                "1,024",
+                '1,024',
             ],
             [
                 102400,
                 __('KiB'),
-                "100",
+                '100',
             ],
             [
                 10240000,
                 __('MiB'),
-                "10",
+                '10',
             ],
             [
                 2147483648,
                 __('MiB'),
-                "2,048",
+                '2,048',
             ],
             [
                 21474836480,
                 __('GiB'),
-                "20",
+                '20',
+            ],
+            [
+                '153600K',
+                __('KiB'),
+                '150',
+            ],
+            [
+                '157286400',
+                __('MiB'),
+                '150',
+            ],
+            [
+                // Equals to Core::getRealSize of '102400K'
+                // according to PHP FAQ on "shorthandbytes"
+                102400 * 1024,
+                __('MiB'),
+                '100',
             ],
         ];
-    }
-
-    /**
-     * Test for Util::getIcon
-     *
-     * @return void
-     *
-     * @covers \PhpMyAdmin\Util::getIcon
-     */
-    public function testGetIconWithoutActionLinksMode()
-    {
-        $GLOBALS['cfg']['ActionLinksMode'] = 'text';
-
-        $this->assertEquals(
-            '<span class="nowrap"></span>',
-            Util::getIcon('b_comment')
-        );
-    }
-
-    /**
-     * Test for Util::getIcon
-     *
-     * @return void
-     *
-     * @covers \PhpMyAdmin\Util::getIcon
-     */
-    public function testGetIconWithActionLinksMode()
-    {
-        $GLOBALS['cfg']['ActionLinksMode'] = 'icons';
-
-        $this->assertEquals(
-            '<span class="nowrap"><img src="themes/dot.gif" title="" alt="" class="icon ic_b_comment"></span>',
-            Util::getIcon('b_comment')
-        );
-    }
-
-    /**
-     * Test for Util::getIcon
-     *
-     * @return void
-     *
-     * @covers \PhpMyAdmin\Util::getIcon
-     */
-    public function testGetIconAlternate()
-    {
-        $GLOBALS['cfg']['ActionLinksMode'] = 'icons';
-        $alternate_text = 'alt_str';
-
-        $this->assertEquals(
-            '<span class="nowrap"><img src="themes/dot.gif" title="'
-            . $alternate_text . '" alt="' . $alternate_text
-            . '" class="icon ic_b_comment"></span>',
-            Util::getIcon('b_comment', $alternate_text)
-        );
-    }
-
-    /**
-     * Test for Util::getIcon
-     *
-     * @return void
-     *
-     * @covers \PhpMyAdmin\Util::getIcon
-     */
-    public function testGetIconWithForceText()
-    {
-        $GLOBALS['cfg']['ActionLinksMode'] = 'icons';
-        $alternate_text = 'alt_str';
-
-        // Here we are checking for an icon embedded inside a span (i.e not a menu
-        // bar icon
-        $this->assertEquals(
-            '<span class="nowrap"><img src="themes/dot.gif" title="'
-            . $alternate_text . '" alt="' . $alternate_text
-            . '" class="icon ic_b_comment">&nbsp;' . $alternate_text . '</span>',
-            Util::getIcon('b_comment', $alternate_text, true, false)
-        );
-    }
-
-    /**
-     * Test for getRadioFields
-     *
-     * @return void
-     *
-     * @covers \PhpMyAdmin\Util::getRadioFields
-     */
-    public function testGetRadioFieldsEmpty()
-    {
-        $name = "test_display_radio";
-        $choices = [];
-
-        $this->assertEquals(
-            Util::getRadioFields($name, $choices),
-            ""
-        );
-    }
-
-    /**
-     * Test for getRadioFields
-     *
-     * @return void
-     *
-     * @covers \PhpMyAdmin\Util::getRadioFields
-     */
-    public function testGetRadioFields()
-    {
-        $name = "test_display_radio";
-        $choices = [
-            'value_1' => 'choice_1',
-            'value_2' => 'choice_2',
-        ];
-
-        $out = "";
-        foreach ($choices as $choice_value => $choice_label) {
-            $html_field_id = $name . '_' . $choice_value;
-            $out .= '<input type="radio" name="' . $name . '" id="' . $html_field_id
-                . '" value="' . htmlspecialchars($choice_value) . '"';
-            $out .= '>' . "\n";
-            $out .= '<label for="' . $html_field_id . '">' . $choice_label
-                . '</label>';
-            $out .= "\n";
-            $out .= '<br>';
-            $out .= "\n";
-        }
-
-        $this->assertEquals(
-            Util::getRadioFields($name, $choices),
-            $out
-        );
-    }
-
-    /**
-     * Test for getRadioFields
-     *
-     * @return void
-     *
-     * @covers \PhpMyAdmin\Util::getRadioFields
-     */
-    public function testGetRadioFieldsWithChecked()
-    {
-        $name = "test_display_radio";
-        $choices = [
-            'value_1' => 'choice_1',
-            'value_2' => 'choice_2',
-        ];
-        $checked_choice = "value_2";
-
-        $out = "";
-        foreach ($choices as $choice_value => $choice_label) {
-            $html_field_id = $name . '_' . $choice_value;
-            $out .= '<input type="radio" name="' . $name . '" id="' . $html_field_id
-                . '" value="' . htmlspecialchars($choice_value) . '"';
-            if ($choice_value == $checked_choice) {
-                $out .= ' checked="checked"';
-            }
-            $out .= '>' . "\n";
-            $out .= '<label for="' . $html_field_id . '">' . $choice_label
-                . '</label>';
-            $out .= "\n";
-            $out .= '<br>';
-            $out .= "\n";
-        }
-
-        $this->assertEquals(
-            Util::getRadioFields(
-                $name,
-                $choices,
-                $checked_choice
-            ),
-            $out
-        );
-    }
-
-    /**
-     * Test for getRadioFields
-     *
-     * @return void
-     *
-     * @covers \PhpMyAdmin\Util::getRadioFields
-     */
-    public function testGetRadioFieldsWithCheckedWithClass()
-    {
-        $name = "test_display_radio";
-        $choices = [
-            'value_1' => 'choice_1',
-            'value_2' => 'choice_2',
-        ];
-        $checked_choice = "value_2";
-        $class = "test_class";
-
-        $out = "";
-        foreach ($choices as $choice_value => $choice_label) {
-            $html_field_id = $name . '_' . $choice_value;
-            $out .= '<div class="' . $class . '">';
-            $out .= "\n";
-            $out .= '<input type="radio" name="' . $name . '" id="' . $html_field_id
-                . '" value="' . htmlspecialchars($choice_value) . '"';
-            if ($choice_value == $checked_choice) {
-                $out .= ' checked="checked"';
-            }
-            $out .= '>' . "\n";
-            $out .= '<label for="' . $html_field_id . '">' . $choice_label
-                . '</label>';
-            $out .= "\n";
-            $out .= '<br>';
-            $out .= "\n";
-            $out .= '</div>';
-            $out .= "\n";
-        }
-
-        $this->assertEquals(
-            Util::getRadioFields(
-                $name,
-                $choices,
-                $checked_choice,
-                true,
-                false,
-                $class
-            ),
-            $out
-        );
-    }
-
-    /**
-     * Test for getRadioFields
-     *
-     * @return void
-     *
-     * @covers \PhpMyAdmin\Util::getRadioFields
-     */
-    public function testGetRadioFieldsWithoutBR()
-    {
-        $name = "test_display_radio";
-        $choices = [
-            'value_1' => 'choice_1',
-            'value&_&lt;2&gt;' => 'choice_2',
-        ];
-        $checked_choice = "choice_2";
-
-        $out = "";
-        foreach ($choices as $choice_value => $choice_label) {
-            $html_field_id = $name . '_' . $choice_value;
-            $out .= '<input type="radio" name="' . $name . '" id="' . $html_field_id
-                . '" value="' . htmlspecialchars($choice_value) . '"';
-            if ($choice_value == $checked_choice) {
-                $out .= ' checked="checked"';
-            }
-            $out .= '>' . "\n";
-            $out .= '<label for="' . $html_field_id . '">' . $choice_label
-                . '</label>';
-            $out .= "\n";
-        }
-
-        $this->assertEquals(
-            Util::getRadioFields(
-                $name,
-                $choices,
-                $checked_choice,
-                false
-            ),
-            $out
-        );
-    }
-
-    /**
-     * Test for getRadioFields
-     *
-     * @return void
-     *
-     * @covers \PhpMyAdmin\Util::getRadioFields
-     */
-    public function testGetRadioFieldsEscapeLabelEscapeLabel()
-    {
-        $name = "test_display_radio";
-        $choices = [
-            'value_1' => 'choice_1',
-            'value_&2' => 'choice&_&lt;2&gt;',
-        ];
-        $checked_choice = "value_2";
-
-        $out = "";
-        foreach ($choices as $choice_value => $choice_label) {
-            $html_field_id = $name . '_' . $choice_value;
-            $out .= '<input type="radio" name="' . $name . '" id="' . $html_field_id
-                . '" value="' . htmlspecialchars($choice_value) . '"';
-            if ($choice_value == $checked_choice) {
-                $out .= ' checked="checked"';
-            }
-            $out .= '>' . "\n";
-            $out .= '<label for="' . $html_field_id . '">'
-                . htmlspecialchars($choice_label) . '</label>';
-            $out .= "\n";
-            $out .= '<br>';
-            $out .= "\n";
-        }
-
-        $this->assertEquals(
-            Util::getRadioFields(
-                $name,
-                $choices,
-                $checked_choice,
-                true,
-                true
-            ),
-            $out
-        );
-    }
-
-    /**
-     * Test for getRadioFields
-     *
-     * @return void
-     *
-     * @covers \PhpMyAdmin\Util::getRadioFields
-     */
-    public function testGetRadioFieldsEscapeLabelNotEscapeLabel()
-    {
-        $name = "test_display_radio";
-        $choices = [
-            'value_1' => 'choice_1',
-            'value_&2' => 'choice&_&lt;2&gt;',
-        ];
-        $checked_choice = "value_2";
-
-        $out = "";
-        foreach ($choices as $choice_value => $choice_label) {
-            $html_field_id = $name . '_' . $choice_value;
-            $out .= '<input type="radio" name="' . $name . '" id="' . $html_field_id
-                . '" value="' . htmlspecialchars($choice_value) . '"';
-            if ($choice_value == $checked_choice) {
-                $out .= ' checked="checked"';
-            }
-            $out .= '>' . "\n";
-            $out .= '<label for="' . $html_field_id . '">' . $choice_label
-                . '</label>';
-            $out .= "\n";
-            $out .= '<br>';
-            $out .= "\n";
-        }
-
-        $this->assertEquals(
-            Util::getRadioFields(
-                $name,
-                $choices,
-                $checked_choice,
-                true,
-                false
-            ),
-            $out
-        );
-    }
-
-    /**
-     * Test for getRadioFields
-     *
-     * @return void
-     *
-     * @covers \PhpMyAdmin\Util::getRadioFields
-     */
-    public function testGetRadioFieldsEscapeLabelEscapeLabelWithClass()
-    {
-        $name = "test_display_radio";
-        $choices = [
-            'value_1' => 'choice_1',
-            'value_&2' => 'choice&_&lt;2&gt;',
-        ];
-        $checked_choice = "value_2";
-        $class = "test_class";
-
-        $out = "";
-        foreach ($choices as $choice_value => $choice_label) {
-            $html_field_id = $name . '_' . $choice_value;
-            $out .= '<div class="' . $class . '">';
-            $out .= "\n";
-            $out .= '<input type="radio" name="' . $name . '" id="' . $html_field_id
-                . '" value="' . htmlspecialchars($choice_value) . '"';
-            if ($choice_value == $checked_choice) {
-                $out .= ' checked="checked"';
-            }
-            $out .= '>' . "\n";
-            $out .= '<label for="' . $html_field_id . '">'
-                . htmlspecialchars($choice_label) . '</label>';
-            $out .= "\n";
-            $out .= '<br>';
-            $out .= "\n";
-            $out .= '</div>';
-            $out .= "\n";
-        }
-
-        $this->assertEquals(
-            Util::getRadioFields(
-                $name,
-                $choices,
-                $checked_choice,
-                true,
-                true,
-                $class
-            ),
-            $out
-        );
     }
 
     /**
      * Test for Util::getTitleForTarget
      *
      * @param string $target Target
-     * @param array  $result Expected value
+     * @param string $result Expected value
      *
-     * @return void
-     *
-     * @covers \PhpMyAdmin\Util::getTitleForTarget
      * @dataProvider providerGetTitleForTarget
      */
-    public function testGetTitleForTarget($target, $result): void
+    public function testGetTitleForTarget(string $target, string $result): void
     {
         $this->assertEquals(
             $result,
@@ -1979,43 +1371,31 @@ class UtilTest extends PmaTestCase
      *
      * @return array
      */
-    public function providerGetTitleForTarget()
+    public function providerGetTitleForTarget(): array
     {
         return [
             [
-                'tbl_structure.php',
+                'structure',
                 __('Structure'),
             ],
             [
-                'tbl_sql.php',
+                'sql',
                 __('SQL'),
             ],
             [
-                'tbl_select.php',
+                'search',
                 __('Search'),
             ],
             [
-                'tbl_change.php',
+                'insert',
                 __('Insert'),
             ],
             [
-                'sql.php',
+                'browse',
                 __('Browse'),
             ],
             [
-                'db_structure.php',
-                __('Structure'),
-            ],
-            [
-                'db_sql.php',
-                __('SQL'),
-            ],
-            [
-                'db_search.php',
-                __('Search'),
-            ],
-            [
-                'db_operations.php',
+                'operations',
                 __('Operations'),
             ],
         ];
@@ -2024,19 +1404,22 @@ class UtilTest extends PmaTestCase
     /**
      * localised date test, globals are defined
      *
-     * @param string $a Current timestamp
-     * @param string $b Format
-     * @param string $e Expected output
+     * @param int    $a      Current timestamp
+     * @param string $b      Format
+     * @param string $e      Expected output
+     * @param string $tz     Timezone to set
+     * @param string $locale Locale to set
      *
-     * @return void
-     *
-     * @covers \PhpMyAdmin\Util::localisedDate
      * @dataProvider providerLocalisedDate
      */
-    public function testLocalisedDate($a, $b, $e): void
+    public function testLocalisedDate(int $a, string $b, string $e, string $tz, string $locale): void
     {
+        parent::setLanguage();
+        // A test case for #15830 could be added for using the php setlocale on a Windows CI
+        // See https://github.com/phpmyadmin/phpmyadmin/issues/15830
+        _setlocale(LC_ALL, $locale);
         $tmpTimezone = date_default_timezone_get();
-        date_default_timezone_set('Europe/London');
+        date_default_timezone_set($tz);
 
         $this->assertEquals(
             $e,
@@ -2044,6 +1427,7 @@ class UtilTest extends PmaTestCase
         );
 
         date_default_timezone_set($tmpTimezone);
+        _setlocale(LC_ALL, 'en');
     }
 
     /**
@@ -2051,18 +1435,108 @@ class UtilTest extends PmaTestCase
      *
      * @return array
      */
-    public function providerLocalisedDate()
+    public function providerLocalisedDate(): array
     {
+        $hasJaTranslations = file_exists(LOCALE_PATH . '/cs/LC_MESSAGES/phpmyadmin.mo');
+
         return [
             [
                 1227455558,
                 '',
                 'Nov 23, 2008 at 03:52 PM',
+                'Europe/London',
+                'en',
             ],
             [
                 1227455558,
                 '%Y-%m-%d %H:%M:%S %a',
                 '2008-11-23 15:52:38 Sun',
+                'Europe/London',
+                'en',
+            ],
+            [
+                1227455558,
+                '%Y-%m-%d %H:%M:%S %a',
+                '2008-11-23 16:52:38 Sun',
+                'Europe/Paris',
+                'en',
+            ],
+            [
+                1227455558,
+                '%Y-%m-%d %H:%M:%S %a',
+                '2008-11-24 00:52:38 Mon',
+                'Asia/Tokyo',
+                'en',
+            ],
+            [
+                1227455558,
+                '%a %A %b %B',
+                'Mon Mon Nov Nov',
+                'Asia/Tokyo',
+                'en',
+            ],
+            [
+                1227455558,
+                '%a %A %b %B %P',
+                'Mon Mon Nov Nov AM',
+                'Asia/Tokyo',
+                'en',
+            ],
+            [
+                1227455558,
+                '%Y-%m-%d %H:%M:%S %a',
+                $hasJaTranslations ? '2008-11-24 00:52:38 月' : '2008-11-24 00:52:38 Mon',
+                'Asia/Tokyo',
+                'ja',
+            ],
+            [
+                1227455558,
+                '%a %A %b %B',
+                $hasJaTranslations ? '月 月 11 月 11 月' : 'Mon Mon Nov Nov',
+                'Asia/Tokyo',
+                'ja',
+            ],
+            [
+                1227455558,
+                '%a %A %b %B %P',
+                $hasJaTranslations ? '月 月 11 月 11 月 午前' : 'Mon Mon Nov Nov AM',
+                'Asia/Tokyo',
+                'ja',
+            ],
+            [
+                1227455558,
+                '月月',
+                '月月',
+                'Asia/Tokyo',
+                'ja',
+            ],
+            [
+                1227455558,
+                '%Y 年 2 月 %d 日 %H:%M',
+                '2008 年 2 月 24 日 00:52',
+                'Asia/Tokyo',
+                'ja',
+            ],
+            [
+                1227455558,
+                '%Y 年 2 � %d 日 %H:%M',
+                '2008 年 2 � 24 日 00:52',
+                'Asia/Tokyo',
+                'ja',
+            ],
+            [
+                1617153941,
+                'H:i:s Y-d-m',
+                'H:i:s Y-d-m',// Not a valid strftime format
+                'Europe/Paris',
+                'fr',
+            ],
+            [
+                1617153941,
+                '',
+                'mer. 31 mars 2021 à 03:25',// No format uses format "%B %d, %Y at %I:%M %p"
+                'Europe/Paris',
+                'fr',
             ],
         ];
     }
@@ -2073,12 +1547,9 @@ class UtilTest extends PmaTestCase
      * @param int    $a Timespan in seconds
      * @param string $e Expected output
      *
-     * @return void
-     *
-     * @covers \PhpMyAdmin\Util::timespanFormat
      * @dataProvider providerTimespanFormat
      */
-    public function testTimespanFormat($a, $e): void
+    public function testTimespanFormat(int $a, string $e): void
     {
         $GLOBALS['timespanfmt'] = '%s days, %s hours, %s minutes and %s seconds';
         $tmpTimezone = date_default_timezone_get();
@@ -2097,7 +1568,7 @@ class UtilTest extends PmaTestCase
      *
      * @return array
      */
-    public function providerTimespanFormat()
+    public function providerTimespanFormat(): array
     {
         return [
             [
@@ -2114,16 +1585,13 @@ class UtilTest extends PmaTestCase
     /**
      * test for generating string contains printable bit value of selected data
      *
-     * @param integer $a Value
-     * @param int     $b Length
-     * @param string  $e Expected output
+     * @param int    $a Value
+     * @param int    $b Length
+     * @param string $e Expected output
      *
-     * @return void
-     *
-     * @covers \PhpMyAdmin\Util::printableBitValue
      * @dataProvider providerPrintableBitValue
      */
-    public function testPrintableBitValue($a, $b, $e): void
+    public function testPrintableBitValue(int $a, int $b, string $e): void
     {
         $this->assertEquals(
             $e,
@@ -2136,7 +1604,7 @@ class UtilTest extends PmaTestCase
      *
      * @return array
      */
-    public function providerPrintableBitValue()
+    public function providerPrintableBitValue(): array
     {
         return [
             [
@@ -2158,12 +1626,9 @@ class UtilTest extends PmaTestCase
      * @param string $param    String
      * @param string $expected Expected output
      *
-     * @return void
-     *
-     * @covers \PhpMyAdmin\Util::unQuote
      * @dataProvider providerUnQuote
      */
-    public function testUnQuote($param, $expected): void
+    public function testUnQuote(string $param, string $expected): void
     {
         $this->assertEquals(
             $expected,
@@ -2176,7 +1641,7 @@ class UtilTest extends PmaTestCase
      *
      * @return array
      */
-    public function providerUnQuote()
+    public function providerUnQuote(): array
     {
         return [
             [
@@ -2204,12 +1669,9 @@ class UtilTest extends PmaTestCase
      * @param string $param    String
      * @param string $expected Expected output
      *
-     * @return void
-     *
-     * @covers \PhpMyAdmin\Util::unQuote
      * @dataProvider providerUnQuoteSelectedChar
      */
-    public function testUnQuoteSelectedChar($param, $expected): void
+    public function testUnQuoteSelectedChar(string $param, string $expected): void
     {
         $this->assertEquals(
             $expected,
@@ -2222,7 +1684,7 @@ class UtilTest extends PmaTestCase
      *
      * @return array
      */
-    public function providerUnQuoteSelectedChar()
+    public function providerUnQuoteSelectedChar(): array
     {
         return [
             [
@@ -2245,188 +1707,79 @@ class UtilTest extends PmaTestCase
     }
 
     /**
-     * backquote test with different param $do_it (true, false)
-     *
-     * @param string $a String
-     * @param string $b Expected output
-     *
-     * @return void
-     *
-     * @covers \PhpMyAdmin\Util::backquote
-     * @dataProvider providerBackquote
+     * @dataProvider providerForTestBackquote
      */
-    public function testBackquote($a, $b): void
+    public function testBackquote(?string $entry, string $expectedNoneOutput, string $expectedMssqlOutput): void
     {
-        // Test bypass quoting (used by dump functions)
-        $this->assertEquals($a, Util::backquote($a, false));
-
-        // Test backquote
-        $this->assertEquals($b, Util::backquote($a));
+        $this->assertSame($expectedNoneOutput, Util::backquote($entry));
+        $this->assertEquals($entry, Util::backquoteCompat($entry, 'NONE', false));
+        $this->assertEquals($entry, Util::backquoteCompat($entry, 'MSSQL', false));
+        $this->assertSame($expectedNoneOutput, Util::backquoteCompat($entry, 'NONE'));
+        $this->assertSame($expectedMssqlOutput, Util::backquoteCompat($entry, 'MSSQL'));
     }
 
     /**
-     * data provider for backquote test
-     *
-     * @return array
+     * @return array<int|string, string|null>[]
      */
-    public function providerBackquote()
+    public function providerForTestBackquote(): array
     {
         return [
             [
                 '0',
                 '`0`',
-            ],
-            [
-                'test',
-                '`test`',
-            ],
-            [
-                'te`st',
-                '`te``st`',
-            ],
-            [
-                [
-                    'test',
-                    'te`st',
-                    '',
-                    '*',
-                ],
-                [
-                    '`test`',
-                    '`te``st`',
-                    '',
-                    '*',
-                ],
-            ],
-        ];
-    }
-
-    /**
-     * backquoteCompat test with different param $compatibility (NONE, MSSQL)
-     *
-     * @param string $a String
-     * @param string $b Expected output
-     *
-     * @return void
-     *
-     * @covers \PhpMyAdmin\Util::backquoteCompat
-     * @dataProvider providerBackquoteCompat
-     */
-    public function testBackquoteCompat($a, $b): void
-    {
-        // Test bypass quoting (used by dump functions)
-        $this->assertEquals($a, Util::backquoteCompat($a, 'NONE', false));
-
-        // Run tests in MSSQL compatibility mode
-        // Test bypass quoting (used by dump functions)
-        $this->assertEquals($a, Util::backquoteCompat($a, 'MSSQL', false));
-
-        // Test backquote
-        $this->assertEquals($b, Util::backquoteCompat($a, 'MSSQL'));
-    }
-
-    /**
-     * data provider for backquoteCompat test
-     *
-     * @return array
-     */
-    public function providerBackquoteCompat()
-    {
-        return [
-            [
-                '0',
                 '"0"',
             ],
             [
                 'test',
+                '`test`',
                 '"test"',
             ],
             [
                 'te`st',
+                '`te``st`',
                 '"te`st"',
             ],
             [
-                [
-                    'test',
-                    'te`st',
-                    '',
-                    '*',
-                ],
-                [
-                    '"test"',
-                    '"te`st"',
-                    '',
-                    '*',
-                ],
+                'te"st',
+                '`te"st`',
+                '"te\"st"',
+            ],
+            [
+                '',
+                '',
+                '',
+            ],
+            [
+                '*',
+                '*',
+                '*',
+            ],
+            [
+                null,
+                '',
+                '',
             ],
         ];
     }
 
     /**
      * backquoteCompat test with forbidden words
-     *
-     * @return void
-     *
-     * @covers \PhpMyAdmin\Util::backquote
      */
-    public function testBackquoteForbidenWords()
+    public function testBackquoteForbidenWords(): void
     {
         foreach (Context::$KEYWORDS as $keyword => $type) {
             if ($type & Token::FLAG_KEYWORD_RESERVED) {
                 $this->assertEquals(
-                    "`" . $keyword . "`",
-                    Util::backquote($keyword, false)
+                    '`' . $keyword . '`',
+                    Util::backquoteCompat($keyword, 'NONE', false)
                 );
             } else {
                 $this->assertEquals(
                     $keyword,
-                    Util::backquote($keyword, false)
+                    Util::backquoteCompat($keyword, 'NONE', false)
                 );
             }
         }
-    }
-
-    /**
-     * Test for Util::showDocu
-     *
-     * @return void
-     *
-     * @covers \PhpMyAdmin\Util::showDocu
-     */
-    public function testShowDocu()
-    {
-        $GLOBALS['server'] = '99';
-        $GLOBALS['cfg']['ServerDefault'] = 1;
-
-        $this->assertEquals(
-            '<a href="./url.php?url=https%3A%2F%2Fdocs.phpmyadmin.net%2Fen%2Flatest%2Fpage.html%23anchor" target="documentation"><img src="themes/dot.gif" title="Documentation" alt="Documentation" class="icon ic_b_help"></a>',
-            Util::showDocu('page', 'anchor')
-        );
-    }
-
-    /**
-     * Test for showPHPDocu
-     *
-     * @return void
-     *
-     * @covers \PhpMyAdmin\Util::showPHPDocu
-     */
-    public function testShowPHPDocu()
-    {
-        $GLOBALS['server'] = 99;
-        $GLOBALS['cfg']['ServerDefault'] = 0;
-
-        $target = "docu";
-        $lang = _pgettext('PHP documentation language', 'en');
-        $expected = '<a href="./url.php?url=https%3A%2F%2Fsecure.php.net%2Fmanual%2F' . $lang
-            . '%2F' . $target . '" target="documentation">'
-            . '<img src="themes/dot.gif" title="' . __('Documentation') . '" alt="'
-            . __('Documentation') . '" class="icon ic_b_help"></a>';
-
-        $this->assertEquals(
-            $expected,
-            Util::showPHPDocu($target)
-        );
     }
 
     /**
@@ -2435,12 +1788,9 @@ class UtilTest extends PmaTestCase
      * @param string $a String
      * @param string $e Expected output
      *
-     * @return void
-     *
-     * @covers \PhpMyAdmin\Util::userDir
      * @dataProvider providerUserDir
      */
-    public function testUserDir($a, $e): void
+    public function testUserDir(string $a, string $e): void
     {
         $GLOBALS['cfg']['Server']['user'] = 'root';
 
@@ -2452,16 +1802,16 @@ class UtilTest extends PmaTestCase
      *
      * @return array
      */
-    public function providerUserDir()
+    public function providerUserDir(): array
     {
         return [
             [
                 '/var/pma_tmp/%u/',
-                "/var/pma_tmp/root/",
+                '/var/pma_tmp/root/',
             ],
             [
                 '/home/%u/pma',
-                "/home/root/pma/",
+                '/home/root/pma/',
             ],
         ];
     }
@@ -2472,12 +1822,9 @@ class UtilTest extends PmaTestCase
      * @param string $a String
      * @param string $e Expected output
      *
-     * @return void
-     *
-     * @covers \PhpMyAdmin\Util::duplicateFirstNewline
      * @dataProvider providerDuplicateFirstNewline
      */
-    public function testDuplicateFirstNewline($a, $e): void
+    public function testDuplicateFirstNewline(string $a, string $e): void
     {
         $this->assertEquals(
             $e,
@@ -2490,7 +1837,7 @@ class UtilTest extends PmaTestCase
      *
      * @return array
      */
-    public function providerDuplicateFirstNewline()
+    public function providerDuplicateFirstNewline(): array
     {
         return [
             [
@@ -2512,14 +1859,7 @@ class UtilTest extends PmaTestCase
         ];
     }
 
-    /**
-     * Test for Util::unsupportedDatatypes
-     *
-     * @return void
-     *
-     * @covers \PhpMyAdmin\Util::unsupportedDatatypes
-     */
-    public function testUnsupportedDatatypes()
+    public function testUnsupportedDatatypes(): void
     {
         $no_support_types = [];
         $this->assertEquals(
@@ -2528,14 +1868,7 @@ class UtilTest extends PmaTestCase
         );
     }
 
-    /**
-     * Test for Util::getPageFromPosition
-     *
-     * @return void
-     *
-     * @covers PhpMyAdmin\Util::getPageFromPosition
-     */
-    public function testGetPageFromPosition()
+    public function testGetPageFromPosition(): void
     {
         $this->assertEquals(Util::getPageFromPosition(0, 1), 1);
         $this->assertEquals(Util::getPageFromPosition(1, 1), 2);
@@ -2544,78 +1877,620 @@ class UtilTest extends PmaTestCase
     }
 
     /**
-     * Test for Util::linkOrButton
+     * Test for Util::isInteger
      *
-     * @param array  $params params
-     * @param int    $limit  limit
-     * @param string $match  match
+     * @param bool  $expected Expected result for a given input
+     * @param mixed $input    Input data to check
      *
-     * @return void
-     *
-     * @dataProvider linksOrButtons
+     * @dataProvider providerIsInteger
      */
-    public function testLinkOrButton(array $params, $limit, $match): void
+    public function testIsInteger(bool $expected, $input): void
     {
-        $restore = $GLOBALS['cfg']['LinkLengthLimit'] ?? 1000;
-        $GLOBALS['cfg']['LinkLengthLimit'] = $limit;
-        try {
-            $result = call_user_func_array(
-                [
-                    'PhpMyAdmin\Util',
-                    'linkOrButton',
-                ],
-                $params
-            );
-            $this->assertEquals($match, $result);
-        } finally {
-            $GLOBALS['cfg']['LinkLengthLimit'] = $restore;
-        }
+        $isInteger = Util::isInteger($input);
+        $this->assertEquals($expected, $isInteger);
     }
 
     /**
-     * Data provider for Util::linkOrButton test
+     * Data provider for Util::isInteger test
      *
      * @return array
      */
-    public function linksOrButtons()
+    public function providerIsInteger(): array
     {
         return [
             [
-                [
-                    'index.php',
-                    'text',
-                ],
+                true,
                 1000,
-                '<a href="index.php" >text</a>',
             ],
             [
-                [
-                    'index.php?some=parameter',
-                    'text',
-                ],
-                20,
-                '<a href="index.php" data-post="some=parameter">text</a>',
+                true,
+                '1000',
             ],
             [
-                [
-                    'index.php',
-                    'text',
-                    [],
-                    'target',
-                ],
-                1000,
-                '<a href="index.php" target="target">text</a>',
+                false,
+                1000.1,
             ],
             [
-                [
-                    'url.php?url=http://phpmyadmin.net/',
-                    'text',
-                    [],
-                    '_blank',
-                ],
-                1000,
-                '<a href="url.php?url=http://phpmyadmin.net/" target="_blank" rel="noopener noreferrer">text</a>',
+                false,
+                '1000.1',
+            ],
+            [
+                false,
+                'input',
             ],
         ];
+    }
+
+    /**
+     * Test for Util::getProtoFromForwardedHeader
+     *
+     * @param string $header The http Forwarded header
+     * @param string $proto  The protocol http/https
+     *
+     * @dataProvider providerForwardedHeaders
+     */
+    public function testGetProtoFromForwardedHeader(string $header, string $proto): void
+    {
+        $protocolDetected = Util::getProtoFromForwardedHeader($header);
+        $this->assertEquals($proto, $protocolDetected);
+    }
+
+    /**
+     * Data provider for Util::getProtoFromForwardedHeader test
+     *
+     * @return array
+     *
+     * @source https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Forwarded MDN docs
+     * @source https://www.nginx.com/resources/wiki/start/topics/examples/forwarded/ Nginx docs
+     */
+    public function providerForwardedHeaders(): array
+    {
+        return [
+            [
+                '',
+                '',
+            ],
+            [
+                '=',
+                '',
+            ],
+            [
+                'https',
+                '',
+            ],
+            [
+                'https',
+                '',
+            ],
+            [
+                '=https',
+                '',
+            ],
+            [
+                '=http',
+                '',
+            ],
+            [
+                'For="[2001:db8:cafe::17]:4711"',
+                '',
+            ],
+            [
+                'for=192.0.2.60;proto=http;by=203.0.113.43',
+                'http',
+            ],
+            [
+                'for=192.0.2.43, for=198.51.100.17',
+                '',
+            ],
+            [
+                'for=123.34.567.89',
+                '',
+            ],
+            [
+                'for=192.0.2.43, for="[2001:db8:cafe::17]"',
+                '',
+            ],
+            [
+                'for=12.34.56.78;host=example.com;proto=https, for=23.45.67.89',
+                'https',
+            ],
+            [
+                'for=12.34.56.78, for=23.45.67.89;secret=egah2CGj55fSJFs, for=10.1.2.3',
+                '',
+            ],
+            [
+                'for=injected;by="',
+                '',
+            ],
+            [
+                'for=injected;by=", for=real',
+                '',
+            ],
+            [
+                'for=192.0.2.60;proto=http;by=203.0.113.43',
+                'http',
+            ],
+            [
+                'for=192.0.2.60;proto=htTp;by=203.0.113.43',
+                'http',
+            ],
+            [
+                'for=192.0.2.60;proto=HTTP;by=203.0.113.43',
+                'http',
+            ],
+            [
+                'for=192.0.2.60;proto= http;by=203.0.113.43',
+                'http',
+            ],
+            [
+                'for=12.34.45.67;secret="special;proto=abc;test=1";proto=http,for=23.45.67.89',
+                'http',
+            ],
+            [
+                'for=12.34.45.67;secret="special;proto=abc;test=1";proto=418,for=23.45.67.89',
+                '',
+            ],
+            /*[ // this test case is very special and would need a different implementation
+                'for=12.34.45.67;secret="special;proto=http;test=1";proto=https,for=23.45.67.89',
+                'https'
+            ]*/
+        ];
+    }
+
+    public function testCurrentUserHasPrivilegeSkipGrantTables(): void
+    {
+        $dbi = $this->getMockBuilder(DatabaseInterface::class)
+            ->disableOriginalConstructor()
+            ->getMock();
+        $dbi->expects($this->once())
+            ->method('getCurrentUserAndHost')
+            ->will($this->returnValue(['', '']));
+
+        $GLOBALS['dbi'] = $dbi;
+        $this->assertTrue(Util::currentUserHasPrivilege('EVENT'));
+    }
+
+    public function testCurrentUserHasUserPrivilege(): void
+    {
+        $dbi = $this->getMockBuilder(DatabaseInterface::class)
+            ->disableOriginalConstructor()
+            ->getMock();
+        $dbi->expects($this->once())
+            ->method('getCurrentUserAndHost')
+            ->will($this->returnValue(['groot_%', '%']));
+        $dbi->expects($this->once())
+            ->method('fetchValue')
+            ->with(
+                'SELECT `PRIVILEGE_TYPE` FROM `INFORMATION_SCHEMA`.`USER_PRIVILEGES`'
+                . " WHERE GRANTEE='''groot_%''@''%''' AND PRIVILEGE_TYPE='EVENT'"
+            )
+            ->will($this->returnValue('EVENT'));
+
+        $GLOBALS['dbi'] = $dbi;
+        $this->assertTrue(Util::currentUserHasPrivilege('EVENT'));
+    }
+
+    public function testCurrentUserHasNotUserPrivilege(): void
+    {
+        $dbi = $this->getMockBuilder(DatabaseInterface::class)
+            ->disableOriginalConstructor()
+            ->getMock();
+        $dbi->expects($this->once())
+            ->method('getCurrentUserAndHost')
+            ->will($this->returnValue(['groot_%', '%']));
+        $dbi->expects($this->once())
+            ->method('fetchValue')
+            ->with(
+                'SELECT `PRIVILEGE_TYPE` FROM `INFORMATION_SCHEMA`.`USER_PRIVILEGES`'
+                . " WHERE GRANTEE='''groot_%''@''%''' AND PRIVILEGE_TYPE='EVENT'"
+            )
+            ->will($this->returnValue(false));
+
+        $GLOBALS['dbi'] = $dbi;
+        $this->assertFalse(Util::currentUserHasPrivilege('EVENT'));
+    }
+
+    public function testCurrentUserHasNotUserPrivilegeButDbPrivilege(): void
+    {
+        $dbi = $this->getMockBuilder(DatabaseInterface::class)
+            ->onlyMethods(['getCurrentUserAndHost', 'fetchValue'])
+            ->disableOriginalConstructor()
+            ->getMock();
+
+        $dbi->expects($this->once())
+            ->method('getCurrentUserAndHost')
+            ->will($this->returnValue(['groot_%', '%']));
+        $dbi->expects($this->exactly(2))
+            ->method('fetchValue')
+            ->withConsecutive(
+                [
+                    'SELECT `PRIVILEGE_TYPE` FROM `INFORMATION_SCHEMA`.`USER_PRIVILEGES`'
+                . " WHERE GRANTEE='''groot_%''@''%''' AND PRIVILEGE_TYPE='EVENT'",
+                ],
+                [
+                    'SELECT `PRIVILEGE_TYPE` FROM `INFORMATION_SCHEMA`.`SCHEMA_PRIVILEGES`'
+                . " WHERE GRANTEE='''groot_%''@''%''' AND PRIVILEGE_TYPE='EVENT'"
+                . " AND 'my_data_base' LIKE `TABLE_SCHEMA`",
+                ]
+            )
+            ->willReturnOnConsecutiveCalls(false, 'EVENT');
+
+        $GLOBALS['dbi'] = $dbi;
+        $this->assertTrue(Util::currentUserHasPrivilege('EVENT', 'my_data_base'));
+    }
+
+    public function testCurrentUserHasNotUserPrivilegeAndNotDbPrivilege(): void
+    {
+        $dbi = $this->getMockBuilder(DatabaseInterface::class)
+            ->onlyMethods(['getCurrentUserAndHost', 'fetchValue'])
+            ->disableOriginalConstructor()
+            ->getMock();
+
+        $dbi->expects($this->once())
+            ->method('getCurrentUserAndHost')
+            ->will($this->returnValue(['groot_%', '%']));
+        $dbi->expects($this->exactly(2))
+            ->method('fetchValue')
+            ->withConsecutive(
+                [
+                    'SELECT `PRIVILEGE_TYPE` FROM `INFORMATION_SCHEMA`.`USER_PRIVILEGES`'
+                . " WHERE GRANTEE='''groot_%''@''%''' AND PRIVILEGE_TYPE='EVENT'",
+                ],
+                [
+                    'SELECT `PRIVILEGE_TYPE` FROM `INFORMATION_SCHEMA`.`SCHEMA_PRIVILEGES`'
+                . " WHERE GRANTEE='''groot_%''@''%''' AND PRIVILEGE_TYPE='EVENT'"
+                . " AND 'my_data_base' LIKE `TABLE_SCHEMA`",
+                ]
+            )
+            ->willReturnOnConsecutiveCalls(false, false);
+
+        $GLOBALS['dbi'] = $dbi;
+        $this->assertFalse(Util::currentUserHasPrivilege('EVENT', 'my_data_base'));
+    }
+
+    public function testCurrentUserHasNotUserPrivilegeAndNotDbPrivilegeButTablePrivilege(): void
+    {
+        $dbi = $this->getMockBuilder(DatabaseInterface::class)
+            ->onlyMethods(['getCurrentUserAndHost', 'fetchValue'])
+            ->disableOriginalConstructor()
+            ->getMock();
+
+        $dbi->expects($this->once())
+            ->method('getCurrentUserAndHost')
+            ->will($this->returnValue(['groot_%', '%']));
+        $dbi->expects($this->exactly(3))
+            ->method('fetchValue')
+            ->withConsecutive(
+                [
+                    'SELECT `PRIVILEGE_TYPE` FROM `INFORMATION_SCHEMA`.`USER_PRIVILEGES`'
+                . " WHERE GRANTEE='''groot_%''@''%''' AND PRIVILEGE_TYPE='EVENT'",
+                ],
+                [
+                    'SELECT `PRIVILEGE_TYPE` FROM `INFORMATION_SCHEMA`.`SCHEMA_PRIVILEGES`'
+                . " WHERE GRANTEE='''groot_%''@''%''' AND PRIVILEGE_TYPE='EVENT'"
+                . " AND 'my_data_base' LIKE `TABLE_SCHEMA`",
+                ],
+                [
+                    'SELECT `PRIVILEGE_TYPE` FROM `INFORMATION_SCHEMA`.`TABLE_PRIVILEGES`'
+                . " WHERE GRANTEE='''groot_%''@''%''' AND PRIVILEGE_TYPE='EVENT'"
+                . " AND 'my_data_base' LIKE `TABLE_SCHEMA` AND TABLE_NAME='my_data_table'",
+                ]
+            )
+            ->willReturnOnConsecutiveCalls(false, false, 'EVENT');
+
+        $GLOBALS['dbi'] = $dbi;
+        $this->assertTrue(Util::currentUserHasPrivilege('EVENT', 'my_data_base', 'my_data_table'));
+    }
+
+    public function testCurrentUserHasNotUserPrivilegeAndNotDbPrivilegeAndNotTablePrivilege(): void
+    {
+        $dbi = $this->getMockBuilder(DatabaseInterface::class)
+            ->onlyMethods(['getCurrentUserAndHost', 'fetchValue'])
+            ->disableOriginalConstructor()
+            ->getMock();
+
+        $dbi->expects($this->once())
+            ->method('getCurrentUserAndHost')
+            ->will($this->returnValue(['groot_%', '%']));
+        $dbi->expects($this->exactly(3))
+            ->method('fetchValue')
+            ->withConsecutive(
+                [
+                    'SELECT `PRIVILEGE_TYPE` FROM `INFORMATION_SCHEMA`.`USER_PRIVILEGES`'
+                . " WHERE GRANTEE='''groot_%''@''%''' AND PRIVILEGE_TYPE='EVENT'",
+                ],
+                [
+                    'SELECT `PRIVILEGE_TYPE` FROM `INFORMATION_SCHEMA`.`SCHEMA_PRIVILEGES`'
+                . " WHERE GRANTEE='''groot_%''@''%''' AND PRIVILEGE_TYPE='EVENT'"
+                . " AND 'my_data_base' LIKE `TABLE_SCHEMA`",
+                ],
+                [
+                    'SELECT `PRIVILEGE_TYPE` FROM `INFORMATION_SCHEMA`.`TABLE_PRIVILEGES`'
+                . " WHERE GRANTEE='''groot_%''@''%''' AND PRIVILEGE_TYPE='EVENT'"
+                . " AND 'my_data_base' LIKE `TABLE_SCHEMA` AND TABLE_NAME='my_data_table'",
+                ]
+            )
+            ->willReturnOnConsecutiveCalls(false, false, false);
+
+        $GLOBALS['dbi'] = $dbi;
+        $this->assertFalse(Util::currentUserHasPrivilege('EVENT', 'my_data_base', 'my_data_table'));
+    }
+
+    /**
+     * @return array[]
+     */
+    public function dataProviderScriptNames(): array
+    {
+        // target
+        // location
+        // function output
+        return [
+            [
+                'structure', // Notice the typo on db_structure.php
+                'databasesss',
+                'index.php?route=/&lang=en', // Fallback to the base route
+            ],
+            [
+                'db_structures.php', // Notice the typo on databases
+                'database',
+                'index.php?route=/&lang=en', // Fallback to the base route
+            ],
+            [
+                'tbl_structure.php', // Support the legacy value
+                'table',
+                'index.php?route=/table/structure&lang=en',
+            ],
+            [
+                'structure',
+                'table',
+                'index.php?route=/table/structure&lang=en',
+            ],
+            [
+                'tbl_sql.php', // Support the legacy value
+                'table',
+                'index.php?route=/table/sql&lang=en',
+            ],
+            [
+                'sql',
+                'table',
+                'index.php?route=/table/sql&lang=en',
+            ],
+            [
+                'tbl_select.php', // Support the legacy value
+                'table',
+                'index.php?route=/table/search&lang=en',
+            ],
+            [
+                'search',
+                'table',
+                'index.php?route=/table/search&lang=en',
+            ],
+            [
+                'tbl_change.php', // Support the legacy value
+                'table',
+                'index.php?route=/table/change&lang=en',
+            ],
+            [
+                'insert',
+                'table',
+                'index.php?route=/table/change&lang=en',
+            ],
+            [
+                'sql.php', // Support the legacy value
+                'table',
+                'index.php?route=/sql&lang=en',
+            ],
+            [
+                'browse',
+                'table',
+                'index.php?route=/sql&lang=en',
+            ],
+            [
+                'db_structure.php', // Support the legacy value
+                'database',
+                'index.php?route=/database/structure&lang=en',
+            ],
+            [
+                'structure',
+                'database',
+                'index.php?route=/database/structure&lang=en',
+            ],
+            [
+                'db_sql.php', // Support the legacy value
+                'database',
+                'index.php?route=/database/sql&lang=en',
+            ],
+            [
+                'sql',
+                'database',
+                'index.php?route=/database/sql&lang=en',
+            ],
+            [
+                'db_search.php', // Support the legacy value
+                'database',
+                'index.php?route=/database/search&lang=en',
+            ],
+            [
+                'search',
+                'database',
+                'index.php?route=/database/search&lang=en',
+            ],
+            [
+                'db_operations.php', // Support the legacy value
+                'database',
+                'index.php?route=/database/operations&lang=en',
+            ],
+            [
+                'operations',
+                'database',
+                'index.php?route=/database/operations&lang=en',
+            ],
+            [
+                'index.php', // Support the legacy value
+                'server',
+                'index.php?route=/&lang=en',
+            ],
+            [
+                'welcome',
+                'server',
+                'index.php?route=/&lang=en',
+            ],
+            [
+                'server_databases.php', // Support the legacy value
+                'server',
+                'index.php?route=/server/databases&lang=en',
+            ],
+            [
+                'databases',
+                'server',
+                'index.php?route=/server/databases&lang=en',
+            ],
+            [
+                'server_status.php', // Support the legacy value
+                'server',
+                'index.php?route=/server/status&lang=en',
+            ],
+            [
+                'status',
+                'server',
+                'index.php?route=/server/status&lang=en',
+            ],
+            [
+                'server_variables.php', // Support the legacy value
+                'server',
+                'index.php?route=/server/variables&lang=en',
+            ],
+            [
+                'variables',
+                'server',
+                'index.php?route=/server/variables&lang=en',
+            ],
+            [
+                'server_privileges.php', // Support the legacy value
+                'server',
+                'index.php?route=/server/privileges&lang=en',
+            ],
+            [
+                'privileges',
+                'server',
+                'index.php?route=/server/privileges&lang=en',
+            ],
+        ];
+    }
+
+    /**
+     * @dataProvider dataProviderScriptNames
+     */
+    public function testGetScriptNameForOption(string $target, string $location, string $finalLink): void
+    {
+        $GLOBALS['lang'] = 'en';
+        $this->assertSame(
+            $finalLink,
+            Util::getScriptNameForOption($target, $location)
+        );
+    }
+
+    public function testShowIcons(): void
+    {
+        $GLOBALS['cfg']['ActionLinksMode'] = 'icons';
+        $this->assertTrue(Util::showIcons('ActionLinksMode'));
+        $GLOBALS['cfg']['ActionLinksMode'] = 'both';
+        $this->assertTrue(Util::showIcons('ActionLinksMode'));
+        $GLOBALS['cfg']['ActionLinksMode'] = 'text';
+        $this->assertFalse(Util::showIcons('ActionLinksMode'));
+    }
+
+    public function testShowText(): void
+    {
+        $GLOBALS['cfg']['ActionLinksMode'] = 'text';
+        $this->assertTrue(Util::showText('ActionLinksMode'));
+        $GLOBALS['cfg']['ActionLinksMode'] = 'both';
+        $this->assertTrue(Util::showText('ActionLinksMode'));
+        $GLOBALS['cfg']['ActionLinksMode'] = 'icons';
+        $this->assertFalse(Util::showText('ActionLinksMode'));
+    }
+
+    /**
+     * @dataProvider providerForTestGetMySQLDocuURL
+     */
+    public function testGetMySQLDocuURL(string $link, string $anchor, string $version, string $expected): void
+    {
+        $GLOBALS['dbi'] = $this->createDatabaseInterface();
+        $GLOBALS['dbi']->setVersion([
+            '@@version' => $version,
+            '@@version_comment' => 'MySQL Community Server (GPL)',
+        ]);
+        $this->assertSame($expected, Util::getMySQLDocuURL($link, $anchor));
+    }
+
+    /**
+     * @return array<int, array<int, int|string>>
+     * @psalm-return array<int, array{string, string, int, string}>
+     */
+    public function providerForTestGetMySQLDocuURL(): array
+    {
+        return [
+            [
+                'ALTER_TABLE',
+                'alter-table-index',
+                '8.0.0',
+                'index.php?route=/url&url='
+                . 'https%3A%2F%2Fdev.mysql.com%2Fdoc%2Frefman%2F8.0%2Fen%2Falter-table.html%23alter-table-index',
+            ],
+            [
+                'ALTER_TABLE',
+                'alter-table-index',
+                '5.7.0',
+                'index.php?route=/url&url='
+                . 'https%3A%2F%2Fdev.mysql.com%2Fdoc%2Frefman%2F5.7%2Fen%2Falter-table.html%23alter-table-index',
+            ],
+            [
+                '',
+                'alter-table-index',
+                '5.6.0',
+                'index.php?route=/url&url='
+                . 'https%3A%2F%2Fdev.mysql.com%2Fdoc%2Frefman%2F5.6%2Fen%2Findex.html%23alter-table-index',
+            ],
+            [
+                'ALTER_TABLE',
+                '',
+                '5.5.0',
+                'index.php?route=/url&url='
+                . 'https%3A%2F%2Fdev.mysql.com%2Fdoc%2Frefman%2F5.5%2Fen%2Falter-table.html',
+            ],
+            [
+                '',
+                '',
+                '5.7.0',
+                'index.php?route=/url&url='
+                . 'https%3A%2F%2Fdev.mysql.com%2Fdoc%2Frefman%2F5.7%2Fen%2Findex.html',
+            ],
+        ];
+    }
+
+    public function testGetDocuURL(): void
+    {
+        $this->assertSame(
+            'index.php?route=/url&url=https%3A%2F%2Fmariadb.com%2Fkb%2Fen%2Fdocumentation%2F',
+            Util::getDocuURL(true)
+        );
+        $this->assertSame(
+            'index.php?route=/url&url=https%3A%2F%2Fdev.mysql.com%2Fdoc%2Frefman%2F5.5%2Fen%2Findex.html',
+            Util::getDocuURL(false)
+        );
+        $this->assertSame(
+            'index.php?route=/url&url=https%3A%2F%2Fdev.mysql.com%2Fdoc%2Frefman%2F5.5%2Fen%2Findex.html',
+            Util::getDocuURL()
+        );
+    }
+
+    public function testSplitURLQuery(): void
+    {
+        $actual = Util::splitURLQuery('');
+        $this->assertSame([], $actual);
+        $actual = Util::splitURLQuery('index.php');
+        $this->assertSame([], $actual);
+        $actual = Util::splitURLQuery('index.php?route=/table/structure&db=sakila&table=address');
+        $this->assertSame(['route=/table/structure', 'db=sakila', 'table=address'], $actual);
     }
 }

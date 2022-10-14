@@ -1,78 +1,112 @@
 <?php
-/* vim: set expandtab sw=4 ts=4 sts=4: */
-/**
- * Holds the PhpMyAdmin\Controllers\Server\Status\StatusController
- *
- * @package PhpMyAdmin\Controllers
- */
+
 declare(strict_types=1);
 
 namespace PhpMyAdmin\Controllers\Server\Status;
 
+use PhpMyAdmin\DatabaseInterface;
+use PhpMyAdmin\Http\ServerRequest;
 use PhpMyAdmin\ReplicationGui;
+use PhpMyAdmin\ResponseRenderer;
+use PhpMyAdmin\Server\Status\Data;
+use PhpMyAdmin\Template;
+use PhpMyAdmin\Url;
 use PhpMyAdmin\Util;
 
+use function __;
+use function implode;
+
 /**
- * Class StatusController
- * @package PhpMyAdmin\Controllers\Server\Status
+ * Object the server status page: processes, connections and traffic.
  */
 class StatusController extends AbstractController
 {
-    /**
-     * @return string
-     */
-    public function index(): string
+    /** @var ReplicationGui */
+    private $replicationGui;
+
+    /** @var DatabaseInterface */
+    private $dbi;
+
+    public function __construct(
+        ResponseRenderer $response,
+        Template $template,
+        Data $data,
+        ReplicationGui $replicationGui,
+        DatabaseInterface $dbi
+    ) {
+        parent::__construct($response, $template, $data);
+        $this->replicationGui = $replicationGui;
+        $this->dbi = $dbi;
+    }
+
+    public function __invoke(ServerRequest $request): void
     {
-        global $replication_info;
+        $GLOBALS['errorUrl'] = Url::getFromRoute('/');
+
+        if ($this->dbi->isSuperUser()) {
+            $this->dbi->selectDb('mysql');
+        }
+
+        $replicationInfo = $this->data->getReplicationInfo();
+        $primaryInfo = $replicationInfo->getPrimaryInfo();
+        $replicaInfo = $replicationInfo->getReplicaInfo();
 
         $traffic = [];
         $connections = [];
         $replication = '';
         if ($this->data->dataLoaded) {
-            $networkTraffic = implode(
-                ' ',
-                Util::formatByteDown(
+            // In some case the data was reported not to exist, check it for all keys
+            if (isset($this->data->status['Bytes_received'], $this->data->status['Bytes_sent'])) {
+                /** @var string[] $bytes */
+                $bytes = Util::formatByteDown(
                     $this->data->status['Bytes_received'] + $this->data->status['Bytes_sent'],
                     3,
                     1
-                )
-            );
-            $uptime = Util::timespanFormat($this->data->status['Uptime']);
+                );
+                $networkTraffic = implode(' ', $bytes);
+            }
+
+            if (isset($this->data->status['Uptime'])) {
+                $uptime = Util::timespanFormat($this->data->status['Uptime']);
+            }
+
             $startTime = Util::localisedDate($this->getStartTime());
 
             $traffic = $this->getTrafficInfo();
 
             $connections = $this->getConnectionsInfo();
 
-            // display replication information
-            if ($replication_info['master']['status']
-                || $replication_info['slave']['status']
-            ) {
-                $replication = $this->getReplicationInfo();
+            if ($primaryInfo['status']) {
+                $replication .= $this->replicationGui->getHtmlForReplicationStatusTable(
+                    $_POST['primary_connection'] ?? null,
+                    'primary'
+                );
+            }
+
+            if ($replicaInfo['status']) {
+                $replication .= $this->replicationGui->getHtmlForReplicationStatusTable(
+                    $_POST['primary_connection'] ?? null,
+                    'replica'
+                );
             }
         }
 
-        return $this->template->render('server/status/status/index', [
+        $this->render('server/status/status/index', [
             'is_data_loaded' => $this->data->dataLoaded,
             'network_traffic' => $networkTraffic ?? null,
             'uptime' => $uptime ?? null,
             'start_time' => $startTime ?? null,
             'traffic' => $traffic,
             'connections' => $connections,
-            'is_master' => $replication_info['master']['status'],
-            'is_slave' => $replication_info['slave']['status'],
+            'is_primary' => $primaryInfo['status'],
+            'is_replica' => $replicaInfo['status'],
             'replication' => $replication,
         ]);
     }
 
-    /**
-     * @return int
-     */
     private function getStartTime(): int
     {
-        return (int) $this->dbi->fetchValue(
-            'SELECT UNIX_TIMESTAMP() - ' . $this->data->status['Uptime']
-        );
+        return (int) $this->dbi->fetchValue('SELECT UNIX_TIMESTAMP() - ' . $this->data->status['Uptime']);
     }
 
     /**
@@ -82,63 +116,42 @@ class StatusController extends AbstractController
     {
         $hourFactor = 3600 / $this->data->status['Uptime'];
 
+        /** @var string[] $bytesReceived */
+        $bytesReceived = Util::formatByteDown($this->data->status['Bytes_received'], 3, 1);
+        /** @var string[] $bytesReceivedPerHour */
+        $bytesReceivedPerHour = Util::formatByteDown($this->data->status['Bytes_received'] * $hourFactor, 3, 1);
+        /** @var string[] $bytesSent */
+        $bytesSent = Util::formatByteDown($this->data->status['Bytes_sent'], 3, 1);
+        /** @var string[] $bytesSentPerHour */
+        $bytesSentPerHour = Util::formatByteDown($this->data->status['Bytes_sent'] * $hourFactor, 3, 1);
+        /** @var string[] $bytesTotal */
+        $bytesTotal = Util::formatByteDown(
+            $this->data->status['Bytes_received'] + $this->data->status['Bytes_sent'],
+            3,
+            1
+        );
+        /** @var string[] $bytesTotalPerHour */
+        $bytesTotalPerHour = Util::formatByteDown(
+            ($this->data->status['Bytes_received'] + $this->data->status['Bytes_sent']) * $hourFactor,
+            3,
+            1
+        );
+
         return [
             [
                 'name' => __('Received'),
-                'number' => implode(
-                    ' ',
-                    Util::formatByteDown(
-                        $this->data->status['Bytes_received'],
-                        3,
-                        1
-                    )
-                ),
-                'per_hour' => implode(
-                    ' ',
-                    Util::formatByteDown(
-                        $this->data->status['Bytes_received'] * $hourFactor,
-                        3,
-                        1
-                    )
-                ),
+                'number' => implode(' ', $bytesReceived),
+                'per_hour' => implode(' ', $bytesReceivedPerHour),
             ],
             [
                 'name' => __('Sent'),
-                'number' => implode(
-                    ' ',
-                    Util::formatByteDown(
-                        $this->data->status['Bytes_sent'],
-                        3,
-                        1
-                    )
-                ),
-                'per_hour' => implode(
-                    ' ',
-                    Util::formatByteDown(
-                        $this->data->status['Bytes_sent'] * $hourFactor,
-                        3,
-                        1
-                    )
-                ),
+                'number' => implode(' ', $bytesSent),
+                'per_hour' => implode(' ', $bytesSentPerHour),
             ],
             [
                 'name' => __('Total'),
-                'number' => implode(
-                    ' ',
-                    Util::formatByteDown(
-                        $this->data->status['Bytes_received'] + $this->data->status['Bytes_sent'],
-                        3,
-                        1
-                    )
-                ),
-                'per_hour' => implode(
-                    ' ',
-                    Util::formatByteDown(
-                        ($this->data->status['Bytes_received'] + $this->data->status['Bytes_sent']) * $hourFactor,
-                        3,
-                        1
-                    )
-                ),
+                'number' => implode(' ', $bytesTotal),
+                'per_hour' => implode(' ', $bytesTotalPerHour),
             ],
         ];
     }
@@ -171,80 +184,28 @@ class StatusController extends AbstractController
         return [
             [
                 'name' => __('Max. concurrent connections'),
-                'number' => Util::formatNumber(
-                    $this->data->status['Max_used_connections'],
-                    0
-                ),
+                'number' => Util::formatNumber($this->data->status['Max_used_connections'], 0),
                 'per_hour' => '---',
                 'percentage' => '---',
             ],
             [
                 'name' => __('Failed attempts'),
-                'number' => Util::formatNumber(
-                    $this->data->status['Aborted_connects'],
-                    4,
-                    1,
-                    true
-                ),
-                'per_hour' => Util::formatNumber(
-                    $this->data->status['Aborted_connects'] * $hourFactor,
-                    4,
-                    2,
-                    true
-                ),
+                'number' => Util::formatNumber($this->data->status['Aborted_connects'], 4, 1, true),
+                'per_hour' => Util::formatNumber($this->data->status['Aborted_connects'] * $hourFactor, 4, 2, true),
                 'percentage' => $failedAttemptsPercentage,
             ],
             [
                 'name' => __('Aborted'),
-                'number' => Util::formatNumber(
-                    $this->data->status['Aborted_clients'],
-                    4,
-                    1,
-                    true
-                ),
-                'per_hour' => Util::formatNumber(
-                    $this->data->status['Aborted_clients'] * $hourFactor,
-                    4,
-                    2,
-                    true
-                ),
+                'number' => Util::formatNumber($this->data->status['Aborted_clients'], 4, 1, true),
+                'per_hour' => Util::formatNumber($this->data->status['Aborted_clients'] * $hourFactor, 4, 2, true),
                 'percentage' => $abortedPercentage,
             ],
             [
                 'name' => __('Total'),
-                'number' => Util::formatNumber(
-                    $this->data->status['Connections'],
-                    4,
-                    0
-                ),
-                'per_hour' => Util::formatNumber(
-                    $this->data->status['Connections'] * $hourFactor,
-                    4,
-                    2
-                ),
+                'number' => Util::formatNumber($this->data->status['Connections'], 4, 0),
+                'per_hour' => Util::formatNumber($this->data->status['Connections'] * $hourFactor, 4, 2),
                 'percentage' => Util::formatNumber(100, 0, 2) . '%',
             ],
         ];
-    }
-
-    /**
-     * @return string
-     */
-    private function getReplicationInfo(): string
-    {
-        global $replication_info, $replication_types;
-
-        $replicationGui = new ReplicationGui();
-
-        $output = '';
-        foreach ($replication_types as $type) {
-            if (isset($replication_info[$type]['status'])
-                && $replication_info[$type]['status']
-            ) {
-                $output .= $replicationGui->getHtmlForReplicationStatusTable($type);
-            }
-        }
-
-        return $output;
     }
 }

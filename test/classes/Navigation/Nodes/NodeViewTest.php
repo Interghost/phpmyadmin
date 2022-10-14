@@ -1,52 +1,43 @@
 <?php
-/* vim: set expandtab sw=4 ts=4 sts=4: */
-/**
- * Tests for PhpMyAdmin\Navigation\Nodes\NodeView class
- *
- * @package PhpMyAdmin-test
- */
+
 declare(strict_types=1);
 
 namespace PhpMyAdmin\Tests\Navigation\Nodes;
 
 use PhpMyAdmin\Navigation\NodeFactory;
-use PhpMyAdmin\Tests\PmaTestCase;
-use PhpMyAdmin\Theme;
+use PhpMyAdmin\Tests\AbstractTestCase;
 
 /**
- * Tests for PhpMyAdmin\Navigation\Nodes\NodeView class
- *
- * @package PhpMyAdmin-test
+ * @covers \PhpMyAdmin\Navigation\Nodes\NodeView
  */
-class NodeViewTest extends PmaTestCase
+class NodeViewTest extends AbstractTestCase
 {
     /**
      * SetUp for test cases
-     *
-     * @return void
      */
     protected function setUp(): void
     {
+        parent::setUp();
+        $GLOBALS['dbi'] = $this->createDatabaseInterface();
         $GLOBALS['server'] = 0;
     }
 
     /**
      * Test for __construct
-     *
-     * @return void
      */
-    public function testConstructor()
+    public function testConstructor(): void
     {
         $parent = NodeFactory::getInstance('NodeView');
-        $this->assertArrayHasKey(
-            'text',
+        $this->assertIsArray($parent->links);
+        $this->assertEquals(
+            [
+                'text' => ['route' => '/sql', 'params' => ['pos' => 0, 'db' => null, 'table' => null]],
+                'icon' => ['route' => '/table/structure', 'params' => ['db' => null, 'table' => null]],
+            ],
             $parent->links
         );
-        $this->assertStringContainsString(
-            'sql.php',
-            $parent->links['text']
-        );
-        $this->assertStringContainsString('b_props', $parent->icon);
+        $this->assertEquals('b_props', $parent->icon['image']);
+        $this->assertEquals('View', $parent->icon['title']);
         $this->assertStringContainsString('view', $parent->classes);
     }
 }

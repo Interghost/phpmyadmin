@@ -1,33 +1,30 @@
 <?php
-/* vim: set expandtab sw=4 ts=4 sts=4: */
 /**
  * Abstract class for the regex validation input transformations plugins
- *
- * @package    PhpMyAdmin-Transformations
- * @subpackage RegexValidation
  */
+
 declare(strict_types=1);
 
 namespace PhpMyAdmin\Plugins\Transformations\Abs;
 
+use PhpMyAdmin\FieldMetadata;
 use PhpMyAdmin\Plugins\IOTransformationsPlugin;
-use stdClass;
+
+use function __;
+use function htmlspecialchars;
+use function preg_match;
+use function sprintf;
 
 /**
  * Provides common methods for all of the regex validation
  * input transformations plugins.
- *
- * @package    PhpMyAdmin-Transformations
- * @subpackage RegexValidation
  */
 abstract class RegexValidationTransformationsPlugin extends IOTransformationsPlugin
 {
     /**
      * Gets the transformation description of the specific plugin
-     *
-     * @return string
      */
-    public static function getInfo()
+    public static function getInfo(): string
     {
         return __(
             'Validates the string using regular expression '
@@ -39,13 +36,13 @@ abstract class RegexValidationTransformationsPlugin extends IOTransformationsPlu
     /**
      * Does the actual work of each specific transformations plugin.
      *
-     * @param string        $buffer  text to be transformed
-     * @param array         $options transformation options
-     * @param stdClass|null $meta    meta information
+     * @param string             $buffer  text to be transformed
+     * @param array              $options transformation options
+     * @param FieldMetadata|null $meta    meta information
      *
      * @return string
      */
-    public function applyTransformation($buffer, array $options = [], ?stdClass $meta = null)
+    public function applyTransformation($buffer, array $options = [], ?FieldMetadata $meta = null)
     {
         // reset properties of object
         $this->reset();
@@ -64,11 +61,9 @@ abstract class RegexValidationTransformationsPlugin extends IOTransformationsPlu
 
     /**
      * Gets the transformation name of the specific plugin
-     *
-     * @return string
      */
-    public static function getName()
+    public static function getName(): string
     {
-        return "Regex Validation";
+        return 'Regex Validation';
     }
 }

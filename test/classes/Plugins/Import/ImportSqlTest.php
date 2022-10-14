@@ -1,39 +1,41 @@
 <?php
-/**
- * Tests for PhpMyAdmin\Plugins\Import\ImportSql class
- *
- * @package PhpMyAdmin-test
- */
+
 declare(strict_types=1);
 
 namespace PhpMyAdmin\Tests\Plugins\Import;
 
+use PhpMyAdmin\DatabaseInterface;
 use PhpMyAdmin\File;
 use PhpMyAdmin\Plugins\Import\ImportSql;
-use PhpMyAdmin\Tests\PmaTestCase;
+use PhpMyAdmin\Tests\AbstractTestCase;
 
 /**
- * Tests for PhpMyAdmin\Plugins\Import\ImportSql class
- *
- * @package PhpMyAdmin-test
+ * @covers \PhpMyAdmin\Plugins\Import\ImportSql
  */
-class ImportSqlTest extends PmaTestCase
+class ImportSqlTest extends AbstractTestCase
 {
-    /**
-     * @access protected
-     */
+    /** @var ImportSql */
     protected $object;
 
     /**
      * Sets up the fixture, for example, opens a network connection.
      * This method is called before a test is executed.
-     *
-     * @access protected
-     * @return void
      */
     protected function setUp(): void
     {
+        parent::setUp();
+        $GLOBALS['dbi'] = $this->createDatabaseInterface();
         $GLOBALS['server'] = 0;
+        $GLOBALS['error'] = null;
+        $GLOBALS['timeout_passed'] = null;
+        $GLOBALS['maximum_time'] = null;
+        $GLOBALS['charset_conversion'] = null;
+        $GLOBALS['skip_queries'] = null;
+        $GLOBALS['max_sql_len'] = null;
+        $GLOBALS['sql_query'] = '';
+        $GLOBALS['executed_queries'] = null;
+        $GLOBALS['run_query'] = null;
+        $GLOBALS['go_sql'] = null;
 
         $this->object = new ImportSql();
 
@@ -48,62 +50,49 @@ class ImportSqlTest extends PmaTestCase
         $GLOBALS['compression'] = 'none';
         $GLOBALS['read_multiply'] = 10;
         $GLOBALS['import_type'] = 'Xml';
-        $GLOBALS['import_handle'] = new File($GLOBALS['import_file']);
-        $GLOBALS['import_handle']->open();
     }
 
     /**
      * Tears down the fixture, for example, closes a network connection.
      * This method is called after a test is executed.
-     *
-     * @access protected
-     * @return void
      */
     protected function tearDown(): void
     {
+        parent::tearDown();
         unset($this->object);
     }
 
     /**
      * Test for doImport
      *
-     * @return void
-     *
      * @group medium
      */
-    public function testDoImport()
+    public function testDoImport(): void
     {
         //$sql_query_disabled will show the import SQL detail
-        global $sql_query, $sql_query_disabled;
-        $sql_query_disabled = false;
+
+        $GLOBALS['sql_query_disabled'] = false;
 
         //Mock DBI
-        $dbi = $this->getMockBuilder('PhpMyAdmin\DatabaseInterface')
+        $dbi = $this->getMockBuilder(DatabaseInterface::class)
             ->disableOriginalConstructor()
             ->getMock();
         $GLOBALS['dbi'] = $dbi;
 
+        $importHandle = new File($GLOBALS['import_file']);
+        $importHandle->open();
+
         //Test function called
-        $this->object->doImport();
+        $this->object->doImport($importHandle);
 
         //asset that all sql are executed
+        $this->assertStringContainsString('SET SQL_MODE = "NO_AUTO_VALUE_ON_ZERO"', $GLOBALS['sql_query']);
+        $this->assertStringContainsString('CREATE TABLE IF NOT EXISTS `pma_bookmark`', $GLOBALS['sql_query']);
         $this->assertStringContainsString(
-            'SET SQL_MODE = "NO_AUTO_VALUE_ON_ZERO"',
-            $sql_query
-        );
-        $this->assertStringContainsString(
-            'CREATE TABLE IF NOT EXISTS `pma_bookmark`',
-            $sql_query
-        );
-        $this->assertStringContainsString(
-            'INSERT INTO `pma_bookmark` (`id`, `dbase`, `user`, `label`, `query`) '
-            . 'VALUES',
-            $sql_query
+            'INSERT INTO `pma_bookmark` (`id`, `dbase`, `user`, `label`, `query`) VALUES',
+            $GLOBALS['sql_query']
         );
 
-        $this->assertEquals(
-            true,
-            $GLOBALS['finished']
-        );
+        $this->assertTrue($GLOBALS['finished']);
     }
 }

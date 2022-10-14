@@ -9,7 +9,7 @@ All configurable data is placed in :file:`config.inc.php` in phpMyAdmin's
 toplevel directory.  If this file does not exist, please refer to the
 :ref:`setup` section to create one. This file only needs to contain the
 parameters you want to change from their corresponding default value in
-:file:`libraries/config.default.php` (this file is not inteded for changes).
+:file:`libraries/config.default.php` (this file is not intended for changes).
 
 .. seealso::
 
@@ -20,7 +20,7 @@ the file. This file is for over-writing the defaults; if you wish to use the
 default value there's no need to add a line here.
 
 The parameters which relate to design (like colors) are placed in
-:file:`themes/themename/layout.inc.php`. You might also want to create
+:file:`themes/themename/scss/_variables.scss`. You might also want to create
 :file:`config.footer.inc.php` and :file:`config.header.inc.php` files to add
 your site specific code to be included on start and end of each page.
 
@@ -28,15 +28,6 @@ your site specific code to be included on start and end of each page.
 
     Some distributions (eg. Debian or Ubuntu) store :file:`config.inc.php` in
     ``/etc/phpmyadmin`` instead of within phpMyAdmin sources.
-
-.. warning::
-
-    :term:`Mac` users should note that if you are on a version before
-    :term:`Mac OS X`, PHP does not seem to
-    like :term:`Mac` end of lines character (``\r``). So
-    ensure you choose the option that allows to use the \*nix end of line
-    character (``\n``) in your text editor before saving a script you have
-    modified.
 
 Basic settings
 --------------
@@ -183,6 +174,12 @@ Basic settings
     :type: string
     :default: ``'ask'``
 
+    Valid values are:
+
+    * ``ask``
+    * ``always``
+    * ``never``
+
     Sets the default behavior for JavaScript error reporting.
 
     Whenever an error is detected in the JavaScript execution, an error report
@@ -205,7 +202,7 @@ Basic settings
     :default: false
 
     Setting this to ``true`` allows the user to execute queries by pressing Enter
-    instead of Ctrl+Enter. A new line can be inserted by pressing Shift + Enter.
+    instead of Ctrl+Enter. A new line can be inserted by pressing Shift+Enter.
 
     The behaviour of the console can be temporarily changed using console's
     settings interface.
@@ -217,8 +214,8 @@ Basic settings
 
     Setting this to ``true`` allows phpMyAdmin to be included inside a frame,
     and is a potential security hole allowing cross-frame scripting attacks or
-    clickjacking. Setting this to 'sameorigin' prevents phpMyAdmin to be 
-    included from another document in a frame, unless that document belongs 
+    clickjacking. Setting this to 'sameorigin' prevents phpMyAdmin to be
+    included from another document in a frame, unless that document belongs
     to the same domain.
 
 Server connection settings
@@ -245,7 +242,7 @@ Server connection settings
         The :config:option:`$cfg['Servers']` array starts with
         $cfg['Servers'][1]. Do not use $cfg['Servers'][0]. If you want more
         than one server, just copy following section (including $i
-        incrementation) serveral times. There is no need to define full server
+        increment) several times. There is no need to define full server
         array, just define values you need to change.
 
 .. config:option:: $cfg['Servers'][$i]['host']
@@ -275,7 +272,7 @@ Server connection settings
     .. seealso::
 
         :config:option:`$cfg['Servers'][$i]['port']`,
-        <https://dev.mysql.com/doc/refman/5.7/en/connecting.html>
+        <https://dev.mysql.com/doc/refman/8.0/en/connecting.html>
 
 .. config:option:: $cfg['Servers'][$i]['port']
 
@@ -295,7 +292,7 @@ Server connection settings
     .. seealso::
 
         :config:option:`$cfg['Servers'][$i]['host']`,
-        <https://dev.mysql.com/doc/refman/5.7/en/connecting.html>
+        <https://dev.mysql.com/doc/refman/8.0/en/connecting.html>
 
 .. config:option:: $cfg['Servers'][$i]['socket']
 
@@ -315,7 +312,7 @@ Server connection settings
     .. seealso::
 
         :config:option:`$cfg['Servers'][$i]['host']`,
-        <https://dev.mysql.com/doc/refman/5.7/en/connecting.html>
+        <https://dev.mysql.com/doc/refman/8.0/en/connecting.html>
 
 .. config:option:: $cfg['Servers'][$i]['ssl']
 
@@ -334,6 +331,7 @@ Server connection settings
 
         :ref:`ssl`,
         :ref:`example-google-ssl`,
+        :ref:`example-aws-ssl`,
         :config:option:`$cfg['Servers'][$i]['ssl_key']`,
         :config:option:`$cfg['Servers'][$i]['ssl_cert']`,
         :config:option:`$cfg['Servers'][$i]['ssl_ca']`,
@@ -359,6 +357,7 @@ Server connection settings
 
         :ref:`ssl`,
         :ref:`example-google-ssl`,
+        :ref:`example-aws-ssl`,
         :config:option:`$cfg['Servers'][$i]['ssl']`,
         :config:option:`$cfg['Servers'][$i]['ssl_cert']`,
         :config:option:`$cfg['Servers'][$i]['ssl_ca']`,
@@ -378,6 +377,7 @@ Server connection settings
 
         :ref:`ssl`,
         :ref:`example-google-ssl`,
+        :ref:`example-aws-ssl`,
         :config:option:`$cfg['Servers'][$i]['ssl']`,
         :config:option:`$cfg['Servers'][$i]['ssl_key']`,
         :config:option:`$cfg['Servers'][$i]['ssl_ca']`,
@@ -396,6 +396,7 @@ Server connection settings
 
         :ref:`ssl`,
         :ref:`example-google-ssl`,
+        :ref:`example-aws-ssl`,
         :config:option:`$cfg['Servers'][$i]['ssl']`,
         :config:option:`$cfg['Servers'][$i]['ssl_key']`,
         :config:option:`$cfg['Servers'][$i]['ssl_cert']`,
@@ -414,6 +415,7 @@ Server connection settings
 
         :ref:`ssl`,
         :ref:`example-google-ssl`,
+        :ref:`example-aws-ssl`,
         :config:option:`$cfg['Servers'][$i]['ssl']`,
         :config:option:`$cfg['Servers'][$i]['ssl_key']`,
         :config:option:`$cfg['Servers'][$i]['ssl_cert']`,
@@ -432,6 +434,7 @@ Server connection settings
 
         :ref:`ssl`,
         :ref:`example-google-ssl`,
+        :ref:`example-aws-ssl`,
         :config:option:`$cfg['Servers'][$i]['ssl']`,
         :config:option:`$cfg['Servers'][$i]['ssl_key']`,
         :config:option:`$cfg['Servers'][$i]['ssl_cert']`,
@@ -470,6 +473,7 @@ Server connection settings
 
         :ref:`ssl`,
         :ref:`example-google-ssl`,
+        :ref:`example-aws-ssl`,
         :config:option:`$cfg['Servers'][$i]['ssl']`,
         :config:option:`$cfg['Servers'][$i]['ssl_key']`,
         :config:option:`$cfg['Servers'][$i]['ssl_cert']`,
@@ -626,6 +630,27 @@ Server connection settings
     "phpMyAdmin " and either :config:option:`$cfg['Servers'][$i]['verbose']` or
     :config:option:`$cfg['Servers'][$i]['host']` will be used.
 
+.. _servers_auth_swekey_config:
+.. config:option:: $cfg['Servers'][$i]['auth_swekey_config']
+
+    :type: string
+    :default: ``''``
+
+    .. versionadded:: 3.0.0.0
+
+        This setting was named `$cfg['Servers'][$i]['auth_feebee_config']` and was renamed before the `3.0.0.0` release.
+
+    .. deprecated:: 4.6.4
+
+        This setting was removed because their servers are no longer working and it was not working correctly.
+
+    .. deprecated:: 4.0.10.17
+
+        This setting was removed in a maintenance release because their servers are no longer working and it was not working correctly.
+
+    The name of the file containing swekey ids and login names for hardware
+    authentication. Leave empty to deactivate this feature.
+
 .. _servers_user:
 .. config:option:: $cfg['Servers'][$i]['user']
 
@@ -682,7 +707,7 @@ Server connection settings
 
     .. code-block:: php
 
-        $cfg['Servers'][$i]['only_db'] = array('db1', 'db2');
+        $cfg['Servers'][$i]['only_db'] = ['db1', 'db2'];
 
     .. versionchanged:: 4.0.0
         Previous versions permitted to specify the display order of
@@ -711,7 +736,7 @@ Server connection settings
 
     More information on regular expressions can be found in the `PCRE
     pattern syntax
-    <https://secure.php.net/manual/en/reference.pcre.pattern.syntax.php>`_ portion
+    <https://www.php.net/manual/en/reference.pcre.pattern.syntax.php>`_ portion
     of the PHP reference manual.
 
 .. config:option:: $cfg['Servers'][$i]['verbose']
@@ -764,6 +789,8 @@ Server connection settings
     :type: string or false
     :default: ``''``
 
+    .. versionadded:: 2.2.0
+
     Since release 2.2.0 phpMyAdmin allows users to bookmark queries. This
     can be useful for queries you often run. To allow the usage of this
     functionality:
@@ -778,6 +805,8 @@ Server connection settings
 
     :type: string or false
     :default: ``''``
+
+    .. versionadded:: 2.2.4
 
     Since release 2.2.4 you can describe, in a special 'relation' table,
     which column is a key in another table (a foreign key). phpMyAdmin
@@ -820,6 +849,8 @@ Server connection settings
     :type: string or false
     :default: ``''``
 
+    .. versionadded:: 2.3.0
+
     Since release 2.3.0 you can describe, in a special 'table\_info'
     table, which column is to be displayed as a tool-tip when moving the
     cursor over the corresponding key. This configuration variable will
@@ -854,6 +885,8 @@ Server connection settings
     :type: string or false
     :default: ``''``
 
+    .. versionadded:: 2.3.0
+
     Since release 2.3.0 you can have phpMyAdmin create :term:`PDF` pages
     showing the relations between your tables. Further, the designer interface
     permits visually managing the relations. To do this it needs two tables
@@ -872,11 +905,31 @@ Server connection settings
 
     .. seealso:: :ref:`faqpdf`.
 
+.. _designer_coords:
+.. config:option:: $cfg['Servers'][$i]['designer_coords']
+
+    :type: string
+    :default: ``''``
+
+    .. versionadded:: 2.10.0
+
+        Since release 2.10.0 a Designer interface is available; it permits to
+        visually manage the relations.
+
+    .. deprecated:: 4.3.0
+
+        This setting was removed and the Designer table positioning data is now stored into :config:option:`$cfg['Servers'][$i]['table\_coords']`.
+
+    .. note::
+        You can now delete the table `pma__designer_coords` from your phpMyAdmin configuration storage database and remove :config:option:`$cfg['Servers'][$i]['designer\_coords']` from your configuration file.
+
 .. _col_com:
 .. config:option:: $cfg['Servers'][$i]['column_info']
 
     :type: string or false
     :default: ``''``
+
+    .. versionadded:: 2.3.0
 
     This part requires a content update!  Since release 2.3.0 you can
     store comments to describe each column for each table. These will then
@@ -930,7 +983,7 @@ Server connection settings
         For auto-upgrade functionality to work, your
         :config:option:`$cfg['Servers'][$i]['controluser']` must have ALTER privilege on
         ``phpmyadmin`` database. See the `MySQL documentation for GRANT
-        <https://dev.mysql.com/doc/refman/5.7/en/grant.html>`_ on how to
+        <https://dev.mysql.com/doc/refman/8.0/en/grant.html>`_ on how to
         ``GRANT`` privileges to a user.
 
 .. _history:
@@ -938,6 +991,8 @@ Server connection settings
 
     :type: string or false
     :default: ``''``
+
+    .. versionadded:: 2.5.0
 
     Since release 2.5.0 you can store your :term:`SQL` history, which means all
     queries you entered manually into the phpMyAdmin interface. If you don't
@@ -966,6 +1021,8 @@ Server connection settings
     :type: string or false
     :default: ``''``
 
+    .. versionadded:: 3.5.0
+
     Since release 3.5.0 you can show recently used tables in the
     navigation panel. It helps you to jump across table directly, without
     the need to select the database, and then select the table. Using
@@ -989,6 +1046,8 @@ Server connection settings
 
     :type: string or false
     :default: ``''``
+
+    .. versionadded:: 4.2.0
 
     Since release 4.2.0 you can show a list of selected tables in the
     navigation panel. It helps you to jump to the table directly, without
@@ -1018,6 +1077,8 @@ Server connection settings
     :type: string or false
     :default: ``''``
 
+    .. versionadded:: 3.5.0
+
     Since release 3.5.0 phpMyAdmin can be configured to remember several
     things (sorted column :config:option:`$cfg['RememberSorting']`, column order,
     and column visibility from a database table) for browsing tables. Without
@@ -1037,14 +1098,20 @@ Server connection settings
     :type: string or false
     :default: ``''``
 
+    The table used by phpMyAdmin to store user name information for associating with user groups.
+    See the next entry on :config:option:`$cfg['Servers'][$i]['usergroups']` for more details
+    and the suggested settings.
+
 .. config:option:: $cfg['Servers'][$i]['usergroups']
 
     :type: string or false
     :default: ``''``
 
+    .. versionadded:: 4.1.0
+
     Since release 4.1.0 you can create different user groups with menu items
     attached to them. Users can be assigned to these groups and the logged in
-    user would only see menu items configured to the usergroup he is assigned to.
+    user would only see menu items configured to the usergroup they are assigned to.
     To do this it needs two tables "usergroups" (storing allowed menu items for each
     user group) and "users" (storing users and their assignments to user groups).
 
@@ -1065,6 +1132,8 @@ Server connection settings
     :type: string or false
     :default: ``''``
 
+    .. versionadded:: 4.1.0
+
     Since release 4.1.0 you can hide/show items in the navigation tree.
 
     To allow the usage of this functionality:
@@ -1080,6 +1149,8 @@ Server connection settings
 
     :type: string or false
     :default: ``''``
+
+    .. versionadded:: 4.3.0
 
     Since release 4.3.0 you can have a central list of columns per database.
     You can add/remove columns to the list as per your requirement. These columns
@@ -1102,6 +1173,8 @@ Server connection settings
     :type: string or false
     :default: ``''``
 
+    .. versionadded:: 4.5.0
+
     Since release 4.5.0 your designer settings can be remembered.
     Your choice regarding 'Angular/Direct Links', 'Snap to Grid', 'Toggle Relation Lines',
     'Small/Big All', 'Move Menu' and 'Pin Text' can be remembered persistently.
@@ -1120,6 +1193,8 @@ Server connection settings
     :type: string or false
     :default: ``''``
 
+    .. versionadded:: 4.2.0
+
     Since release 4.2.0 you can save and load query-by-example searches from the Database > Query panel.
 
     To allow the usage of this functionality:
@@ -1136,6 +1211,8 @@ Server connection settings
     :type: string or false
     :default: ``''``
 
+    .. versionadded:: 4.5.0
+
     Since release 4.5.0 you can save and load export templates.
 
     To allow the usage of this functionality:
@@ -1151,6 +1228,8 @@ Server connection settings
 
     :type: string or false
     :default: ``''``
+
+    .. versionadded:: 3.3.x
 
     Since release 3.3.x a tracking mechanism is available. It helps you to
     track every :term:`SQL` command which is
@@ -1212,7 +1291,7 @@ Server connection settings
     :type: boolean
     :default: true
 
-    Whether a DROP VIEW IF EXISTS statement will be added as first line to
+    Whether a `DROP VIEW IF EXISTS` statement will be added as first line to
     the log when creating a view.
 
 .. _tracking5:
@@ -1221,7 +1300,7 @@ Server connection settings
     :type: boolean
     :default: true
 
-    Whether a DROP TABLE IF EXISTS statement will be added as first line
+    Whether a `DROP TABLE IF EXISTS` statement will be added as first line
     to the log when creating a table.
 
 .. _tracking6:
@@ -1230,7 +1309,7 @@ Server connection settings
     :type: boolean
     :default: true
 
-    Whether a DROP DATABASE IF EXISTS statement will be added as first
+    Whether a `DROP DATABASE IF EXISTS` statement will be added as first
     line to the log when creating a database.
 
 .. _userconfig:
@@ -1238,6 +1317,8 @@ Server connection settings
 
     :type: string or false
     :default: ``''``
+
+    .. versionadded:: 3.4.x
 
     Since release 3.4.x phpMyAdmin allows users to set most preferences by
     themselves and store them in the database.
@@ -1275,7 +1356,7 @@ Server connection settings
 
     Sets the time zone used by phpMyAdmin. Leave blank to use the time zone of your
     database server. Possible values are explained at
-    https://dev.mysql.com/doc/refman/5.7/en/time-zone-support.html
+    https://dev.mysql.com/doc/refman/8.0/en/time-zone-support.html
 
     This is useful when your database server uses a time zone which is different from the
     time zone you want to use in phpMyAdmin.
@@ -1362,11 +1443,11 @@ Server connection settings
     from all'`` if your rule order is set to ``'allow,deny'`` or
     ``'explicit'``.
 
-    For the :term:`IP address` matching
+    For the :term:`IP Address` matching
     system, the following work:
 
-    * ``xxx.xxx.xxx.xxx`` (an exact :term:`IP address`)
-    * ``xxx.xxx.xxx.[yyy-zzz]`` (an :term:`IP address` range)
+    * ``xxx.xxx.xxx.xxx`` (an exact :term:`IP Address`)
+    * ``xxx.xxx.xxx.[yyy-zzz]`` (an :term:`IP Address` range)
     * ``xxx.xxx.xxx.xxx/nn`` (CIDR, Classless Inter-Domain Routing type :term:`IP` addresses)
 
     But the following does not work:
@@ -1388,19 +1469,19 @@ Server connection settings
     .. code-block:: none
 
         $cfg['Servers'][$i]['AllowDeny']['order'] = 'allow,deny';
-        $cfg['Servers'][$i]['AllowDeny']['rules'] = array('allow bob from all');
+        $cfg['Servers'][$i]['AllowDeny']['rules'] = ['allow bob from all'];
         // Allow only 'bob' to connect from any host
 
         $cfg['Servers'][$i]['AllowDeny']['order'] = 'allow,deny';
-        $cfg['Servers'][$i]['AllowDeny']['rules'] = array('allow mary from 192.168.100.[50-100]');
+        $cfg['Servers'][$i]['AllowDeny']['rules'] = ['allow mary from 192.168.100.[50-100]'];
         // Allow only 'mary' to connect from host 192.168.100.50 through 192.168.100.100
 
         $cfg['Servers'][$i]['AllowDeny']['order'] = 'allow,deny';
-        $cfg['Servers'][$i]['AllowDeny']['rules'] = array('allow % from 192.168.[5-6].10');
+        $cfg['Servers'][$i]['AllowDeny']['rules'] = ['allow % from 192.168.[5-6].10'];
         // Allow any user to connect from host 192.168.5.10 or 192.168.6.10
 
         $cfg['Servers'][$i]['AllowDeny']['order'] = 'allow,deny';
-        $cfg['Servers'][$i]['AllowDeny']['rules'] = array('allow root from 192.168.5.50','allow % from 192.168.6.10');
+        $cfg['Servers'][$i]['AllowDeny']['rules'] = ['allow root from 192.168.5.50','allow % from 192.168.6.10'];
         // Allow any user to connect from 192.168.6.10, and additionally allow root to connect from 192.168.5.50
 
 .. config:option:: $cfg['Servers'][$i]['DisableIS']
@@ -1458,7 +1539,7 @@ Server connection settings
     An associative array of session cookie parameters of other authentication system.
     It is not needed if the other system doesn't use session_set_cookie_params().
     Keys should include 'lifetime', 'path', 'domain', 'secure' or 'httponly'.
-    Valid values are mentioned in `session_get_cookie_params <https://secure.php.net/manual/en/
+    Valid values are mentioned in `session_get_cookie_params <https://www.php.net/manual/en/
     function.session-get-cookie-params.php>`_, they should be set to same values as the
     other application uses. Takes effect only if
     :config:option:`$cfg['Servers'][$i]['SignonScript']` is not configured.
@@ -1484,6 +1565,20 @@ Server connection settings
     :term:`URL` where user will be redirected
     after logout (doesn't affect config authentication method). Should be
     absolute including protocol.
+
+.. config:option:: $cfg['Servers'][$i]['hide_connection_errors']
+
+    :type: boolean
+    :default: false
+
+    .. versionadded:: 4.9.8
+
+    Whether to show or hide detailed MySQL/MariaDB connection errors on the login page.
+
+    .. note::
+
+        This error message can contain the target database server hostname or IP address,
+        which may reveal information about your network to an attacker.
 
 Generic settings
 ----------------
@@ -1514,7 +1609,7 @@ Generic settings
     :default: true
 
     Enables check for latest versions using JavaScript on the main phpMyAdmin
-    page or by directly accessing :file:`version_check.php`.
+    page or by directly accessing `index.php?route=/version-check`.
 
     .. note::
 
@@ -1523,7 +1618,7 @@ Generic settings
 .. config:option:: $cfg['ProxyUrl']
 
     :type: string
-    :default: ""
+    :default: ``''``
 
     The url of the proxy to be used when phpmyadmin needs to access the outside
     internet such as when retrieving the latest version info or submitting error
@@ -1534,7 +1629,7 @@ Generic settings
 .. config:option:: $cfg['ProxyUser']
 
     :type: string
-    :default: ""
+    :default: ``''``
 
     The username for authenticating with the proxy. By default, no
     authentication is performed. If a username is supplied, Basic
@@ -1544,7 +1639,7 @@ Generic settings
 .. config:option:: $cfg['ProxyPass']
 
     :type: string
-    :default: ""
+    :default: ``''``
 
     The password for authenticating with the proxy.
 
@@ -1588,14 +1683,12 @@ Generic settings
     :type: boolean
     :default: false
 
-    Whether `persistent connections <https://secure.php.net/manual/en/features
-    .persistent-connections.php>`_ should be used or not. Works with
-    following extensions:
+    Whether `persistent connections <https://www.php.net/manual/en/features
+    .persistent-connections.php>`_ should be used or not.
 
-    * mysql (`mysql\_pconnect <https://secure.php.net/manual/en/function.mysql-
-      pconnect.php>`_),
-    * mysqli (requires PHP 5.3.0 or newer, `more information
-      <https://secure.php.net/manual/en/mysqli.persistconns.php>`_).
+.. seealso::
+
+    `mysqli documentation for persistent connections <https://www.php.net/manual/en/mysqli.persistconns.php>`_
 
 .. config:option:: $cfg['ForceSSL']
 
@@ -1616,6 +1709,27 @@ Generic settings
         have to set :config:option:`$cfg['PmaAbsoluteUri']` for correct
         redirection.
 
+.. config:option:: $cfg['MysqlSslWarningSafeHosts']
+
+    :type: array
+    :default: ``['127.0.0.1', 'localhost']``
+
+    This search is case-sensitive and will match the exact string only.
+    If your setup does not use SSL but is safe because you are using a
+    local connection or private network, you can add your hostname or :term:`IP` to the list.
+    You can also remove the default entries to only include yours.
+
+    This check uses the value of :config:option:`$cfg['Servers'][$i]['host']`.
+
+    .. versionadded:: 5.1.0
+
+    Example configuration
+
+    .. code-block:: php
+
+        $cfg['MysqlSslWarningSafeHosts'] = ['127.0.0.1', 'localhost', 'mariadb.local'];
+
+
 .. config:option:: $cfg['ExecTimeLimit']
 
     :type: integer [number of seconds]
@@ -1632,7 +1746,7 @@ Generic settings
     :default: ``''``
 
     Path for storing session data (`session\_save\_path PHP parameter
-    <https://secure.php.net/session_save_path>`_).
+    <https://www.php.net/session_save_path>`_).
 
     .. warning::
 
@@ -1753,6 +1867,29 @@ Generic settings
     When enabled, a user can drag a file in to their browser and phpMyAdmin will
     attempt to import the file.
 
+.. config:option:: $cfg['URLQueryEncryption']
+
+    :type: boolean
+    :default: false
+
+    .. versionadded:: 4.9.8
+
+    Define whether phpMyAdmin will encrypt sensitive data (like database name
+    and table name) from the URL query string. Default is to not encrypt the URL
+    query string.
+
+.. config:option:: $cfg['URLQueryEncryptionSecretKey']
+
+    :type: string
+    :default: ``''``
+
+    .. versionadded:: 4.9.8
+
+    A secret key used to encrypt/decrypt the URL query string.
+    Should be 32 bytes long.
+
+    .. seealso:: :ref:`faq2_10`
+
 Cookie authentication options
 -----------------------------
 
@@ -1761,13 +1898,33 @@ Cookie authentication options
     :type: string
     :default: ``''``
 
-    The "cookie" auth\_type uses AES algorithm to encrypt the password. If you
-    are using the "cookie" auth\_type, enter here a random passphrase of your
-    choice. It will be used internally by the AES algorithm: you won’t be
-    prompted for this passphrase.
+    The "cookie" auth\_type uses the :term:`Sodium` extension to encrypt the cookies (see :term:`Cookie`). If you are
+    using the "cookie" auth\_type, enter here a generated string of random bytes to be used as an encryption key. It
+    will be used internally by the :term:`Sodium` extension: you won't be prompted for this encryption key.
 
-    The secret should be 32 characters long. Using shorter will lead to weaker security
-    of encrypted cookies, using longer will cause no harm.
+    Since a binary string is usually not printable, it can be converted into a hexadecimal representation (using a
+    function like `sodium_bin2hex <https://www.php.net/sodium_bin2hex>`_) and then used in the configuration file. For
+    example:
+
+    .. code-block:: php
+
+        // The string is a hexadecimal representation of a 32-bytes long string of random bytes.
+        $cfg['blowfish_secret'] = sodium_hex2bin('f16ce59f45714194371b48fe362072dc3b019da7861558cd4ad29e4d6fb13851');
+
+    Using a binary string is recommended. However, if all 32 bytes of the string are visible
+    characters, then a function like `sodium_bin2hex <https://www.php.net/sodium_bin2hex>`_ is not required. For
+    example:
+
+    .. code-block:: php
+
+        // A string of 32 characters.
+        $cfg['blowfish_secret'] = 'JOFw435365IScA&Q!cDugr!lSfuAz*OW';
+
+    .. warning::
+
+        The encryption key must be 32 bytes long. If it is longer than the length of bytes, only the first 32 bytes will
+        be used, and if it is shorter, a new temporary key will be automatically generated for you. However, this
+        temporary key will only last for the duration of the session.
 
     .. note::
 
@@ -1775,10 +1932,36 @@ Cookie authentication options
         Blowfish algorithm was originally used to do the encryption.
 
     .. versionchanged:: 3.1.0
+
         Since version 3.1.0 phpMyAdmin can generate this on the fly, but it
         makes a bit weaker security as this generated secret is stored in
         session and furthermore it makes impossible to recall user name from
         cookie.
+
+    .. versionchanged:: 5.2.0
+
+        Since version 5.2.0, phpMyAdmin uses the
+        `sodium\_crypto\_secretbox <https://www.php.net/sodium_crypto_secretbox>`_ and
+        `sodium\_crypto\_secretbox\_open <https://www.php.net/sodium_crypto_secretbox_open>`_ PHP functions to encrypt
+        and decrypt cookies, respectively.
+
+    .. seealso:: :ref:`faq2_10`
+
+.. config:option:: $cfg['CookieSameSite']
+
+    :type: string
+    :default: ``'Strict'``
+
+    .. versionadded:: 5.1.0
+
+    It sets SameSite attribute of the Set-Cookie :term:`HTTP` response header.
+    Valid values are:
+
+    * ``Lax``
+    * ``Strict``
+    * ``None``
+
+    .. seealso:: `rfc6265 bis <https://tools.ietf.org/id/draft-ietf-httpbis-rfc6265bis-03.html#rfc.section.5.3.7>`_
 
 .. config:option:: $cfg['LoginCookieRecall']
 
@@ -1798,7 +1981,7 @@ Cookie authentication options
 
     Define how long a login cookie is valid. Please note that php
     configuration option `session.gc\_maxlifetime
-    <https://secure.php.net/manual/en/session.configuration.php#ini.session.gc-
+    <https://www.php.net/manual/en/session.configuration.php#ini.session.gc-
     maxlifetime>`_ might limit session validity and if the session is lost,
     the login cookie is also invalidated. So it is a good idea to set
     ``session.gc_maxlifetime`` at least to the same value of
@@ -1848,7 +2031,7 @@ Cookie authentication options
     to the given regular expression. The regular expression must be enclosed
     with a delimiter character.
 
-    It is recommended to include start and end symbols in the regullar
+    It is recommended to include start and end symbols in the regular
     expression, so that you can avoid partial matches on the string.
 
     **Examples:**
@@ -1869,28 +2052,96 @@ Cookie authentication options
         The whole server name is matched, it can include port as well. Due to
         way MySQL is permissive in connection parameters, it is possible to use
         connection strings as ```server:3306-mysql```. This can be used to
-        bypass regullar expression by the suffix, while connecting to another
+        bypass regular expression by the suffix, while connecting to another
         server.
+
+.. config:option:: $cfg['CaptchaMethod']
+
+    :type: string
+    :default: ``'invisible'``
+
+    Valid values are:
+
+    * ``'invisible'`` Use an invisible captcha checking method;
+    * ``'checkbox'`` Use a checkbox to confirm the user is not a robot.
+
+    .. versionadded:: 5.0.3
+
+.. config:option:: $cfg['CaptchaApi']
+
+    :type: string
+    :default: ``'https://www.google.com/recaptcha/api.js'``
+
+    .. versionadded:: 5.1.0
+
+    The URL for the reCaptcha v2 service's API, either Google's or a compatible one.
+
+.. config:option:: $cfg['CaptchaCsp']
+
+    :type: string
+    :default: ``'https://apis.google.com https://www.google.com/recaptcha/ https://www.gstatic.com/recaptcha/ https://ssl.gstatic.com/'``
+
+    .. versionadded:: 5.1.0
+
+    The Content-Security-Policy snippet (URLs from which to allow embedded content)
+    for the reCaptcha v2 service, either Google's or a compatible one.
+
+.. config:option:: $cfg['CaptchaRequestParam']
+
+    :type: string
+    :default: ``'g-recaptcha'``
+
+    .. versionadded:: 5.1.0
+
+    The request parameter used for the reCaptcha v2 service.
+
+.. config:option:: $cfg['CaptchaResponseParam']
+
+    :type: string
+    :default: ``'g-recaptcha-response'``
+
+    .. versionadded:: 5.1.0
+
+    The response parameter used for the reCaptcha v2 service.
 
 .. config:option:: $cfg['CaptchaLoginPublicKey']
 
     :type: string
     :default: ``''``
 
-    The public key for the reCaptcha service that can be obtained from
-    https://www.google.com/recaptcha/intro/.
+    The public key for the reCaptcha service that can be obtained from the
+    "Admin Console" on https://www.google.com/recaptcha/about/.
+
+    .. seealso:: <https://developers.google.com/recaptcha/docs/v3>
 
     reCaptcha will be then used in :ref:`cookie`.
+
+    .. versionadded:: 4.1.0
 
 .. config:option:: $cfg['CaptchaLoginPrivateKey']
 
     :type: string
     :default: ``''``
 
-    The private key for the reCaptcha service that can be obtain from
-    https://www.google.com/recaptcha/intro/.
+    The private key for the reCaptcha service that can be obtained from the
+    "Admin Console" on https://www.google.com/recaptcha/about/.
+
+    .. seealso:: <https://developers.google.com/recaptcha/docs/v3>
 
     reCaptcha will be then used in :ref:`cookie`.
+
+    .. versionadded:: 4.1.0
+
+.. config:option:: $cfg['CaptchaSiteVerifyURL']
+
+    :type: string
+    :default: ``''``
+
+    The URL for the reCaptcha service to do siteverify action.
+
+    reCaptcha will be then used in :ref:`cookie`.
+
+    .. versionadded:: 5.1.0
 
 Navigation panel setup
 ----------------------
@@ -2004,9 +2255,12 @@ Navigation panel setup
     :type: string
     :default: ``'index.php'``
 
-    Enter :term:`URL` where logo in the navigation panel will point to.
+    Enter the :term:`URL` where the logo in the navigation panel will point to.
     For use especially with self made theme which changes this.
-    For external URLs, you should include URL scheme as well.
+    For relative/internal URLs, you need to have leading `` ./ `` or trailing characters `` ? `` such as ``'./index.php?route=/server/sql?'``.
+    For external URLs, you should include URL protocol schemes (``http`` or ``https``) with absolute URLs.
+
+    You may want to make the link open in a new browser tab, for that you need to use :config:option:`$cfg['NavigationLogoLinkWindow']`
 
 .. config:option:: $cfg['NavigationLogoLinkWindow']
 
@@ -2016,6 +2270,9 @@ Navigation panel setup
     Whether to open the linked page in the main window (``main``) or in a
     new one (``new``). Note: use ``new`` if you are linking to
     ``phpmyadmin.net``.
+
+    To open the link in the main window you will need to add the value of :config:option:`$cfg['NavigationLogoLink']`
+    to :config:option:`$cfg['CSPAllow']` because of the :term:`Content Security Policy` header.
 
 .. config:option:: $cfg['NavigationTreeDisplayItemFilterMinimum']
 
@@ -2208,7 +2465,7 @@ Main panel
     :type: boolean
     :default: true
 
-    Defines whether to display informations about the current Git revision (if
+    Defines whether to display information about the current Git revision (if
     applicable) on the main panel.
 
 .. config:option:: $cfg['MysqlMinVersion']
@@ -2252,7 +2509,7 @@ Database structure
     :type: boolean
     :default: true
 
-    Defines whether the table structure actions are hidden under a "More"
+    Defines whether the table structure actions are hidden under a ":guilabel:`More`"
     drop-down.
 
 .. config:option:: $cfg['ShowColumnComments']
@@ -2296,7 +2553,7 @@ Browse mode
     :type: boolean
     :default: false
 
-    Defines whether a user should be displayed a "Show all" button in browse
+    Defines whether a user should be displayed a ":guilabel:`Show all`" button in browse
     mode or not in all cases. By default it is shown only on small tables (less
     than 500 rows) to avoid performance issues while getting too many rows.
 
@@ -2306,8 +2563,8 @@ Browse mode
     :default: 25
 
     Number of rows displayed when browsing a result set and no LIMIT
-    clause is used. If the result set contains more rows, "Previous" and
-    "Next" links will be shown. Possible values: 25,50,100,250,500.
+    clause is used. If the result set contains more rows, ":guilabel:`Previous`" and
+    ":guilabel:`Next`" links will be shown. Possible values: 25,50,100,250,500.
 
 .. config:option:: $cfg['Order']
 
@@ -2504,6 +2761,15 @@ Export and import settings
 
     .. seealso:: :ref:`faq6_27`
 
+.. config:option:: $cfg['Export']['remove_definer_from_definitions']
+
+    :type: boolean
+    :default: false
+
+    Remove DEFINER clause from the event, view and routine definitions.
+
+    .. versionadded:: 5.2.0
+
 .. config:option:: $cfg['Import']
 
     :type: array
@@ -2666,8 +2932,8 @@ Languages
     :default: ``'//TRANSLIT'``
 
     Specify some parameters for iconv used in charset conversion. See
-    `iconv documentation <https://www.gnu.org/software/libiconv/documentati
-    on/libiconv/iconv_open.3.html>`_ for details. By default
+    `iconv documentation <https://www.gnu.org/savannah-checkouts/gnu/libiconv/documentati
+    on/libiconv-1.15/iconv_open.3.html>`_ for details. By default
     ``//TRANSLIT`` is used, so that invalid characters will be
     transliterated.
 
@@ -2713,7 +2979,7 @@ Web server settings
 
     .. code-block:: php
 
-        $cfg['TrustedProxies'] = array('1.2.3.4' => 'HTTP_X_FORWARDED_FOR');
+        $cfg['TrustedProxies'] = ['1.2.3.4' => 'HTTP_X_FORWARDED_FOR'];
 
     The :config:option:`$cfg['Servers'][$i]['AllowDeny']['rules']` directive uses the
     client's IP address as usual.
@@ -2760,7 +3026,7 @@ Web server settings
 
     This can be useful when you want to include some external JavaScript files
     in :file:`config.footer.inc.php` or :file:`config.header.inc.php`, which
-    would be normally not allowed by Content Security Policy.
+    would be normally not allowed by :term:`Content Security Policy`.
 
     To allow some sites, just list them within the string:
 
@@ -2783,7 +3049,7 @@ Web server settings
 Theme settings
 --------------
 
-    Please directly modify :file:`themes/themename/layout.inc.php`, although
+    Please directly modify :file:`themes/themename/scss/_variables.scss`, although
     your changes will be overwritten with the next update.
 
 Design customization
@@ -2873,6 +3139,16 @@ Design customization
     name of the column. The comment is shown as a tool-tip for that
     column.
 
+.. config:option:: $cfg['FirstDayOfCalendar']
+
+    :type: integer
+    :default: 0
+
+    This will define the first day of week in the calendar. The number
+    can be set from 0 to 6, which represents the seven days of the week,
+    Sunday to Saturday respectively. This value can also be configured by the user
+    in :guilabel:`Settings` -> :guilabel:`Features` -> :guilabel:`General` -> :guilabel:`First day of calendar` field.
+
 Text fields
 -----------
 
@@ -2924,7 +3200,7 @@ Text fields
 .. config:option:: $cfg['CharTextareaRows']
 
     :type: integer
-    :default: 2
+    :default: 7
 
     Number of columns and rows for the textareas. This value will be
     emphasized (\*2) for :term:`SQL` query
@@ -2933,6 +3209,10 @@ Text fields
 
     The Char\* values are used for CHAR
     and VARCHAR editing (if configured via :config:option:`$cfg['CharEditing']`).
+
+    .. versionchanged:: 5.0.0
+
+        The default value was changed from 2 to 7.
 
 .. config:option:: $cfg['LongtextDoubleTextarea']
 
@@ -3047,9 +3327,9 @@ the files.
     :type: string
     :default: ``''``
 
-    The name of the directory where dumps can be saved.
+    The name of the webserver directory where exported files can be saved.
 
-    If you want different directory for each user, %u will be replaced with
+    If you want a different directory for each user, %u will be replaced with the
     username.
 
     Please note that the directory must exist and has to be writable for
@@ -3206,12 +3486,14 @@ Various display setting
 
     Contains names of configuration options (keys in ``$cfg`` array) that
     users can't set through user preferences. For possible values, refer
-    to clases under :file:`libraries/classes/Config/Forms/User/`.
+    to classes under :file:`libraries/classes/Config/Forms/User/`.
 
 .. config:option:: $cfg['UserprefsDeveloperTab']
 
     :type: boolean
     :default: false
+
+    .. versionadded:: 3.4.0
 
     Activates in the user preferences a tab containing options for
     developers of phpMyAdmin.
@@ -3299,12 +3581,25 @@ MySQL settings
 .. config:option:: $cfg['DefaultFunctions']
 
     :type: array
-    :default: array(...)
+    :default: ``array('FUNC_CHAR' => '', 'FUNC_DATE' => '', 'FUNC_NUMBER' => '', 'FUNC_SPATIAL' => 'GeomFromText', 'FUNC_UUID' => 'UUID', 'first_timestamp' => 'NOW')``
 
     Functions selected by default when inserting/changing row, Functions
-    are defined for meta types as (FUNC\_NUMBER, FUNC\_DATE, FUNC\_CHAR,
-    FUNC\_SPATIAL, FUNC\_UUID) and for ``first_timestamp``, which is used
+    are defined for meta types as (``FUNC_NUMBER``, ``FUNC_DATE``, ``FUNC_CHAR``,
+    ``FUNC_SPATIAL``, ``FUNC_UUID``) and for ``first_timestamp``, which is used
     for first timestamp column in table.
+
+    Example configuration
+
+    .. code-block:: php
+
+        $cfg['DefaultFunctions'] = [
+            'FUNC_CHAR' => '',
+            'FUNC_DATE' => '',
+            'FUNC_NUMBER' => '',
+            'FUNC_SPATIAL' => 'ST_GeomFromText',
+            'FUNC_UUID' => 'UUID',
+            'first_timestamp' => 'UTC_TIMESTAMP',
+        ];
 
 Default options for Transformations
 -----------------------------------
@@ -3392,7 +3687,7 @@ Console settings
     :type: boolean
     :default: false
 
-    Execute queries on Enter and insert new line with Shift + Enter
+    Execute queries on Enter and insert new line with Shift+Enter
 
 .. config:option:: $cfg['Console']['DarkTheme']
 
@@ -3422,10 +3717,22 @@ Developer
 
     These settings might have huge effect on performance or security.
 
+.. config:option:: $cfg['environment']
+
+    :type: string
+    :default: ``'production'``
+
+    Sets the working environment.
+
+    This only needs to be changed when you are developing phpMyAdmin itself.
+    The ``development`` mode may display debug information in some places.
+
+    Possible values are ``'production'`` or ``'development'``.
+
 .. config:option:: $cfg['DBG']
 
     :type: array
-    :default: array(...)
+    :default: []
 
 .. config:option:: $cfg['DBG']['sql']
 
@@ -3454,7 +3761,7 @@ Developer
     It currently changes following behavior:
 
     * There is welcome message on the main page.
-    * There is footer information about demo server and used git revision.
+    * There is footer information about demo server and used Git revision.
     * The setup script is enabled even with existing configuration.
     * The setup does not try to connect to the MySQL server.
 
@@ -3500,11 +3807,9 @@ This example uses :file:`examples/signon.php` to demonstrate usage of :ref:`auth
     <?php
     $i = 0;
     $i++;
-    $cfg['Servers'][$i]['extension']     = 'mysqli';
     $cfg['Servers'][$i]['auth_type']     = 'signon';
     $cfg['Servers'][$i]['SignonSession'] = 'SignonSession';
     $cfg['Servers'][$i]['SignonURL']     = 'examples/signon.php';
-    ?>`
 
 Example for IP address limited autologin
 ++++++++++++++++++++++++++++++++++++++++
@@ -3514,7 +3819,7 @@ for a password when accessing remotely, you can achieve it using following snipp
 
 .. code-block:: php
 
-    if ($_SERVER["REMOTE_ADDR"] == "127.0.0.1") {
+    if ($_SERVER['REMOTE_ADDR'] === '127.0.0.1') {
         $cfg['Servers'][$i]['auth_type'] = 'config';
         $cfg['Servers'][$i]['user'] = 'root';
         $cfg['Servers'][$i]['password'] = 'yourpassword';
@@ -3536,15 +3841,14 @@ following example shows two of them:
 .. code-block:: php
 
     <?php
-    $cfg['blowfish_secret']='multiServerExample70518';
-    //any string of your choice
+    // The string is a hexadecimal representation of a 32-bytes long string of random bytes.
+    $cfg['blowfish_secret'] = sodium_hex2bin('f16ce59f45714194371b48fe362072dc3b019da7861558cd4ad29e4d6fb13851');
     $i = 0;
 
     $i++; // server 1 :
     $cfg['Servers'][$i]['auth_type'] = 'cookie';
     $cfg['Servers'][$i]['verbose']   = 'no1';
     $cfg['Servers'][$i]['host']      = 'localhost';
-    $cfg['Servers'][$i]['extension'] = 'mysqli';
     // more options for #1 ...
 
     $i++; // server 2 :
@@ -3553,14 +3857,12 @@ following example shows two of them:
     $cfg['Servers'][$i]['host']      = 'remote.host.addr';//or ip:'10.9.8.1'
     // this server must allow remote clients, e.g., host 10.9.8.%
     // not only in mysql.host but also in the startup configuration
-    $cfg['Servers'][$i]['extension'] = 'mysqli';
     // more options for #2 ...
 
     // end of server sections
     $cfg['ServerDefault'] = 0; // to choose the server on startup
 
     // further general options ...
-    ?>
 
 .. _example-google-ssl:
 
@@ -3568,9 +3870,9 @@ Google Cloud SQL with SSL
 +++++++++++++++++++++++++
 
 To connect to Google Could SQL, you currently need to disable certificate
-verification. This is caused by the certficate being issued for CN matching
+verification. This is caused by the certificate being issued for CN matching
 your instance name, but you connect to an IP address and PHP tries to match
-these two. With verfication you end up with error message like:
+these two. With verification you end up with error message like:
 
 .. code-block:: text
 
@@ -3608,3 +3910,55 @@ server certificates and tell phpMyAdmin to use them:
     :config:option:`$cfg['Servers'][$i]['ssl_ca']`,
     :config:option:`$cfg['Servers'][$i]['ssl_verify']`,
     <https://bugs.php.net/bug.php?id=72048>
+
+.. _example-aws-ssl:
+
+Amazon RDS Aurora with SSL
+++++++++++++++++++++++++++
+
+To connect phpMyAdmin to an Amazon RDS Aurora MySQL database instance using SSL,
+download the CA server certificate and tell phpMyAdmin to use it:
+
+.. code-block:: php
+
+    // Address of your instance
+    $cfg['Servers'][$i]['host'] = 'replace-me-custer-name.cluster-replace-me-id.replace-me-region.rds.amazonaws.com';
+    // Use SSL for connection
+    $cfg['Servers'][$i]['ssl'] = true;
+    // You need to have the region CA file and the authority CA file (2019 edition CA for example) in the PEM bundle for it to work
+    $cfg['Servers'][$i]['ssl_ca'] = '../rds-combined-ca-bundle.pem';
+    // Enable SSL verification
+    $cfg['Servers'][$i]['ssl_verify'] = true;
+
+.. seealso::
+
+    :ref:`ssl`,
+    :config:option:`$cfg['Servers'][$i]['ssl']`,
+    :config:option:`$cfg['Servers'][$i]['ssl_ca']`,
+    :config:option:`$cfg['Servers'][$i]['ssl_verify']`
+
+.. seealso::
+
+    - Current RDS CA bundle for all regions https://s3.amazonaws.com/rds-downloads/rds-combined-ca-bundle.pem
+    - The RDS CA (2019 edition) for the region `eu-west-3` without the parent CA https://s3.amazonaws.com/rds-downloads/rds-ca-2019-eu-west-3.pem
+    - `List of available Amazon RDS CA files <https://s3.amazonaws.com/rds-downloads/>`_
+    - `Amazon MySQL Aurora security guide <https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/AuroraMySQL.Security.html>`_
+    - `Amazon certificates bundles per region <https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/UsingWithRDS.SSL.html>`_
+
+reCaptcha using hCaptcha
+++++++++++++++++++++++++
+
+.. code-block:: php
+
+    $cfg['CaptchaApi'] = 'https://www.hcaptcha.com/1/api.js';
+    $cfg['CaptchaCsp'] = 'https://hcaptcha.com https://*.hcaptcha.com';
+    $cfg['CaptchaRequestParam'] = 'h-captcha';
+    $cfg['CaptchaResponseParam'] = 'h-captcha-response';
+    $cfg['CaptchaSiteVerifyURL'] = 'https://hcaptcha.com/siteverify';
+    // This is the secret key from hCaptcha dashboard
+    $cfg['CaptchaLoginPrivateKey'] = '0xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx';
+    // This is the site key from hCaptcha dashboard
+    $cfg['CaptchaLoginPublicKey'] = 'xxx-xxx-xxx-xxx-xxxx';
+
+.. seealso:: `hCaptcha website <https://www.hcaptcha.com/>`_
+.. seealso:: `hCaptcha Developer Guide <https://docs.hcaptcha.com/>`_

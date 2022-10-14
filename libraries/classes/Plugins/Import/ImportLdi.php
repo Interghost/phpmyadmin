@@ -1,176 +1,219 @@
 <?php
-/* vim: set expandtab sw=4 ts=4 sts=4: */
-/**
- * CSV import plugin for phpMyAdmin using LOAD DATA
- *
- * @package    PhpMyAdmin-Import
- * @subpackage LDI
- */
+
 declare(strict_types=1);
 
 namespace PhpMyAdmin\Plugins\Import;
 
-use PhpMyAdmin\Import;
+use PhpMyAdmin\File;
 use PhpMyAdmin\Message;
-use PhpMyAdmin\Plugins\Import\AbstractImportCsv;
+use PhpMyAdmin\Properties\Options\Groups\OptionsPropertyRootGroup;
 use PhpMyAdmin\Properties\Options\Items\BoolPropertyItem;
 use PhpMyAdmin\Properties\Options\Items\TextPropertyItem;
+use PhpMyAdmin\Properties\Plugins\ImportPluginProperties;
 use PhpMyAdmin\Util;
 
-// We need relations enabled and we work only on database
-if (! isset($GLOBALS['plugin_param']) || $GLOBALS['plugin_param'] !== 'table') {
-    $GLOBALS['skip_import'] = true;
+use function __;
+use function count;
+use function is_array;
+use function preg_split;
+use function strlen;
+use function trim;
 
-    return;
-}
+use const PHP_EOL;
 
 /**
- * Handles the import for the CSV format using load data
- *
- * @package    PhpMyAdmin-Import
- * @subpackage LDI
+ * CSV import plugin for phpMyAdmin using LOAD DATA
  */
 class ImportLdi extends AbstractImportCsv
 {
     /**
-     * Constructor
+     * @psalm-return non-empty-lowercase-string
      */
-    public function __construct()
+    public function getName(): string
     {
-        parent::__construct();
-        $this->setProperties();
+        return 'ldi';
     }
 
-    /**
-     * Sets the import plugin properties.
-     * Called in the constructor.
-     *
-     * @return void
-     */
-    protected function setProperties()
+    protected function setProperties(): ImportPluginProperties
     {
-        if ($GLOBALS['cfg']['Import']['ldi_local_option'] == 'auto') {
-            $GLOBALS['cfg']['Import']['ldi_local_option'] = false;
+        $importPluginProperties = new ImportPluginProperties();
+        $importPluginProperties->setText('CSV using LOAD DATA');
+        $importPluginProperties->setExtension('ldi');
 
-            $result = $GLOBALS['dbi']->tryQuery(
-                'SELECT @@local_infile;'
-            );
-            if ($result != false && $GLOBALS['dbi']->numRows($result) > 0) {
-                $tmp = $GLOBALS['dbi']->fetchRow($result);
-                if ($tmp[0] == 'ON') {
-                    $GLOBALS['cfg']['Import']['ldi_local_option'] = true;
-                }
-            }
-            $GLOBALS['dbi']->freeResult($result);
-            unset($result);
+        if (! self::isAvailable()) {
+            return $importPluginProperties;
         }
 
-        $generalOptions = parent::setProperties();
-        $this->properties->setText('CSV using LOAD DATA');
-        $this->properties->setExtension('ldi');
+        if ($GLOBALS['cfg']['Import']['ldi_local_option'] === 'auto') {
+            $this->setLdiLocalOptionConfig();
+        }
+
+        $importPluginProperties->setOptionsText(__('Options'));
+
+        // create the root group that will be the options field for
+        // $importPluginProperties
+        // this will be shown as "Format specific options"
+        $importSpecificOptions = new OptionsPropertyRootGroup('Format Specific Options');
+
+        $generalOptions = $this->getGeneralOptions();
 
         $leaf = new TextPropertyItem(
-            "columns",
+            'columns',
             __('Column names: ')
         );
         $generalOptions->addProperty($leaf);
 
         $leaf = new BoolPropertyItem(
-            "ignore",
+            'ignore',
             __('Do not abort on INSERT error')
         );
         $generalOptions->addProperty($leaf);
 
         $leaf = new BoolPropertyItem(
-            "local_option",
+            'local_option',
             __('Use LOCAL keyword')
         );
         $generalOptions->addProperty($leaf);
+
+        // add the main group to the root group
+        $importSpecificOptions->addProperty($generalOptions);
+
+        // set the options for the import plugin property item
+        $importPluginProperties->setOptions($importSpecificOptions);
+
+        return $importPluginProperties;
     }
 
     /**
      * Handles the whole import logic
      *
-     * @param array $sql_data 2-element array with sql data
-     *
-     * @return void
+     * @return string[]
      */
-    public function doImport(array &$sql_data = [])
+    public function doImport(?File $importHandle = null): array
     {
-        global $finished, $import_file, $charset_conversion, $table;
-        global $ldi_local_option, $ldi_replace, $ldi_ignore, $ldi_terminated,
-               $ldi_enclosed, $ldi_escaped, $ldi_new_line, $skip_queries, $ldi_columns;
+        $GLOBALS['finished'] = $GLOBALS['finished'] ?? null;
+        $GLOBALS['import_file'] = $GLOBALS['import_file'] ?? null;
+        $GLOBALS['charset_conversion'] = $GLOBALS['charset_conversion'] ?? null;
+        $GLOBALS['ldi_local_option'] = $GLOBALS['ldi_local_option'] ?? null;
+        $GLOBALS['ldi_replace'] = $GLOBALS['ldi_replace'] ?? null;
+        $GLOBALS['ldi_ignore'] = $GLOBALS['ldi_ignore'] ?? null;
+        $GLOBALS['ldi_terminated'] = $GLOBALS['ldi_terminated'] ?? null;
+        $GLOBALS['ldi_enclosed'] = $GLOBALS['ldi_enclosed'] ?? null;
+        $GLOBALS['ldi_escaped'] = $GLOBALS['ldi_escaped'] ?? null;
+        $GLOBALS['ldi_new_line'] = $GLOBALS['ldi_new_line'] ?? null;
+        $GLOBALS['skip_queries'] = $GLOBALS['skip_queries'] ?? null;
+        $GLOBALS['ldi_columns'] = $GLOBALS['ldi_columns'] ?? null;
 
-        $compression = $GLOBALS['import_handle']->getCompression();
+        $sqlStatements = [];
+        $compression = '';
+        if ($importHandle !== null) {
+            $compression = $importHandle->getCompression();
+        }
 
-        if ($import_file == 'none'
-            || $compression != 'none'
-            || $charset_conversion
-        ) {
+        if ($GLOBALS['import_file'] === 'none' || $compression !== 'none' || $GLOBALS['charset_conversion']) {
             // We handle only some kind of data!
             $GLOBALS['message'] = Message::error(
                 __('This plugin does not support compressed imports!')
             );
             $GLOBALS['error'] = true;
 
-            return;
+            return [];
         }
 
         $sql = 'LOAD DATA';
-        if (isset($ldi_local_option)) {
+        if (isset($GLOBALS['ldi_local_option'])) {
             $sql .= ' LOCAL';
         }
-        $sql .= ' INFILE \'' . $GLOBALS['dbi']->escapeString($import_file)
+
+        $sql .= ' INFILE \'' . $GLOBALS['dbi']->escapeString($GLOBALS['import_file'])
             . '\'';
-        if (isset($ldi_replace)) {
+        if (isset($GLOBALS['ldi_replace'])) {
             $sql .= ' REPLACE';
-        } elseif (isset($ldi_ignore)) {
+        } elseif (isset($GLOBALS['ldi_ignore'])) {
             $sql .= ' IGNORE';
         }
-        $sql .= ' INTO TABLE ' . Util::backquote($table);
 
-        if (strlen((string) $ldi_terminated) > 0) {
-            $sql .= ' FIELDS TERMINATED BY \'' . $ldi_terminated . '\'';
+        $sql .= ' INTO TABLE ' . Util::backquote($GLOBALS['table']);
+
+        if (strlen((string) $GLOBALS['ldi_terminated']) > 0) {
+            $sql .= ' FIELDS TERMINATED BY \'' . $GLOBALS['ldi_terminated'] . '\'';
         }
-        if (strlen((string) $ldi_enclosed) > 0) {
+
+        if (strlen((string) $GLOBALS['ldi_enclosed']) > 0) {
             $sql .= ' ENCLOSED BY \''
-                . $GLOBALS['dbi']->escapeString($ldi_enclosed) . '\'';
+                . $GLOBALS['dbi']->escapeString($GLOBALS['ldi_enclosed']) . '\'';
         }
-        if (strlen((string) $ldi_escaped) > 0) {
+
+        if (strlen((string) $GLOBALS['ldi_escaped']) > 0) {
             $sql .= ' ESCAPED BY \''
-                . $GLOBALS['dbi']->escapeString($ldi_escaped) . '\'';
+                . $GLOBALS['dbi']->escapeString($GLOBALS['ldi_escaped']) . '\'';
         }
-        if (strlen((string) $ldi_new_line) > 0) {
-            if ($ldi_new_line == 'auto') {
-                $ldi_new_line
-                    = (PHP_EOL == "\n")
+
+        if (strlen((string) $GLOBALS['ldi_new_line']) > 0) {
+            if ($GLOBALS['ldi_new_line'] === 'auto') {
+                $GLOBALS['ldi_new_line'] = PHP_EOL == "\n"
                     ? '\n'
                     : '\r\n';
             }
-            $sql .= ' LINES TERMINATED BY \'' . $ldi_new_line . '\'';
+
+            $sql .= ' LINES TERMINATED BY \'' . $GLOBALS['ldi_new_line'] . '\'';
         }
-        if ($skip_queries > 0) {
-            $sql .= ' IGNORE ' . $skip_queries . ' LINES';
-            $skip_queries = 0;
+
+        if ($GLOBALS['skip_queries'] > 0) {
+            $sql .= ' IGNORE ' . $GLOBALS['skip_queries'] . ' LINES';
+            $GLOBALS['skip_queries'] = 0;
         }
-        if (strlen((string) $ldi_columns) > 0) {
+
+        if (strlen((string) $GLOBALS['ldi_columns']) > 0) {
             $sql .= ' (';
-            $tmp = preg_split('/,( ?)/', $ldi_columns);
+            $tmp = preg_split('/,( ?)/', $GLOBALS['ldi_columns']);
+
+            if (! is_array($tmp)) {
+                $tmp = [];
+            }
+
             $cnt_tmp = count($tmp);
             for ($i = 0; $i < $cnt_tmp; $i++) {
                 if ($i > 0) {
                     $sql .= ', ';
                 }
+
                 /* Trim also `, if user already included backquoted fields */
                 $sql .= Util::backquote(
                     trim($tmp[$i], " \t\r\n\0\x0B`")
                 );
-            } // end for
+            }
+
             $sql .= ')';
         }
 
-        $this->import->runQuery($sql, $sql, $sql_data);
-        $this->import->runQuery('', '', $sql_data);
-        $finished = true;
+        $this->import->runQuery($sql, $sqlStatements);
+        $this->import->runQuery('', $sqlStatements);
+        $GLOBALS['finished'] = true;
+
+        return $sqlStatements;
+    }
+
+    public static function isAvailable(): bool
+    {
+        // We need relations enabled and we work only on database.
+        return isset($GLOBALS['plugin_param']) && $GLOBALS['plugin_param'] === 'table';
+    }
+
+    private function setLdiLocalOptionConfig(): void
+    {
+        $GLOBALS['cfg']['Import']['ldi_local_option'] = false;
+        $result = $GLOBALS['dbi']->tryQuery('SELECT @@local_infile;');
+
+        if ($result === false || $result->numRows() <= 0) {
+            return;
+        }
+
+        $tmp = $result->fetchValue();
+        if ($tmp !== 'ON' && $tmp !== '1') {
+            return;
+        }
+
+        $GLOBALS['cfg']['Import']['ldi_local_option'] = true;
     }
 }

@@ -1,36 +1,27 @@
 <?php
-/* vim: set expandtab sw=4 ts=4 sts=4: */
 /**
  * SQL editing with syntax highlighted CodeMirror editor
- *
- * @package    PhpMyAdmin-Transformations
- * @subpackage SQL
  */
+
 declare(strict_types=1);
 
 namespace PhpMyAdmin\Plugins\Transformations\Input;
 
 use PhpMyAdmin\Plugins\Transformations\Abs\CodeMirrorEditorTransformationPlugin;
 
+use function __;
+
 /**
  * SQL editing with syntax highlighted CodeMirror editor
- *
- * @package    PhpMyAdmin-Transformations
- * @subpackage SQL
  */
-// @codingStandardsIgnoreLine
 class Text_Plain_SqlEditor extends CodeMirrorEditorTransformationPlugin
 {
     /**
      * Gets the transformation description of the specific plugin
-     *
-     * @return string
      */
-    public static function getInfo()
+    public static function getInfo(): string
     {
-        return __(
-            'Syntax highlighted CodeMirror editor for SQL.'
-        );
+        return __('Syntax highlighted CodeMirror editor for SQL.');
     }
 
     /**
@@ -55,31 +46,25 @@ class Text_Plain_SqlEditor extends CodeMirrorEditorTransformationPlugin
 
     /**
      * Gets the transformation name of the specific plugin
-     *
-     * @return string
      */
-    public static function getName()
+    public static function getName(): string
     {
-        return "SQL";
+        return 'SQL';
     }
 
     /**
      * Gets the plugin`s MIME type
-     *
-     * @return string
      */
-    public static function getMIMEType()
+    public static function getMIMEType(): string
     {
-        return "Text";
+        return 'Text';
     }
 
     /**
      * Gets the plugin`s MIME subtype
-     *
-     * @return string
      */
-    public static function getMIMESubtype()
+    public static function getMIMESubtype(): string
     {
-        return "Plain";
+        return 'Plain';
     }
 }

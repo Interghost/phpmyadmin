@@ -1,73 +1,89 @@
 <?php
-/* vim: set expandtab sw=4 ts=4 sts=4: */
-/**
- * Holds the PhpMyAdmin\Controllers\Table\IndexesController
- *
- * @package PhpMyAdmin\Controllers
- */
+
 declare(strict_types=1);
 
 namespace PhpMyAdmin\Controllers\Table;
 
+use PhpMyAdmin\Controllers\AbstractController;
+use PhpMyAdmin\DatabaseInterface;
+use PhpMyAdmin\DbTableExists;
+use PhpMyAdmin\Http\ServerRequest;
 use PhpMyAdmin\Index;
-use PhpMyAdmin\Message;
-use PhpMyAdmin\Response;
+use PhpMyAdmin\ResponseRenderer;
+use PhpMyAdmin\Table\Indexes;
+use PhpMyAdmin\Template;
+use PhpMyAdmin\Url;
 use PhpMyAdmin\Util;
 
+use function count;
+use function is_array;
+use function is_numeric;
+use function json_decode;
+use function min;
+
 /**
- * Class IndexesController
- *
- * @package PhpMyAdmin\Controllers
+ * Displays index edit/creation form and handles it.
  */
 class IndexesController extends AbstractController
 {
-    /**
-     * @var Index
-     */
-    protected $index;
+    /** @var DatabaseInterface */
+    private $dbi;
 
-    /**
-     * Constructor
-     *
-     * @param Response                      $response Response object
-     * @param \PhpMyAdmin\DatabaseInterface $dbi      DatabaseInterface object
-     * @param string                        $db       Database name
-     * @param string                        $table    Table name
-     * @param Index                         $index    Index object
-     */
+    /** @var Indexes */
+    private $indexes;
+
     public function __construct(
-        $response,
-        $dbi,
-        $db,
-        $table,
-        $index
+        ResponseRenderer $response,
+        Template $template,
+        DatabaseInterface $dbi,
+        Indexes $indexes
     ) {
-        parent::__construct($response, $dbi, $db, $table);
-
-        $this->index = $index;
+        parent::__construct($response, $template);
+        $this->dbi = $dbi;
+        $this->indexes = $indexes;
     }
 
-    /**
-     * Index
-     *
-     * @return void
-     */
-    public function indexAction()
+    public function __invoke(ServerRequest $request): void
     {
-        if (isset($_POST['do_save_data'])) {
-            $this->doSaveDataAction();
-            return;
-        } // end builds the new index
+        $GLOBALS['urlParams'] = $GLOBALS['urlParams'] ?? null;
+        $GLOBALS['errorUrl'] = $GLOBALS['errorUrl'] ?? null;
 
-        $this->displayFormAction();
+        if (! isset($_POST['create_edit_table'])) {
+            $this->checkParameters(['db', 'table']);
+
+            $GLOBALS['urlParams'] = ['db' => $GLOBALS['db'], 'table' => $GLOBALS['table']];
+            $GLOBALS['errorUrl'] = Util::getScriptNameForOption($GLOBALS['cfg']['DefaultTabTable'], 'table');
+            $GLOBALS['errorUrl'] .= Url::getCommon($GLOBALS['urlParams'], '&');
+
+            DbTableExists::check($GLOBALS['db'], $GLOBALS['table']);
+        }
+
+        if (isset($_POST['index'])) {
+            if (is_array($_POST['index'])) {
+                // coming already from form
+                $index = new Index($_POST['index']);
+            } else {
+                $index = $this->dbi->getTable($GLOBALS['db'], $GLOBALS['table'])->getIndex($_POST['index']);
+            }
+        } else {
+            $index = new Index();
+        }
+
+        if (isset($_POST['do_save_data'])) {
+            $this->indexes->doSaveData($index, false, $GLOBALS['db'], $GLOBALS['table']);
+
+            return;
+        }
+
+        $this->displayForm($index);
     }
 
     /**
      * Display the form to edit/create an index
      *
-     * @return void
+     * @param Index $index An Index instance.
      */
-    public function displayFormAction()
+    private function displayForm(Index $index): void
     {
         $this->dbi->selectDb($GLOBALS['db']);
         $add_fields = 0;
@@ -75,32 +91,44 @@ class IndexesController extends AbstractController
             // coming already from form
             if (isset($_POST['index']['columns']['names'])) {
                 $add_fields = count($_POST['index']['columns']['names'])
-                    - $this->index->getColumnCount();
+                    - $index->getColumnCount();
             }
+
             if (isset($_POST['add_fields'])) {
                 $add_fields += $_POST['added_fields'];
             }
         } elseif (isset($_POST['create_index'])) {
-            $add_fields = $_POST['added_fields'];
-        } // end preparing form values
+            /**
+             * In most cases, an index may consist of up to 16 columns, so add an initial limit.
+             * More columns could be added later if necessary.
+             *
+             * @see https://dev.mysql.com/doc/refman/5.6/en/multiple-column-indexes.html "up to 16 columns"
+             * @see https://mariadb.com/kb/en/innodb-limitations/#limitations-on-schema "maximum of 16 columns"
+             * @see https://mariadb.com/kb/en/myisam-overview/#myisam-features "Maximum of 32 columns per index"
+             */
+            $add_fields = 1;
+            if (is_numeric($_POST['added_fields']) && $_POST['added_fields'] >= 2) {
+                $add_fields = min((int) $_POST['added_fields'], 16);
+            }
+        }
 
         // Get fields and stores their name/type
         if (isset($_POST['create_edit_table'])) {
             $fields = json_decode($_POST['columns'], true);
             $index_params = [
-                'Non_unique' => $_POST['index']['Index_choice'] == 'UNIQUE'
+                'Non_unique' => $_POST['index']['Index_choice'] === 'UNIQUE'
                     ? '0' : '1',
             ];
-            $this->index->set($index_params);
+            $index->set($index_params);
             $add_fields = count($fields);
         } else {
-            $fields = $this->dbi->getTable($this->db, $this->table)
+            $fields = $this->dbi->getTable($GLOBALS['db'], $GLOBALS['table'])
                 ->getNameAndTypeOfTheColumns();
         }
 
         $form_params = [
-            'db' => $this->db,
-            'table' => $this->table,
+            'db' => $GLOBALS['db'],
+            'table' => $GLOBALS['table'],
         ];
 
         if (isset($_POST['create_index'])) {
@@ -111,65 +139,16 @@ class IndexesController extends AbstractController
             $form_params['old_index'] = $_POST['index'];
         }
 
-        $this->response->getHeader()->getScripts()->addFile('indexes.js');
+        $this->addScriptFiles(['indexes.js']);
 
-        $this->response->addHTML(
-            $this->template->render('table/index_form', [
-                'fields' => $fields,
-                'index' => $this->index,
-                'form_params' => $form_params,
-                'add_fields' => $add_fields,
-                'create_edit_table' => isset($_POST['create_edit_table']),
-                'default_sliders_state' => $GLOBALS['cfg']['InitialSlidersState'],
-            ])
-        );
-    }
-
-    /**
-     * Process the data from the edit/create index form,
-     * run the query to build the new index
-     * and moves back to "tbl_sql.php"
-     *
-     * @return void
-     */
-    public function doSaveDataAction()
-    {
-        $error = false;
-
-        $sql_query = $this->dbi->getTable($this->db, $this->table)
-            ->getSqlQueryForIndexCreateOrEdit($this->index, $error);
-
-        // If there is a request for SQL previewing.
-        if (isset($_POST['preview_sql'])) {
-            $this->response->addJSON(
-                'sql_data',
-                $this->template->render('preview_sql', ['query_data' => $sql_query])
-            );
-        } elseif (! $error) {
-            $this->dbi->query($sql_query);
-            $response = Response::getInstance();
-            if ($response->isAjax()) {
-                $message = Message::success(
-                    __('Table %1$s has been altered successfully.')
-                );
-                $message->addParam($this->table);
-                $this->response->addJSON(
-                    'message',
-                    Util::getMessage($message, $sql_query, 'success')
-                );
-                $this->response->addJSON(
-                    'index_table',
-                    Index::getHtmlForIndexes(
-                        $this->table,
-                        $this->db
-                    )
-                );
-            } else {
-                include ROOT_PATH . 'tbl_structure.php';
-            }
-        } else {
-            $this->response->setRequestStatus(false);
-            $this->response->addJSON('message', $error);
-        }
+        $this->render('table/index_form', [
+            'fields' => $fields,
+            'index' => $index,
+            'form_params' => $form_params,
+            'add_fields' => $add_fields,
+            'create_edit_table' => isset($_POST['create_edit_table']),
+            'default_sliders_state' => $GLOBALS['cfg']['InitialSlidersState'],
+            'is_from_nav' => isset($_POST['is_from_nav']),
+        ]);
     }
 }

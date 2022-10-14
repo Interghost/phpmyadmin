@@ -1,23 +1,14 @@
 <?php
-/* vim: set expandtab sw=4 ts=4 sts=4: */
-/**
- * hold PhpMyAdmin\Twig\SanitizeExtension class
- *
- * @package PhpMyAdmin\Twig
- */
+
 declare(strict_types=1);
 
 namespace PhpMyAdmin\Twig;
 
+use PhpMyAdmin\Sanitize;
 use Twig\Extension\AbstractExtension;
 use Twig\TwigFilter;
 use Twig\TwigFunction;
 
-/**
- * Class SanitizeExtension
- *
- * @package PhpMyAdmin\Twig
- */
 class SanitizeExtension extends AbstractExtension
 {
     /**
@@ -30,17 +21,17 @@ class SanitizeExtension extends AbstractExtension
         return [
             new TwigFilter(
                 'escape_js_string',
-                'PhpMyAdmin\Sanitize::escapeJsString',
+                [Sanitize::class, 'escapeJsString'],
                 ['is_safe' => ['html']]
             ),
             new TwigFilter(
                 'js_format',
-                'PhpMyAdmin\Sanitize::jsFormat',
+                [Sanitize::class, 'jsFormat'],
                 ['is_safe' => ['html']]
             ),
             new TwigFilter(
                 'sanitize',
-                'PhpMyAdmin\Sanitize::sanitize',
+                [Sanitize::class, 'sanitizeMessage'],
                 ['is_safe' => ['html']]
             ),
         ];
@@ -56,9 +47,9 @@ class SanitizeExtension extends AbstractExtension
         return [
             new TwigFunction(
                 'get_js_value',
-                'PhpMyAdmin\Sanitize::getJsValue',
+                [Sanitize::class, 'getJsValue'],
                 ['is_safe' => ['html']]
-            )
+            ),
         ];
     }
 }

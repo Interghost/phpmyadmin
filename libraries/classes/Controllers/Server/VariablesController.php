@@ -1,72 +1,79 @@
 <?php
-/* vim: set expandtab sw=4 ts=4 sts=4: */
-/**
- * Holds the PhpMyAdmin\Controllers\Server\VariablesController
- *
- * @package PhpMyAdmin\Controllers
- */
+
 declare(strict_types=1);
 
 namespace PhpMyAdmin\Controllers\Server;
 
 use PhpMyAdmin\Controllers\AbstractController;
+use PhpMyAdmin\DatabaseInterface;
+use PhpMyAdmin\Html\Generator;
+use PhpMyAdmin\Http\ServerRequest;
+use PhpMyAdmin\Providers\ServerVariables\ServerVariablesProvider;
+use PhpMyAdmin\ResponseRenderer;
+use PhpMyAdmin\Template;
+use PhpMyAdmin\Url;
 use PhpMyAdmin\Util;
-use Williamdes\MariaDBMySQLKBS\Search as KBSearch;
-use Williamdes\MariaDBMySQLKBS\KBException;
+
+use function implode;
+use function in_array;
+use function is_numeric;
+use function str_replace;
+use function strtolower;
+use function trim;
 
 /**
  * Handles viewing and editing server variables
- *
- * @package PhpMyAdmin\Controllers
  */
 class VariablesController extends AbstractController
 {
-    /**
-     * Index action
-     *
-     * @param array $params Request parameters
-     *
-     * @return string
-     */
-    public function index(array $params): string
+    /** @var DatabaseInterface */
+    private $dbi;
+
+    public function __construct(ResponseRenderer $response, Template $template, DatabaseInterface $dbi)
     {
-        include ROOT_PATH . 'libraries/server_common.inc.php';
+        parent::__construct($response, $template);
+        $this->dbi = $dbi;
+    }
+
+    public function __invoke(ServerRequest $request): void
+    {
+        $GLOBALS['errorUrl'] = $GLOBALS['errorUrl'] ?? null;
+
+        $params = ['filter' => $_GET['filter'] ?? null];
+        $GLOBALS['errorUrl'] = Url::getFromRoute('/');
+
+        if ($this->dbi->isSuperUser()) {
+            $this->dbi->selectDb('mysql');
+        }
 
         $filterValue = ! empty($params['filter']) ? $params['filter'] : '';
 
-        $header = $this->response->getHeader();
-        $scripts = $header->getScripts();
-        $scripts->addFile('server_variables.js');
+        $this->addScriptFiles(['server/variables.js']);
 
         $variables = [];
         $serverVarsResult = $this->dbi->tryQuery('SHOW SESSION VARIABLES;');
         if ($serverVarsResult !== false) {
-            $serverVarsSession = [];
-            while ($arr = $this->dbi->fetchRow($serverVarsResult)) {
-                $serverVarsSession[$arr[0]] = $arr[1];
-            }
-            $this->dbi->freeResult($serverVarsResult);
+            $serverVarsSession = $serverVarsResult->fetchAllKeyPair();
+
+            unset($serverVarsResult);
 
             $serverVars = $this->dbi->fetchResult('SHOW GLOBAL VARIABLES;', 0, 1);
 
             // list of static (i.e. non-editable) system variables
-            $staticVariables = KBSearch::getStaticVariables();
+            $staticVariables = ServerVariablesProvider::getImplementation()->getStaticVariables();
 
             foreach ($serverVars as $name => $value) {
                 $hasSessionValue = isset($serverVarsSession[$name])
                     && $serverVarsSession[$name] !== $value;
-                $docLink = Util::linkToVarDocumentation(
+                $docLink = Generator::linkToVarDocumentation(
                     $name,
                     $this->dbi->isMariaDB(),
                     str_replace('_', '&nbsp;', $name)
                 );
 
-                list($formattedValue, $isEscaped) = $this->formatVariable($name, $value);
+                [$formattedValue, $isEscaped] = $this->formatVariable($name, $value);
                 if ($hasSessionValue) {
-                    list($sessionFormattedValue, ) = $this->formatVariable(
-                        $name,
-                        $serverVarsSession[$name]
-                    );
+                    [$sessionFormattedValue] = $this->formatVariable($name, $serverVarsSession[$name]);
                 }
 
                 $variables[] = [
@@ -81,151 +88,44 @@ class VariablesController extends AbstractController
             }
         }
 
-        return $this->template->render('server/variables/index', [
+        $this->render('server/variables/index', [
             'variables' => $variables,
             'filter_value' => $filterValue,
-            'is_superuser' => $this->dbi->isSuperuser(),
+            'is_superuser' => $this->dbi->isSuperUser(),
             'is_mariadb' => $this->dbi->isMariaDB(),
         ]);
     }
 
     /**
-     * Handle the AJAX request for a single variable value
-     *
-     * @param array $params Request parameters
-     *
-     * @return array
-     */
-    public function getValue(array $params): array
-    {
-        // Send with correct charset
-        header('Content-Type: text/html; charset=UTF-8');
-        // Do not use double quotes inside the query to avoid a problem
-        // when server is running in ANSI_QUOTES sql_mode
-        $varValue = $this->dbi->fetchSingleRow(
-            'SHOW GLOBAL VARIABLES WHERE Variable_name=\''
-            . $this->dbi->escapeString($params['varName']) . '\';',
-            'NUM'
-        );
-
-        $json = [];
-        try {
-            $type = KBSearch::getVariableType($params['varName']);
-            if ($type === 'byte') {
-                $json['message'] = implode(
-                    ' ',
-                    Util::formatByteDown($varValue[1], 3, 3)
-                );
-            } else {
-                throw new KBException("Not a type=byte");
-            }
-        } catch (KBException $e) {
-            $json['message'] = $varValue[1];
-        }
-
-        return $json;
-    }
-
-    /**
-     * Handle the AJAX request for setting value for a single variable
-     *
-     * @param array $params Request parameters
-     *
-     * @return array
-     */
-    public function setValue(array $params): array
-    {
-        $value = $params['varValue'];
-        $matches = [];
-        try {
-            $type = KBSearch::getVariableType($params['varName']);
-            if ($type === 'byte' && preg_match(
-                '/^\s*(\d+(\.\d+)?)\s*(mb|kb|mib|kib|gb|gib)\s*$/i',
-                $value,
-                $matches
-            )) {
-                $exp = [
-                    'kb' => 1,
-                    'kib' => 1,
-                    'mb' => 2,
-                    'mib' => 2,
-                    'gb' => 3,
-                    'gib' => 3,
-                ];
-                $value = floatval($matches[1]) * pow(
-                    1024,
-                    $exp[mb_strtolower($matches[3])]
-                );
-            } else {
-                throw new KBException("Not a type=byte or regex not matching");
-            }
-        } catch (KBException $e) {
-            $value = $this->dbi->escapeString($value);
-        }
-
-        if (! is_numeric($value)) {
-            $value = "'" . $value . "'";
-        }
-
-        $json = [];
-        if (! preg_match("/[^a-zA-Z0-9_]+/", $params['varName'])
-            && $this->dbi->query(
-                'SET GLOBAL ' . $params['varName'] . ' = ' . $value
-            )
-        ) {
-            // Some values are rounded down etc.
-            $varValue = $this->dbi->fetchSingleRow(
-                'SHOW GLOBAL VARIABLES WHERE Variable_name="'
-                . $this->dbi->escapeString($params['varName'])
-                . '";',
-                'NUM'
-            );
-            list($formattedValue, $isHtmlFormatted) = $this->formatVariable(
-                $params['varName'],
-                $varValue[1]
-            );
-
-            if ($isHtmlFormatted == false) {
-                $json['variable'] = htmlspecialchars($formattedValue);
-            } else {
-                $json['variable'] = $formattedValue;
-            }
-        } else {
-            $this->response->setRequestStatus(false);
-            $json['error'] = __('Setting variable failed');
-        }
-
-        return $json;
-    }
-
-    /**
      * Format Variable
      *
-     * @param string  $name  variable name
-     * @param integer $value variable value
+     * @param string     $name  variable name
+     * @param int|string $value variable value
      *
      * @return array formatted string and bool if string is HTML formatted
      */
-    private function formatVariable($name, $value)
+    private function formatVariable($name, $value): array
     {
         $isHtmlFormatted = false;
         $formattedValue = $value;
 
         if (is_numeric($value)) {
-            try {
-                $type = KBSearch::getVariableType($name);
-                if ($type === 'byte') {
-                    $isHtmlFormatted = true;
-                    $formattedValue = '<abbr title="'
-                        . htmlspecialchars(Util::formatNumber($value, 0)) . '">'
-                        . htmlspecialchars(
-                            implode(' ', Util::formatByteDown($value, 3, 3))
-                        )
-                        . '</abbr>';
-                } else {
-                    throw new KBException("Not a type=byte or regex not matching");
-                }
-            } catch (KBException $e) {
+            $variableType = ServerVariablesProvider::getImplementation()->getVariableType($name);
+
+            if ($variableType === 'byte') {
+                $isHtmlFormatted = true;
+                /** @var string[] $bytes */
+                $bytes = Util::formatByteDown($value, 3, 3);
+                $formattedValue = trim(
+                    $this->template->render(
+                        'server/variables/format_variable',
+                        [
+                            'valueTitle' => Util::formatNumber($value, 0),
+                            'value' => implode(' ', $bytes),
+                        ]
+                    )
+                );
+            } else {
                 $formattedValue = Util::formatNumber($value, 0);
             }
         }

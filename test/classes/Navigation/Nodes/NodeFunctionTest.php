@@ -1,50 +1,46 @@
 <?php
-/* vim: set expandtab sw=4 ts=4 sts=4: */
-/**
- * Tests for PhpMyAdmin\Navigation\Nodes\NodeFunction class
- *
- * @package PhpMyAdmin-test
- */
+
 declare(strict_types=1);
 
 namespace PhpMyAdmin\Tests\Navigation\Nodes;
 
 use PhpMyAdmin\Navigation\NodeFactory;
-use PhpMyAdmin\Tests\PmaTestCase;
-use PhpMyAdmin\Theme;
+use PhpMyAdmin\Tests\AbstractTestCase;
 
 /**
- * Tests for PhpMyAdmin\Navigation\Nodes\NodeFunction class
- *
- * @package PhpMyAdmin-test
+ * @covers \PhpMyAdmin\Navigation\Nodes\NodeFunction
  */
-class NodeFunctionTest extends PmaTestCase
+class NodeFunctionTest extends AbstractTestCase
 {
     /**
      * SetUp for test cases
-     *
-     * @return void
      */
     protected function setUp(): void
     {
+        parent::setUp();
+        $GLOBALS['dbi'] = $this->createDatabaseInterface();
         $GLOBALS['server'] = 0;
     }
 
     /**
      * Test for __construct
-     *
-     * @return void
      */
-    public function testConstructor()
+    public function testConstructor(): void
     {
         $parent = NodeFactory::getInstance('NodeFunction');
-        $this->assertArrayHasKey(
-            'text',
+        $this->assertIsArray($parent->links);
+        $this->assertEquals(
+            [
+                'text' => [
+                    'route' => '/database/routines',
+                    'params' => ['item_type' => 'FUNCTION', 'edit_item' => 1, 'db' => null, 'item_name' => null],
+                ],
+                'icon' => [
+                    'route' => '/database/routines',
+                    'params' => ['item_type' => 'FUNCTION', 'execute_dialog' => 1, 'db' => null, 'item_name' => null],
+                ],
+            ],
             $parent->links
-        );
-        $this->assertStringContainsString(
-            'db_routines.php',
-            $parent->links['text']
         );
     }
 }

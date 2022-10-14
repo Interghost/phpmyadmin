@@ -1,54 +1,36 @@
 <?php
-/* vim: set expandtab sw=4 ts=4 sts=4: */
-/**
- * Holds the PhpMyAdmin\Controllers\Server\Status\AdvisorController
- *
- * @package PhpMyAdmin\Controllers
- */
+
 declare(strict_types=1);
 
 namespace PhpMyAdmin\Controllers\Server\Status;
 
-use PhpMyAdmin\Advisor;
-use Symfony\Component\ExpressionLanguage\ExpressionLanguage;
+use PhpMyAdmin\Advisory\Advisor;
+use PhpMyAdmin\Http\ServerRequest;
+use PhpMyAdmin\ResponseRenderer;
+use PhpMyAdmin\Server\Status\Data;
+use PhpMyAdmin\Template;
 
 /**
  * Displays the advisor feature
- *
- * @package PhpMyAdmin\Controllers
  */
 class AdvisorController extends AbstractController
 {
-    /**
-     * @var Advisor
-     */
+    /** @var Advisor */
     private $advisor;
 
-    /**
-     * AdvisorController constructor.
-     *
-     * @param \PhpMyAdmin\Response           $response Response object
-     * @param \PhpMyAdmin\DatabaseInterface  $dbi      DatabaseInterface object
-     * @param \PhpMyAdmin\Server\Status\Data $data     Data object
-     */
-    public function __construct($response, $dbi, $data)
+    public function __construct(ResponseRenderer $response, Template $template, Data $data, Advisor $advisor)
     {
-        parent::__construct($response, $dbi, $data);
-        $this->advisor = new Advisor($this->dbi, new ExpressionLanguage());
+        parent::__construct($response, $template, $data);
+        $this->advisor = $advisor;
     }
 
-    /**
-     * @return string
-     */
-    public function index(): string
+    public function __invoke(ServerRequest $request): void
     {
-        $data = '';
+        $data = [];
         if ($this->data->dataLoaded) {
-            $data = json_encode($this->advisor->run());
+            $data = $this->advisor->run();
         }
 
-        return $this->template->render('server/status/advisor/index', [
-            'data' => $data,
-        ]);
+        $this->render('server/status/advisor/index', ['data' => $data]);
     }
 }

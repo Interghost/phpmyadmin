@@ -18,7 +18,7 @@ Server
 1.1 My server is crashing each time a specific action is required or phpMyAdmin sends a blank page or a page full of cryptic characters to my browser, what can I do?
 ---------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
-Try to set the :config:option:`$cfg['OBGzip']`  directive to ``false`` in your
+Try to set the :config:option:`$cfg['OBGzip']` directive to ``false`` in your
 :file:`config.inc.php` file and the ``zlib.output_compression`` directive to
 ``Off`` in your php configuration file.
 
@@ -63,7 +63,7 @@ Please use instead the cookie authentication mode.
 
 This seems to be a PWS bug. Filippo Simoncini found a workaround (at
 this time there is no better fix): remove or comment the ``DOCTYPE``
-declarations (2 lines) from the scripts :file:`libraries/Header.class.php`
+declarations (2 lines) from the scripts :file:`libraries/classes/Header.php`
 and :file:`index.php`.
 
 .. _faq1_7:
@@ -212,7 +212,7 @@ your server - as mentioned in :ref:`faq1_17`. This problem is
 generally caused by using MySQL version 4.1 or newer. MySQL changed
 the authentication hash and your PHP is trying to use the old method.
 The proper solution is to use the `mysqli extension
-<https://secure.php.net/mysqli>`_ with the proper client library to match
+<https://www.php.net/mysqli>`_ with the proper client library to match
 your MySQL installation. More
 information (and several workarounds) are located in the `MySQL
 Documentation <https://dev.mysql.com/doc/refman/5.7/en/common-errors.html>`_.
@@ -244,8 +244,8 @@ phpMyAdmin tried to load the extension but failed. Usually, the
 problem is solved by installing a software package called "PHP-MySQL"
 or something similar.
 
-There are currently two interfaces PHP provides as MySQL extensions - ``mysql``
-and ``mysqli``. The ``mysqli`` is tried first, because it's the best one.
+There was two interfaces PHP provided as MySQL extensions - ``mysql``
+and ``mysqli``. The ``mysql`` interface was removed in PHP 7.0.
 
 This problem can be also caused by wrong paths in the :file:`php.ini` or using
 wrong :file:`php.ini`.
@@ -268,10 +268,9 @@ can tell it to use specific path for this file using ``PHPIniDir`` directive:
 
 .. code-block:: apache
 
-    LoadFile "C:/php/php5ts.dll"
-    LoadModule php5_module "C:/php/php5apache2_2.dll"
-    <IfModule php5_module>
-        PHPIniDir "C:/PHP"
+    LoadModule php7_module "C:/php7/php7apache2_4.dll"
+    <IfModule php7_module>
+        PHPIniDir "C:/php7"
         <Location>
            AddType text/html .php
            AddHandler application/x-httpd-php .php
@@ -280,7 +279,7 @@ can tell it to use specific path for this file using ``PHPIniDir`` directive:
 
 In some rare cases this problem can be also caused by other extensions loaded
 in PHP which prevent MySQL extensions to be loaded. If anything else fails, you
-can try commenting out extensions for other databses from :file:`php.ini`.
+can try commenting out extensions for other databases from :file:`php.ini`.
 
 .. _faq1_21:
 
@@ -355,7 +354,7 @@ PHP scripts. Of course you have to restart Apache.
 
 This is a permission problem. Right-click on the phpmyadmin folder and
 choose properties. Under the tab Security, click on "Add" and select
-the user "IUSR\_machine" from the list. Now set his permissions and it
+the user "IUSR\_machine" from the list. Now set their permissions and it
 should work.
 
 .. _faq1_27:
@@ -436,6 +435,7 @@ PHP 7.2 is supported since 4.7.4.
 HHVM is supported up to phpMyAdmin 4.8.
 
 Since release 5.0, phpMyAdmin supports only PHP 7.1 and newer.
+Since release 5.2, phpMyAdmin supports only PHP 7.2 and newer.
 
 .. _faq1_32:
 
@@ -493,6 +493,11 @@ forget to change directory name inside of it):
 
 .. seealso:: :ref:`faq4_8`
 
+.. versionchanged:: 5.1.0
+
+    Support for using the ``target`` parameter was removed in phpMyAdmin 5.1.0.
+    Use the ``route`` parameter instead.
+
 .. _faq1_35:
 
 1.35 Can I use HTTP authentication with Apache CGI?
@@ -520,8 +525,8 @@ error log file might give a clue.
 -----------------------------------------------------------------------------------------------------------
 
 If your cluster consist of different architectures, PHP code used for
-encryption/decryption won't work correct. This is caused by use of
-pack/unpack functions in code. Only solution is to use mcrypt
+encryption/decryption won't work correctly. This is caused by use of
+pack/unpack functions in code. Only solution is to use openssl
 extension which works fine in this case.
 
 .. _faq1_38:
@@ -681,16 +686,44 @@ Some users have requested to be able to reduce the size of the phpMyAdmin instal
 This is not recommended and could lead to confusion over missing features, but can be done.
 A list of files and corresponding functionality which degrade gracefully when removed include:
 
-* :file:`./vendor/tecnickcom/tcpdf` folder (exporting to PDF)
 * :file:`./locale/` folder, or unused subfolders (interface translations)
-* Any unused themes in :file:`./themes/`
-* :file:`./js/vendor/jquery/src/` (included for licensing reasons)
-* :file:`./js/line_counts.php` (removed in phpMyAdmin 4.8)
+* Any unused themes in :file:`./themes/` except the default theme `pmahomme`.
+* :file:`./libraries/language_stats.inc.php` (translation statistics)
 * :file:`./doc/` (documentation)
 * :file:`./setup/` (setup script)
-* :file:`./examples/`
-* :file:`./sql/` (SQL scripts to configure advanced functionality)
-* :file:`./js/vendor/openlayers/` (GIS visualization)
+* :file:`./examples/` (configuration examples)
+* :file:`./sql/` (SQL scripts to configure advanced functionalities)
+* :file:`./js/src/` (Source files to re-build `./js/dist/`)
+* :file:`./js/config/` (Configuration files to re-build `./js/dist/`)
+* Run `rm -rv vendor/tecnickcom/tcpdf && composer dump-autoload --no-interaction --optimize --dev` (exporting to PDF)
+* Run `rm -rv vendor/williamdes/mariadb-mysql-kbs && composer dump-autoload --no-interaction --optimize --dev` (external links to MariaDB and MySQL documentations)
+* Run `rm -rv vendor/code-lts/u2f-php-server && composer dump-autoload --no-interaction --optimize --dev` (U2F second factor authentication)
+* Run `rm -rv vendor/pragmarx/* && composer dump-autoload --no-interaction --optimize --dev` (2FA second factor authentication)
+* Run `rm -rv vendor/bacon/bacon-qr-code && composer dump-autoload --no-interaction --optimize --dev` (QRcode generation for 2FA second factor authentication)
+
+.. _faq1_45:
+
+1.45 I get an error message about unknown authentication method caching_sha2_password when trying to log in
+-----------------------------------------------------------------------------------------------------------
+
+When logging in using MySQL version 8 or newer, you may encounter an error message like this:
+
+    mysqli_real_connect(): The server requested authentication method unknown to the client [caching_sha2_password]
+
+    mysqli_real_connect(): (HY000/2054): The server requested authentication method unknown to the client
+
+This error is because of a version compatibility problem between PHP and MySQL. The MySQL project introduced a new authentication
+method (our tests show this began with version 8.0.11) however PHP did not include the ability to use that authentication method.
+PHP reports that this was fixed in PHP version 7.4.
+
+Users experiencing this are encouraged to upgrade their PHP installation, however a workaround exists. Your MySQL user account
+can be set to use the older authentication with a command such as
+
+.. code-block:: mysql
+
+  ALTER USER 'root'@'localhost' IDENTIFIED WITH mysql_native_password BY 'PASSWORD';
+
+.. seealso:: <https://github.com/phpmyadmin/phpmyadmin/issues/14220>, <https://stackoverflow.com/questions/49948350/phpmyadmin-on-mysql-8-0>, <https://bugs.php.net/bug.php?id=76243>
 
 .. _faqconfig:
 
@@ -829,19 +862,45 @@ Here are a few points to check:
 ---------------------------------
 
 To be able to see a progress bar during your uploads, your server must
-have the `APC <https://secure.php.net/manual/en/book.apc.php>`_ extension, the
-`uploadprogress <https://pecl.php.net/package/uploadprogress>`_ one, or
+have the `uploadprogress <https://pecl.php.net/package/uploadprogress>`_ extension, and
 you must be running PHP 5.4.0 or higher. Moreover, the JSON extension
 has to be enabled in your PHP.
-
-If using APC, you must set ``apc.rfc1867`` to ``on`` in your :file:`php.ini`.
 
 If using PHP 5.4.0 or higher, you must set
 ``session.upload_progress.enabled`` to ``1`` in your :file:`php.ini`. However,
 starting from phpMyAdmin version 4.0.4, session-based upload progress has
 been temporarily deactivated due to its problematic behavior.
 
-.. seealso:: :rfc:`1867`
+.. _faq2_10:
+
+2.10 How to generate a string of random bytes
+---------------------------------------------
+
+One way to generate a string of random bytes suitable for cryptographic use is using the
+`random_bytes <https://www.php.net/random_bytes>`_ :term:`PHP` function. Since this function returns a binary string,
+the returned value should be converted to printable format before being able to copy it.
+
+For example, the :config:option:`$cfg['blowfish_secret']` configuration directive requires a 32-bytes long string. The
+following command can be used to generate a hexadecimal representation of this string.
+
+.. code-block:: sh
+
+    php -r 'echo bin2hex(random_bytes(32)) . PHP_EOL;'
+
+The above example will output something similar to:
+
+.. code-block:: sh
+
+    f16ce59f45714194371b48fe362072dc3b019da7861558cd4ad29e4d6fb13851
+
+And then this hexadecimal value can be used in the configuration file.
+
+.. code-block:: php
+
+    $cfg['blowfish_secret'] = sodium_hex2bin('f16ce59f45714194371b48fe362072dc3b019da7861558cd4ad29e4d6fb13851');
+
+The `sodium_hex2bin <https://www.php.net/sodium_hex2bin>`_ is used here to convert the hexadecimal value back to the
+binary format.
 
 .. _faqlimitations:
 
@@ -1058,7 +1117,7 @@ is no way for PHP to set the charset before authenticating.
 .. seealso::
 
     `phpMyAdmin issue 12232 <https://github.com/phpmyadmin/phpmyadmin/issues/12232>`_,
-    `MySQL documentation note <https://secure.php.net/manual/en/mysqli.real-connect.php#refsect1-mysqli.real-connect-notes>`_
+    `MySQL documentation note <https://www.php.net/manual/en/mysqli.real-connect.php#refsect1-mysqli.real-connect-notes>`_
 
 .. _faqmultiuser:
 
@@ -1128,7 +1187,7 @@ Starting with 2.2.5, in the user management page, you can enter a
 wildcard database name for a user (for example "joe%"), and put the
 privileges you want. For example, adding ``SELECT, INSERT, UPDATE,
 DELETE, CREATE, DROP, INDEX, ALTER`` would let a user create/manage
-his/her database(s).
+their database(s).
 
 .. _faq4_6:
 
@@ -1150,13 +1209,13 @@ network :term:`IP` blocks.
 
     //block root from logging in except from the private networks
     $cfg['Servers'][$i]['AllowDeny']['order'] = 'deny,allow';
-    $cfg['Servers'][$i]['AllowDeny']['rules'] = array(
+    $cfg['Servers'][$i]['AllowDeny']['rules'] = [
         'deny root from all',
         'allow root from localhost',
         'allow root from 10.0.0.0/8',
         'allow root from 192.168.0.0/16',
         'allow root from 172.16.0.0/12',
-    );
+    ];
 
 .. _faq4_7:
 
@@ -1173,22 +1232,20 @@ name is defined in the config file.
 4.8 Which parameters can I use in the URL that starts phpMyAdmin?
 -----------------------------------------------------------------
 
-When accessing phpMyAdmin, you can use the ``db``, ``pma_username``,
-``pma_password`` and ``server`` :term:`URL` parameters. The "server" parameter  can contain
+When starting phpMyAdmin, you can use the ``db``
+and ``server`` parameters. This last one can contain
 either the numeric host index (from ``$i`` of the configuration file)
-or one of the host names present in the configuration file. Using
-``pma_username`` and ``pma_password`` has been tested with the
-'cookie' ``auth_type``.
+or one of the host names present in the configuration file.
 
-For example, a direct login URL can be constructed as
-``https://example.com/phpmyadmin/?pma_username=user&pma_password=password``.
+For example, to jump directly to a particular database, a URL can be constructed as
+``https://example.com/phpmyadmin/?db=sakila``.
 
 .. seealso:: :ref:`faq1_34`
 
-.. warning::
+.. versionchanged:: 4.9.0
 
-    Passing a password and username in URL is potentially insecure and should not be used in
-    production environments.
+    Support for using the ``pma_username`` and ``pma_password`` parameters was removed
+    in phpMyAdmin 4.9.0 (see `PMASA-2019-4 <https://www.phpmyadmin.net/security/PMASA-2019-4/>`_).
 
 .. _faqbrowsers:
 
@@ -1289,7 +1346,7 @@ by the recent versions of the most browsers.
 5.12 Mac OS X Safari browser changes special characters to "?".
 ---------------------------------------------------------------
 
-This issue has been reported by a :term:`Mac OS X` user, who adds that Chimera,
+This issue has been reported by a :term:`macOS` user, who adds that Chimera,
 Netscape and Mozilla do not have this problem.
 
 .. _faq5_13:
@@ -1387,7 +1444,7 @@ This is usually caused by web application firewall doing requests filtering. It
 tries to prevent SQL injection, however phpMyAdmin is tool designed to execute
 SQL queries, thus it makes it unusable.
 
-Please whitelist phpMyAdmin scripts from the web application firewall settings
+Please allow phpMyAdmin scripts from the web application firewall settings
 or disable it completely for phpMyAdmin path.
 
 Programs known to cause these kind of errors:
@@ -1483,7 +1540,7 @@ create the example tables:
     country_code char(1) NOT NULL default '',
     description varchar(10) NOT NULL default '',
     PRIMARY KEY (country_code)
-    ) TYPE=MyISAM;
+    ) ENGINE=MyISAM;
 
     INSERT INTO REL_countries VALUES ('C', 'Canada');
 
@@ -1493,16 +1550,16 @@ create the example tables:
     town_code varchar(5) default '0',
     country_code char(1) NOT NULL default '',
     PRIMARY KEY (id)
-    ) TYPE=MyISAM;
+    ) ENGINE=MyISAM;
 
-    INSERT INTO REL_persons VALUES (11, 'Marc', 'S', '');
+    INSERT INTO REL_persons VALUES (11, 'Marc', 'S', 'C');
     INSERT INTO REL_persons VALUES (15, 'Paul', 'S', 'C');
 
     CREATE TABLE REL_towns (
     town_code varchar(5) NOT NULL default '0',
     description varchar(30) NOT NULL default '',
     PRIMARY KEY (town_code)
-    ) TYPE=MyISAM;
+    ) ENGINE=MyISAM;
 
     INSERT INTO REL_towns VALUES ('S', 'Sherbrooke');
     INSERT INTO REL_towns VALUES ('M', 'Montréal');
@@ -1510,7 +1567,7 @@ create the example tables:
 To setup appropriate links and display information:
 
 * on table "REL\_persons" click Structure, then Relation view
-* for "town\_code", choose from dropdowns, "mydb", "REL\_towns", "code"
+* for "town\_code", choose from dropdowns, "mydb", "REL\_towns", "town\_code"
   for foreign database, table and column respectively
 * for "country\_code", choose  from dropdowns, "mydb", "REL\_countries",
   "country\_code" for foreign database, table and column respectively
@@ -1549,33 +1606,15 @@ enables: drop-down list of possible values.
 --------------------------------------------------
 
 First the configuration variables "relation", "table\_coords" and
-"pdf\_pages" have to be filled in.  Then you need to think about your
-schema layout. Which tables will go on which pages?
+"pdf\_pages" have to be filled in.
 
 * Select your database in the navigation panel.
-* Choose "Operations" in the navigation bar at the top.
-* Choose "Edit :term:`PDF` Pages" near the
-  bottom of the page.
-* Enter a name for the first :term:`PDF` page
-  and click Go. If you like, you can use the "automatic layout," which
-  will put all your linked tables onto the new page.
-* Select the name of the new page (making sure the Edit radio button is
-  selected) and click Go.
-* Select a table from the list, enter its coordinates and click Save.
-  Coordinates are relative; your diagram will be automatically scaled to
-  fit the page. When initially placing tables on the page, just pick any
-  coordinates -- say, 50x50. After clicking Save, you can then use the
-  :ref:`wysiwyg` to position the element correctly.
-* When you'd like to look at your :term:`PDF`, first be sure to click the Save
-  button beneath the list of tables and coordinates, to save any changes you
-  made there. Then scroll all the way down, select the :term:`PDF` options you
-  want, and click Go.
-* Internet Explorer for Windows may suggest an incorrect filename when
-  you try to save a generated :term:`PDF`.
-  When saving a generated :term:`PDF`, be
-  sure that the filename ends in ".pdf", for example "schema.pdf".
-  Browsers on other operating systems, and other browsers on Windows, do
-  not have this problem.
+* Choose ":guilabel:`Designer`" in the navigation bar at the top.
+* Move the tables the way you want them.
+* Choose ":guilabel:`Export schema`" in the left menu.
+* The export modal will open.
+* Select the type of export to :term:`PDF`, you may adjust the other settings.
+* Submit the form and the file will start downloading.
 
 .. seealso::
 
@@ -1625,7 +1664,7 @@ It means "average".
   any) will be included in backup.
 * "Enclose table and column names with backquotes" ensures that column
   and table names formed with special characters are protected.
-* "Add into comments" includes column comments, relations, and MIME
+* "Add into comments" includes column comments, relations, and media
   types set in the pmadb in the dump as :term:`SQL` comments
   (*/\* xxx \*/*).
 
@@ -1691,7 +1730,7 @@ user-input situation. Instead you have to initialize mimetypes using
 functions or empty mimetype definitions.
 
 Plus, you have a whole overview of available mimetypes. Who knows all those
-mimetypes by heart so he/she can enter it at will?
+mimetypes by heart so they can enter it at will?
 
 .. _faqbookmark:
 
@@ -1798,7 +1837,7 @@ in Browse mode or on the Structure page.
 -----------------------------------
 
 In all places where phpMyAdmin accepts format strings, you can use
-``@VARIABLE@`` expansion and `strftime <https://secure.php.net/strftime>`_
+``@VARIABLE@`` expansion and `strftime <https://www.php.net/strftime>`_
 format strings. The expanded variables depend on a context (for
 example, if you haven't chosen a table, you can not get the table
 name), but the following variables can be used:
@@ -1820,31 +1859,10 @@ name), but the following variables can be used:
 ``@PHPMYADMIN@``
     phpMyAdmin with version
 
-.. _wysiwyg:
+.. _faq6_28:
 
-6.28 How can I easily edit relational schema for export?
---------------------------------------------------------
-
-By clicking on the button 'toggle scratchboard' on the page where you
-edit x/y coordinates of those elements you can activate a scratchboard
-where all your elements are placed. By clicking on an element, you can
-move them around in the pre-defined area and the x/y coordinates will
-get updated dynamically. Likewise, when entering a new position
-directly into the input field, the new position in the scratchboard
-changes after your cursor leaves the input field.
-
-You have to click on the 'OK'-button below the tables to save the new
-positions. If you want to place a new element, first add it to the
-table of elements and then you can drag the new element around.
-
-By changing the paper size and the orientation you can change the size
-of the scratchboard as well. You can do so by just changing the
-dropdown field below, and the scratchboard will resize automatically,
-without interfering with the current placement of the elements.
-
-If ever an element gets out of range you can either enlarge the paper
-size or click on the 'reset' button to place all elements below each
-other.
+6.28 (withdrawn).
+-----------------
 
 .. _faq6_29:
 
@@ -1922,7 +1940,7 @@ to plot' field. Once you have decided over your criteria, click 'Go'
 to display the plot.
 
 After the plot is generated, you can use the
-mousewheel to zoom in and out of the plot. In addition, panning
+mouse wheel to zoom in and out of the plot. In addition, panning
 feature is enabled to navigate through the plot. You can zoom-in to a
 certain level of detail and use panning to locate your area of
 interest. Clicking on a point opens a dialogue box, displaying field
@@ -2213,7 +2231,7 @@ authentication to the Apache environment and it can be used in Apache
 logs. Currently there are two variables available:
 
 ``userID``
-    User name of currently active user (he does not have to be logged in).
+    User name of currently active user (they do not have to be logged in).
 ``userStatus``
     Status of currently active user, one of ``ok`` (user is logged in),
     ``mysql-denied`` (MySQL denied user login), ``allow-denied`` (user denied
