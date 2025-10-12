@@ -3552,7 +3552,7 @@ class Results
             $query['display_binary'] = true;
         }
 
-        if (isset($_REQUEST['display_blob'])) {
+        if (isset($_REQUEST['display_blob']) || (isset($GLOBALS['cfg']['ForceShowBlob']) && $GLOBALS['cfg']['ForceShowBlob'])) {
             $query['display_blob'] = true;
             unset($_REQUEST['display_blob']);
         } elseif (isset($_REQUEST['display_options_form'])) {
@@ -4322,9 +4322,9 @@ class Results
                 && ! preg_match('/[\x00-\x08\x0B\x0C\x0E-\x1F\x80-\x9F]/u', $content)
             ) {
                 // show as text if it's valid utf-8
-                $result = htmlspecialchars($content);
+                $result = '<pre>'.htmlspecialchars($content).'</pre>';
             } else {
-                $result = '0x' . bin2hex($content);
+                $result = '-';
             }
 
             [

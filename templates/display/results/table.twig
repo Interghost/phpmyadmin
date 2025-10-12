@@ -153,7 +153,7 @@
         <div class="formelement">
           <input type="checkbox" name="display_binary" id="display_binary_{{ unique_id }}"
             {{- headers.options.display_binary is not empty ? ' checked' }}>
-          <label for="display_binary_{{ unique_id }}">{% trans 'Show binary contents' %}</label>
+          <label for="display_binary_{{ unique_id }}">{% trans 'Show binary contents' %}</label><br>
 
           <input type="checkbox" name="display_blob" id="display_blob_{{ unique_id }}"
             {{- headers.options.display_blob is not empty ? ' checked' }}>

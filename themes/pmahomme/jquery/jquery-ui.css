@@ -1310,3 +1310,190 @@ a.ui-button:active,
 	-webkit-box-shadow: -8px -8px 8px #aaaaaa;
 	box-shadow: -8px -8px 8px #aaaaaa;
 }
+
+/* My added */
+table.table_results caption,
+table.table_results th,
+table.table_results td {
+  vertical-align: top;
+  padding: .3em;
+}
+
+#tableOptionsForm table tbody:first-of-type tr {
+  background: none;
+}
+
+.sqlqueryresults .navigation {
+  margin: 0;
+}
+
+th.right, td.right {
+  padding-right: .3em;
+}
+
+#queryboxfooter .formelement, #fieldset_display_order .formelement {
+  line-height: 40px;
+  vertical-align: middle;
+}
+
+.ui_tpicker_time_input {
+  background: none;
+  border: 0;
+}
+
+.ui-timepicker-div dl dd {
+  margin-left: 105px;
+}
+
+table.table_results .multi_checkbox.checkall {
+  margin-top: 3px;
+  margin-bottom: 2px;
+}
+
+#tableOptionsForm tr, .rte_table tr, .ui-datepicker-calendar tr, .toggleButton tr {
+  background: none !important;
+}
+
+table:not(.table_results) thead th {
+  border-right: 0;
+}
+
+#table_name_col_no_outer {
+  margin-top: 15px;
+}
+
+#table_name_col_no {
+  position: inherit;
+  top: 0;
+}
+
+div.tbl_operations_div {
+  display: inline-block;
+  float: left;
+  padding-left: 5px;
+  min-height: 570px;
+}
+
+div.tbl_operations_div .card.mb-2 {
+  min-height: 570px;
+}
+
+div.deleteData, div.tableMaintenance {
+  min-height: 265px!important;
+}
+
+div.tableMaintenance {
+  padding-left: 0px!important;
+}
+
+div.deleteDataCard, div.tableMaintenanceCard {
+  min-height: 265px!important;
+}
+
+div.moveTableDiv {
+  min-height: 265px!important;
+}
+
+div.moveTableDiv .card.mb-2 {
+  min-height: 265px!important;
+}
+
+.operationsDiv {
+  min-height: 180px;
+}
+
+div.tbl_operations_div ul {
+  list-style-type: none;
+  padding: 0;
+}
+
+div.tbl_operations_div, div.schemaDbCommentParentDiv {
+  min-height: 165px!important;
+}
+
+div.schemaDbComment,
+.schemaCreateTable,
+.schemaRenameDb,
+.schemaChangeDbCharset {
+  min-height: 165px!important;
+}
+
+div.tbl_operations_div div.schemaCopyDbDiv {
+  min-height: 363px!important;
+}
+
+.schemaCopyDbForm {
+  min-height: 363px!important;
+}
+
+form.schemaChangeDbDiv {
+  min-width: 344px!important;
+}
+
+.autocomplete-column-hint {
+  float: none !important;
+}
+
+li.CodeMirror-hint-table-field {
+  color: #05a;
+}
+
+li.CodeMirror-hint-active {
+  color: white;
+}
+
+/*SWITCHED FROM CLASS .table TO CUSTOM CLASS .tblStructure
+  TO ACHIEVE CUSTOM COLOR SETUP OF MULTIPLE TBODY-s IN Structure TABLE
+*/
+.tblStructure {
+  caption-side: top;
+  --bs-table-color: var(--bs-body-color);
+  --bs-table-bg: #fff;
+  --bs-table-border-color: #fff;
+  --bs-table-accent-bg: transparent;
+  --bs-table-striped-color: var(--bs-body-color);
+  --bs-table-striped-bg: #dfdfdf;
+  --bs-table-active-color: var(--bs-body-color);
+  --bs-table-active-bg: rgba(0, 0, 0, 0.1);
+  --bs-table-hover-color: #000;
+  --bs-table-hover-bg: rgba(0, 0, 0, 0.075);
+  margin-bottom: 1rem;
+  color: var(--bs-table-color);
+  vertical-align: top;
+  border-color: var(--bs-table-border-color);
+  width: auto !important;
+}
+
+.tblStructure thead {
+  vertical-align: bottom;
+  border-color: inherit;
+  border-style: solid;
+  border-width: 0;
+}
+
+.tblStructure thead th {
+  background-image: linear-gradient(#fff, #ccc);
+  text-shadow: 0 1px 0 #fff;
+  vertical-align: middle;
+}
+
+.tblStructure tbody:nth-child(odd) {
+  background-color: #dfdfdf !important;
+}
+
+.tblStructure tbody:nth-child(even) {
+  background-color: #FFFFFF !important;
+}
+
+.btn-link {
+  --bs-btn-box-shadow: none !important;
+}
+
+.form-select {
+  -moz-appearance: none;
+}
+
+.px-1 {
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+}

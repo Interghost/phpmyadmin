@@ -147,6 +147,10 @@ class TwoFactor
             $result[] = 'key';
         }
 
+		if (isset($GLOBALS['cfg']['App2FA'])) {
+            $result[] = 'app';
+        }
+
         return $result;
     }
 

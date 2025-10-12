@@ -992,9 +992,9 @@ Sql.checkSavedQuery = function () {
 
     if (isStorageSupported('localStorage') &&
         typeof window.localStorage.getItem(key) === 'string') {
-        Functions.ajaxShowMessage(Messages.strPreviousSaveQuery);
+        //Functions.ajaxShowMessage(Messages.strPreviousSaveQuery);
     } else if (Cookies.get(key)) {
-        Functions.ajaxShowMessage(Messages.strPreviousSaveQuery);
+        //Functions.ajaxShowMessage(Messages.strPreviousSaveQuery);
     }
 };
 
